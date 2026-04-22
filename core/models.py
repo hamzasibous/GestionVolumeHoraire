@@ -17,6 +17,8 @@ class Utilisateur(models.Model):
     motDePasse = models.CharField(max_length=128)
     def __str__(self):
         return f"{self.prenom} {self.nom}"
+    def connecter(self, email, motDePasse):
+        return ""
 
 class Local(models.Model):
     id=models.AutoField(primary_key=True)
@@ -31,8 +33,18 @@ class Filiere(models.Model):
     id=models.AutoField(primary_key=True)
     niveau=models.CharField(max_length=100)
     nom=models.CharField(max_length=100)
+    departement=models.ForeignKey(Departement, on_delete=models.CASCADE)
+    
     def __str__(self):
         return self.nom
+    def get_modules(self):
+        return Module.objects.filter(filiere=self)
+    def getDepartement(self):
+        return self.departement
+    
+    
+
+
 class Module(models.Model):
     id=models.AutoField(primary_key=True)
     nom=models.CharField(max_length=100)
