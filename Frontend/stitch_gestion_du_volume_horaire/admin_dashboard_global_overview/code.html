@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Global Overview - GVH Portal</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                            "primary-fixed": "#cce5ff",
+                            "on-primary-fixed": "#001e31",
+                            "on-primary": "#ffffff",
+                            "on-secondary-fixed-variant": "#693c00",
+                            "tertiary-container": "#7a5c1c",
+                            "surface-container-lowest": "#ffffff",
+                            "outline": "#707880",
+                            "surface-dim": "#dbd9d9",
+                            "on-error": "#ffffff",
+                            "tertiary": "#604403",
+                            "tertiary-fixed": "#ffdea5",
+                            "background": "#fbf9f8",
+                            "surface-container-low": "#f5f3f3",
+                            "primary-container": "#006699",
+                            "on-tertiary-container": "#ffd78d",
+                            "on-surface": "#1b1c1c",
+                            "on-secondary-fixed": "#2c1600",
+                            "on-primary-fixed-variant": "#004b72",
+                            "inverse-on-surface": "#f2f0f0",
+                            "inverse-surface": "#303030",
+                            "on-surface-variant": "#40484f",
+                            "primary": "#004d75",
+                            "surface-bright": "#fbf9f8",
+                            "secondary-container": "#fc9910",
+                            "inverse-primary": "#90cdff",
+                            "secondary": "#8a5100",
+                            "surface-container": "#efeded",
+                            "on-tertiary": "#ffffff",
+                            "primary-fixed-dim": "#90cdff",
+                            "on-background": "#1b1c1c",
+                            "outline-variant": "#c0c7d0",
+                            "secondary-fixed": "#ffdcbd",
+                            "surface-container-highest": "#e4e2e2",
+                            "tertiary-fixed-dim": "#e9c176",
+                            "on-tertiary-fixed-variant": "#5d4201",
+                            "surface-variant": "#e4e2e2",
+                            "on-primary-container": "#bfe0ff",
+                            "surface-container-high": "#eae8e7",
+                            "error-container": "#ffdad6",
+                            "on-secondary": "#ffffff",
+                            "surface": "#fbf9f8",
+                            "error": "#ba1a1a",
+                            "secondary-fixed-dim": "#ffb86e",
+                            "on-tertiary-fixed": "#261900",
+                            "on-secondary-container": "#643900",
+                            "surface-tint": "#006496",
+                            "on-error-container": "#93000a"
+                    },
+                    "borderRadius": {
+                            "DEFAULT": "0.125rem",
+                            "lg": "0.25rem",
+                            "xl": "0.5rem",
+                            "full": "0.75rem"
+                    },
+                    "spacing": {
+                            "sidebar-width": "260px",
+                            "xs": "4px",
+                            "md": "24px",
+                            "base": "8px",
+                            "lg": "40px",
+                            "sm": "12px",
+                            "gutter": "24px"
+                    },
+                    "fontFamily": {
+                            "h2": ["Inter"],
+                            "table-data": ["Inter"],
+                            "h1": ["Inter"],
+                            "body-lg": ["Inter"],
+                            "h3": ["Inter"],
+                            "label-caps": ["Inter"],
+                            "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                            "h2": ["24px", { "lineHeight": "1.3", "fontWeight": "600" }],
+                            "table-data": ["13px", { "lineHeight": "1.4", "fontWeight": "400" }],
+                            "h1": ["32px", { "lineHeight": "1.2", "fontWeight": "700" }],
+                            "body-lg": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                            "h3": ["18px", { "lineHeight": "1.4", "fontWeight": "600" }],
+                            "label-caps": ["12px", { "lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                            "body-md": ["14px", { "lineHeight": "1.5", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background font-body-md text-body-md text-on-background antialiased flex min-h-screen">
+<!-- SideNavBar (Shared Component) -->
+<nav class="fixed left-0 top-0 h-screen w-[260px] bg-slate-900 dark:bg-slate-950 border-r border-slate-800 shadow-xl flex flex-col overflow-y-auto z-40">
+<!-- Header -->
+<div class="px-6 py-8 border-b border-slate-800/50">
+<div class="flex items-center gap-3 mb-2">
+<div class="w-8 h-8 rounded bg-sky-500 flex items-center justify-center">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">account_balance</span>
+</div>
+<h1 class="text-xl font-black tracking-tight text-white">GVH Portal</h1>
+</div>
+<p class="font-inter antialiased text-sm font-medium text-slate-400">Management System</p>
+</div>
+<!-- Main Tabs -->
+<ul class="flex-1 mt-4">
+<!-- Active Tab: Dashboard -->
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-white bg-slate-800 border-l-4 border-orange-500 font-inter antialiased text-sm font-medium active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                    Dashboard
+                </a>
+</li>
+<!-- Inactive Tabs -->
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors font-inter antialiased text-sm font-medium hover:bg-slate-800 transition-all active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">account_tree</span>
+                    Programs
+                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors font-inter antialiased text-sm font-medium hover:bg-slate-800 transition-all active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">groups</span>
+                    Faculty
+                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors font-inter antialiased text-sm font-medium hover:bg-slate-800 transition-all active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">analytics</span>
+                    Forecasting
+                </a>
+</li>
+</ul>
+<!-- Footer Tabs -->
+<ul class="mb-4">
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors font-inter antialiased text-sm font-medium hover:bg-slate-800 transition-all active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">settings</span>
+                    Settings
+                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors font-inter antialiased text-sm font-medium hover:bg-slate-800 transition-all active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">help</span>
+                    Help
+                </a>
+</li>
+</ul>
+</nav>
+<!-- Main Content Wrapper -->
+<div class="flex-1 ml-[260px] flex flex-col min-h-screen">
+<!-- TopAppBar (Shared Component) -->
+<header class="sticky top-0 z-30 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-sm border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 h-16">
+<!-- Left: Brand & Nav -->
+<div class="flex items-center gap-8">
+<div class="text-lg font-bold text-sky-900 dark:text-white tracking-wide font-inter text-sm">Système de Gestion Volume Horaire</div>
+<nav class="hidden md:flex gap-6">
+<a class="text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-300 font-inter text-sm tracking-wide transition-colors" href="#">Directives</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-300 font-inter text-sm tracking-wide transition-colors" href="#">Reports</a>
+</nav>
+</div>
+<!-- Right: Actions & Profile -->
+<div class="flex items-center gap-4">
+<button class="text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-300 transition-colors p-2 rounded-full focus-within:ring-2 focus-within:ring-sky-500">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-300 transition-colors p-2 rounded-full focus-within:ring-2 focus-within:ring-sky-500">
+<span class="material-symbols-outlined">apps</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-slate-200 overflow-hidden ml-2 border border-slate-300">
+<img alt="Administrator Profile" class="w-full h-full object-cover" data-alt="close up professional portrait of a male administrator wearing a collared shirt against a neutral background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAO0_vv-zPr7AMWByoXAAb8eQ_QmdsQpvYCf9rtSr8Hp1sFQkkfDM0DbmeCHCHNJFkBguBJZ7ZhT3dXs34xXV9sYZAvvyRZEl9yqBou1L9XG_muJk8y4Skl0zsYSmBdtm5F56Zz6YIm22JUUEFIJnf7fz0x36Ek__fN7zbi_gZtfpwXbkJo9RaNr3CGHOtFYKw1pnx6DHni0yuecWgBJM0KKLfhcb_wT2u8PO2EXHnJ1DBD3FzEZQHZ-zpFmCMb8eUUpcCXTewHC4Bf"/>
+</div>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="flex-1 p-md lg:p-lg">
+<div class="max-w-[1400px] mx-auto">
+<!-- Page Header -->
+<div class="mb-lg">
+<h1 class="font-h1 text-h1 text-on-surface mb-xs">Global Overview</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Computer Science Department Statistics &amp; Workload</p>
+</div>
+<!-- Bento Grid: Summary Cards -->
+<div class="grid grid-cols-12 gap-gutter mb-lg">
+<!-- Card 1: Total Hourly Volume -->
+<div class="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between">
+<div class="flex justify-between items-start mb-sm">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Total Hourly Volume</span>
+<div class="w-8 h-8 rounded-lg bg-primary-fixed/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">schedule</span>
+</div>
+</div>
+<div>
+<div class="font-h2 text-h2 text-on-surface">14,850 h</div>
+<div class="mt-xs font-body-md text-body-md text-primary flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+                                +4.2% vs last year
+                            </div>
+</div>
+</div>
+<!-- Card 2: Avg Workload -->
+<div class="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between">
+<div class="flex justify-between items-start mb-sm">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Avg Workload / Teacher</span>
+<div class="w-8 h-8 rounded-lg bg-secondary-fixed/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary-container" style="font-variation-settings: 'FILL' 1;">assignment_ind</span>
+</div>
+</div>
+<div>
+<div class="font-h2 text-h2 text-on-surface">215 h</div>
+<div class="mt-xs font-body-md text-body-md text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-sm text-outline">horizontal_rule</span>
+                                Stable workload
+                            </div>
+</div>
+</div>
+<!-- Card 3: Faculty Count -->
+<div class="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between">
+<div class="flex justify-between items-start mb-sm">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Total Faculty Count</span>
+<div class="w-8 h-8 rounded-lg bg-primary-fixed/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">groups</span>
+</div>
+</div>
+<div>
+<div class="font-h2 text-h2 text-on-surface">68</div>
+<div class="mt-xs font-body-md text-body-md text-secondary-container flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">warning</span>
+                                2 pending recruitments
+                            </div>
+</div>
+</div>
+<!-- Card 4: Active Programs -->
+<div class="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between">
+<div class="flex justify-between items-start mb-sm">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Active Programs (Filières)</span>
+<div class="w-8 h-8 rounded-lg bg-tertiary-fixed/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-tertiary-container" style="font-variation-settings: 'FILL' 1;">school</span>
+</div>
+</div>
+<div>
+<div class="font-h2 text-h2 text-on-surface">12</div>
+<div class="mt-xs font-body-md text-body-md text-on-surface-variant flex items-center gap-1">
+                                Across 3 degrees
+                            </div>
+</div>
+</div>
+</div>
+<!-- Chart & Data Table Section -->
+<div class="grid grid-cols-12 gap-gutter">
+<!-- Chart Module (Left) -->
+<div class="col-span-12 lg:col-span-5 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col">
+<div class="mb-md">
+<h3 class="font-h3 text-h3 text-on-surface">Hourly Breakdown by Type</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Distribution of total volume</p>
+</div>
+<!-- Visual Chart Area (CSS implementation) -->
+<div class="flex-1 flex flex-col justify-center py-lg">
+<div class="w-full h-8 rounded-full overflow-hidden flex bg-surface-container shadow-inner mb-md border border-outline-variant/30">
+<div class="bg-primary h-full" style="width: 45%;" title="CM: 45%"></div>
+<div class="bg-secondary-container h-full" style="width: 35%;" title="TD: 35%"></div>
+<div class="bg-tertiary-container h-full" style="width: 20%;" title="TP: 20%"></div>
+</div>
+<!-- Legend -->
+<div class="flex flex-col gap-sm mt-4 px-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-sm bg-primary"></span>
+<span class="font-body-md text-body-md text-on-surface">Cours Magistraux (CM)</span>
+</div>
+<span class="font-h3 text-h3 text-on-surface">45%</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-sm bg-secondary-container"></span>
+<span class="font-body-md text-body-md text-on-surface">Travaux Dirigés (TD)</span>
+</div>
+<span class="font-h3 text-h3 text-on-surface">35%</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-sm bg-tertiary-container"></span>
+<span class="font-body-md text-body-md text-on-surface">Travaux Pratiques (TP)</span>
+</div>
+<span class="font-h3 text-h3 text-on-surface">20%</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Data Table Module (Right) -->
+<div class="col-span-12 lg:col-span-7 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
+<div class="p-md border-b border-outline-variant flex justify-between items-center bg-surface">
+<div>
+<h3 class="font-h3 text-h3 text-on-surface">Current Filières</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Detailed status and allocated hours</p>
+</div>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-lowest border-b border-outline-variant">
+<tr>
+<th class="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Program Name</th>
+<th class="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Level</th>
+<th class="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Total Hours</th>
+<th class="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-center">Status</th>
+</tr>
+</thead>
+<tbody class="font-table-data text-table-data text-on-surface">
+<tr class="h-[48px] border-b border-outline-variant even:bg-surface-container-low hover:bg-surface-container transition-colors">
+<td class="py-sm px-md font-medium">Licence Informatique</td>
+<td class="py-sm px-md text-on-surface-variant">L1 - L3</td>
+<td class="py-sm px-md text-right font-medium">4,200</td>
+<td class="py-sm px-md text-center">
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-primary-fixed text-on-primary-fixed text-xs font-semibold">Validated</span>
+</td>
+</tr>
+<tr class="h-[48px] border-b border-outline-variant even:bg-surface-container-low hover:bg-surface-container transition-colors">
+<td class="py-sm px-md font-medium">Master Génie Logiciel</td>
+<td class="py-sm px-md text-on-surface-variant">M1 - M2</td>
+<td class="py-sm px-md text-right font-medium">2,850</td>
+<td class="py-sm px-md text-center">
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-primary-fixed text-on-primary-fixed text-xs font-semibold">Validated</span>
+</td>
+</tr>
+<tr class="h-[48px] border-b border-outline-variant even:bg-surface-container-low hover:bg-surface-container transition-colors">
+<td class="py-sm px-md font-medium">Master IA &amp; Data Science</td>
+<td class="py-sm px-md text-on-surface-variant">M1 - M2</td>
+<td class="py-sm px-md text-right font-medium">3,100</td>
+<td class="py-sm px-md text-center">
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed text-xs font-semibold">In Review</span>
+</td>
+</tr>
+<tr class="h-[48px] border-b border-outline-variant even:bg-surface-container-low hover:bg-surface-container transition-colors">
+<td class="py-sm px-md font-medium">Licence Pro Sécurité</td>
+<td class="py-sm px-md text-on-surface-variant">L3</td>
+<td class="py-sm px-md text-right font-medium">1,200</td>
+<td class="py-sm px-md text-center">
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-primary-fixed text-on-primary-fixed text-xs font-semibold">Validated</span>
+</td>
+</tr>
+<tr class="h-[48px] border-b border-outline-variant even:bg-surface-container-low hover:bg-surface-container transition-colors">
+<td class="py-sm px-md font-medium">Master Réseaux</td>
+<td class="py-sm px-md text-on-surface-variant">M1 - M2</td>
+<td class="py-sm px-md text-right font-medium">2,400</td>
+<td class="py-sm px-md text-center">
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-surface-variant text-on-surface-variant border border-outline-variant text-xs font-semibold">Draft</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-sm bg-surface text-center border-t border-outline-variant">
+<a class="font-body-md text-body-md text-primary hover:text-primary-container font-medium transition-colors" href="#">View All Programs</a>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

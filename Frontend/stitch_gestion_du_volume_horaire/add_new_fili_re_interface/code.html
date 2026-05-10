@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Create New Filière - Academic Excellence Portal</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-variant": "#e4e2e2",
+                      "surface-tint": "#006496",
+                      "on-tertiary": "#ffffff",
+                      "tertiary-fixed-dim": "#e9c176",
+                      "secondary-fixed-dim": "#ffb86e",
+                      "on-surface-variant": "#40484f",
+                      "error": "#ba1a1a",
+                      "on-error-container": "#93000a",
+                      "surface-dim": "#dbd9d9",
+                      "on-primary": "#ffffff",
+                      "surface-container-low": "#f5f3f3",
+                      "tertiary-container": "#7a5c1c",
+                      "tertiary-fixed": "#ffdea5",
+                      "primary": "#004d75",
+                      "outline-variant": "#c0c7d0",
+                      "on-primary-fixed-variant": "#004b72",
+                      "on-error": "#ffffff",
+                      "on-primary-fixed": "#001e31",
+                      "surface-container-lowest": "#ffffff",
+                      "on-secondary": "#ffffff",
+                      "inverse-surface": "#303030",
+                      "inverse-on-surface": "#f2f0f0",
+                      "on-tertiary-container": "#ffd78d",
+                      "surface": "#fbf9f8",
+                      "on-tertiary-fixed-variant": "#5d4201",
+                      "tertiary": "#604403",
+                      "surface-container-high": "#eae8e7",
+                      "on-secondary-container": "#643900",
+                      "inverse-primary": "#90cdff",
+                      "on-secondary-fixed-variant": "#693c00",
+                      "background": "#fbf9f8",
+                      "outline": "#707880",
+                      "surface-bright": "#fbf9f8",
+                      "secondary-container": "#fc9910",
+                      "on-secondary-fixed": "#2c1600",
+                      "on-surface": "#1b1c1c",
+                      "primary-fixed": "#cce5ff",
+                      "surface-container-highest": "#e4e2e2",
+                      "on-background": "#1b1c1c",
+                      "surface-container": "#efeded",
+                      "on-tertiary-fixed": "#261900",
+                      "secondary": "#8a5100",
+                      "on-primary-container": "#bfe0ff",
+                      "primary-container": "#006699",
+                      "secondary-fixed": "#ffdcbd",
+                      "primary-fixed-dim": "#90cdff",
+                      "error-container": "#ffdad6"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "sm": "12px",
+                      "md": "24px",
+                      "sidebar-width": "260px",
+                      "xs": "4px",
+                      "lg": "40px",
+                      "base": "8px",
+                      "gutter": "24px"
+              },
+              "fontFamily": {
+                      "table-data": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "h2": ["Inter"],
+                      "h3": ["Inter"],
+                      "body-md": ["Inter"],
+                      "label-caps": ["Inter"],
+                      "h1": ["Inter"]
+              },
+              "fontSize": {
+                      "table-data": ["13px", {"lineHeight": "1.4", "fontWeight": "400"}],
+                      "body-lg": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                      "h2": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                      "h3": ["18px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                      "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                      "label-caps": ["12px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                      "h1": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+          font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md h-screen w-full flex overflow-hidden selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar (Shared Component JSON logic applied) -->
+<nav class="fixed left-0 top-0 h-screen w-[260px] z-50 bg-slate-900 dark:bg-black border-r border-slate-800 shadow-xl flex flex-col py-6 hidden md:flex">
+<!-- Header -->
+<div class="px-6 mb-8 flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
+<span class="material-symbols-outlined text-orange-500 fill text-2xl">school</span>
+</div>
+<div>
+<h1 class="text-lg font-black text-white uppercase tracking-tight leading-tight">Université Excellence</h1>
+<p class="font-['Inter'] text-sm tracking-wide text-slate-400">Academic Management</p>
+</div>
+</div>
+<!-- Navigation Links -->
+<ul class="flex flex-col gap-1 px-2 w-full mt-4">
+<!-- Dashboard -->
+<li>
+<a class="text-slate-400 flex items-center px-4 py-3 hover:text-white group cursor-pointer hover:bg-slate-800 transition-all duration-200 rounded-lg mx-2" href="#">
+<span class="material-symbols-outlined mr-3 text-[20px] group-hover:text-orange-500 transition-colors">dashboard</span>
+<span class="font-['Inter'] text-sm tracking-wide">Dashboard</span>
+</a>
+</li>
+<!-- Filières (ACTIVE STATE) -->
+<li>
+<a class="bg-blue-800/50 text-white border-l-4 border-orange-500 flex items-center px-4 py-3 font-semibold group cursor-pointer hover:bg-slate-800 transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3 text-[20px] text-orange-500">school</span>
+<span class="font-['Inter'] text-sm tracking-wide">Filières</span>
+</a>
+</li>
+<!-- Étudiants -->
+<li>
+<a class="text-slate-400 flex items-center px-4 py-3 hover:text-white group cursor-pointer hover:bg-slate-800 transition-all duration-200 rounded-lg mx-2" href="#">
+<span class="material-symbols-outlined mr-3 text-[20px] group-hover:text-orange-500 transition-colors">group</span>
+<span class="font-['Inter'] text-sm tracking-wide">Étudiants</span>
+</a>
+</li>
+<!-- Professeurs -->
+<li>
+<a class="text-slate-400 flex items-center px-4 py-3 hover:text-white group cursor-pointer hover:bg-slate-800 transition-all duration-200 rounded-lg mx-2" href="#">
+<span class="material-symbols-outlined mr-3 text-[20px] group-hover:text-orange-500 transition-colors">person</span>
+<span class="font-['Inter'] text-sm tracking-wide">Professeurs</span>
+</a>
+</li>
+<!-- Emplois du Temps -->
+<li>
+<a class="text-slate-400 flex items-center px-4 py-3 hover:text-white group cursor-pointer hover:bg-slate-800 transition-all duration-200 rounded-lg mx-2" href="#">
+<span class="material-symbols-outlined mr-3 text-[20px] group-hover:text-orange-500 transition-colors">calendar_today</span>
+<span class="font-['Inter'] text-sm tracking-wide">Emplois du Temps</span>
+</a>
+</li>
+<!-- Paramètres -->
+<li>
+<a class="text-slate-400 flex items-center px-4 py-3 hover:text-white group cursor-pointer hover:bg-slate-800 transition-all duration-200 rounded-lg mx-2 mt-4" href="#">
+<span class="material-symbols-outlined mr-3 text-[20px] group-hover:text-orange-500 transition-colors">settings</span>
+<span class="font-['Inter'] text-sm tracking-wide">Paramètres</span>
+</a>
+</li>
+</ul>
+</nav>
+<!-- Main Content Wrapper -->
+<div class="flex-1 flex flex-col min-w-0 md:ml-[260px] relative">
+<!-- TopAppBar (Shared Component JSON logic applied) -->
+<header class="docked full-width top-0 z-40 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flat no shadows flex justify-between items-center w-full px-6 h-16 shrink-0">
+<!-- Left Side (Search Bar Logic - 'on_left' implied context) -->
+<div class="flex items-center flex-1">
+<div class="relative w-full max-w-md hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-full text-sm focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition-all text-slate-700 placeholder-slate-400" placeholder="Search resources..." type="text"/>
+</div>
+</div>
+<!-- Center Brand (Optional depending on layout, usually hidden if sidebar exists, but explicitly requested in JSON) -->
+<div class="flex-1 flex justify-center items-center md:hidden">
+<h2 class="text-xl font-bold text-blue-900 dark:text-white tracking-tight">EduAdmin Portal</h2>
+</div>
+<!-- Right Side (Trailing Icons & Profile) -->
+<div class="flex items-center gap-2 flex-1 justify-end">
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer active:opacity-80">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+</button>
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer active:opacity-80">
+<span class="material-symbols-outlined text-[20px]">help</span>
+</button>
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer active:opacity-80">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+</button>
+<div class="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-2"></div>
+<button class="flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 p-1.5 rounded-full transition-colors cursor-pointer active:opacity-80">
+<img alt="Administrator Profile" class="w-8 h-8 rounded-full border border-slate-200 object-cover" data-alt="professional headshot of an administrator in a well-lit office" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCSxAFmAp-547YzdTOV_c6RK7EuF5Iz6ysqSPRiN_khjIbSIpEr_jd102imd_uG0CPXItzGk7-ICFBTzerMEBRclSKrV_fLfPnktdOu1I2GmDcK_q7lAuC8GcXHM2381-9rdS9QDxjVHRRnpUc9WT2X4y3Ju6yAe3eEpYlRxwb4NF3eGnYCBdx8j26xf9XAJSVmVOslod0jCKpnVy9qlTNKYBHSBbF2_YXO8816o4o115UslNokijTT4vTBkdA12vlasezTPUHTg2Rm"/>
+</button>
+</div>
+</header>
+<!-- Canvas -->
+<main class="flex-1 overflow-y-auto bg-surface p-6 lg:p-10">
+<div class="max-w-5xl mx-auto flex flex-col gap-8">
+<!-- Page Header -->
+<div>
+<div class="flex items-center gap-2 text-sm text-outline mb-2 font-table-data">
+<a class="hover:text-primary transition-colors" href="#">Filières</a>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+<span class="text-on-surface">New Program Entry</span>
+</div>
+<div class="flex items-center justify-between">
+<h1 class="font-h1 text-h1 text-on-surface tracking-tight">Create New Filière</h1>
+<span class="bg-surface-variant text-on-surface-variant px-3 py-1 rounded-full font-label-caps text-label-caps border border-outline-variant">Draft Mode</span>
+</div>
+<p class="font-body-lg text-body-lg text-on-surface-variant mt-2 max-w-2xl">Define the core structure, academic level, and administrative department for the new academic program.</p>
+</div>
+<!-- Multi-Step Stepper Component -->
+<div class="w-full relative py-4">
+<div class="absolute top-1/2 left-0 w-full h-0.5 bg-surface-variant -z-10 -translate-y-1/2 rounded-full"></div>
+<div class="absolute top-1/2 left-0 w-1/3 h-0.5 bg-primary -z-10 -translate-y-1/2 rounded-full"></div>
+<ul class="flex justify-between items-center w-full relative z-0">
+<!-- Step 1: Active -->
+<li class="flex flex-col items-center gap-2 bg-surface px-2">
+<div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm border-2 border-surface">
+<span class="font-label-caps text-label-caps">01</span>
+</div>
+<span class="font-h3 text-sm text-on-surface whitespace-nowrap">General Info</span>
+</li>
+<!-- Step 2: Inactive -->
+<li class="flex flex-col items-center gap-2 bg-surface px-2 opacity-60">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center border-2 border-surface">
+<span class="font-label-caps text-label-caps">02</span>
+</div>
+<span class="font-body-md text-sm text-on-surface-variant whitespace-nowrap">Modules Selection</span>
+</li>
+<!-- Step 3: Inactive -->
+<li class="flex flex-col items-center gap-2 bg-surface px-2 opacity-60">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center border-2 border-surface">
+<span class="font-label-caps text-label-caps">03</span>
+</div>
+<span class="font-body-md text-sm text-on-surface-variant whitespace-nowrap">Review &amp; Publish</span>
+</li>
+</ul>
+</div>
+<!-- Main Content Area: Bento Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<!-- Form Container (Spans 2 columns) -->
+<div class="lg:col-span-2 bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden flex flex-col">
+<div class="px-6 py-5 border-b border-surface-variant bg-surface-bright flex items-center gap-3">
+<span class="material-symbols-outlined text-primary-container">info</span>
+<h2 class="font-h3 text-h3 text-on-surface">Program Details</h2>
+</div>
+<div class="p-6 flex-1 flex flex-col gap-6">
+<!-- Field: Program Title -->
+<div class="flex flex-col gap-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider" for="program-title">Program Title <span class="text-error">*</span></label>
+<input class="w-full px-4 py-3 bg-surface-bright border border-outline-variant rounded-lg font-body-lg text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors placeholder:text-outline/60" id="program-title" placeholder="e.g., Licence Informatique" type="text"/>
+<p class="font-table-data text-table-data text-outline text-xs">The official name of the degree program as it will appear on transcripts.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- Field: Academic Level -->
+<div class="flex flex-col gap-2 relative">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider" for="academic-level">Academic Level <span class="text-error">*</span></label>
+<div class="relative">
+<select class="appearance-none w-full px-4 py-3 bg-surface-bright border border-outline-variant rounded-lg font-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors cursor-pointer" id="academic-level">
+<option disabled="" selected="" value="">Select Level...</option>
+<option value="L1">Licence 1 (L1)</option>
+<option value="L2">Licence 2 (L2)</option>
+<option value="L3">Licence 3 (L3)</option>
+<option value="M1">Master 1 (M1)</option>
+<option value="M2">Master 2 (M2)</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none">arrow_drop_down</span>
+</div>
+</div>
+<!-- Field: Department -->
+<div class="flex flex-col gap-2 relative">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider" for="department">Department <span class="text-error">*</span></label>
+<div class="relative">
+<select class="appearance-none w-full px-4 py-3 bg-surface-bright border border-outline-variant rounded-lg font-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors cursor-pointer" id="department">
+<option disabled="" selected="" value="">Assign to Department...</option>
+<option value="cs">Computer Science &amp; IT</option>
+<option value="math">Mathematics</option>
+<option value="physics">Physics &amp; Engineering</option>
+<option value="business">Business Administration</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none">arrow_drop_down</span>
+</div>
+</div>
+</div>
+<!-- Field: Description (Optional addition for realism) -->
+<div class="flex flex-col gap-2 mt-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider" for="description">Program Description (Optional)</label>
+<textarea class="w-full px-4 py-3 bg-surface-bright border border-outline-variant rounded-lg font-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors resize-none placeholder:text-outline/60" id="description" placeholder="Brief overview of the program objectives..." rows="3"></textarea>
+</div>
+</div>
+</div>
+<!-- Right Side Panel: Settings & Summary (Bento block) -->
+<div class="flex flex-col gap-6">
+<!-- Metadata Card -->
+<div class="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm p-6">
+<h3 class="font-h3 text-h3 text-on-surface mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-outline text-[20px]">settings_suggest</span>
+                                Configuration
+                            </h3>
+<div class="flex items-center justify-between py-3 border-b border-surface-variant">
+<div class="flex flex-col">
+<span class="font-body-md font-medium text-on-surface">Status</span>
+<span class="font-table-data text-xs text-on-surface-variant">Visibility state</span>
+</div>
+<span class="bg-surface-container text-on-surface px-2 py-1 rounded text-xs font-label-caps border border-outline-variant">Draft</span>
+</div>
+<div class="flex items-center justify-between py-3 border-b border-surface-variant">
+<div class="flex flex-col">
+<span class="font-body-md font-medium text-on-surface">Total Credits</span>
+<span class="font-table-data text-xs text-on-surface-variant">Required ECTS</span>
+</div>
+<span class="text-on-surface font-h3">60 <span class="text-outline text-sm font-normal">/ yr</span></span>
+</div>
+<div class="flex items-center justify-between py-3">
+<div class="flex flex-col">
+<span class="font-body-md font-medium text-on-surface">Capacity</span>
+<span class="font-table-data text-xs text-on-surface-variant">Max enrollment</span>
+</div>
+<div class="w-20">
+<input class="w-full px-2 py-1 text-right bg-surface border border-outline-variant rounded font-body-md focus:border-primary focus:ring-0" type="number" value="120"/>
+</div>
+</div>
+</div>
+<!-- Info/Help Card -->
+<div class="bg-primary-fixed bg-opacity-30 border border-primary-fixed-dim rounded-xl p-5 flex items-start gap-3">
+<span class="material-symbols-outlined text-primary-container mt-0.5">lightbulb</span>
+<div>
+<h4 class="font-body-md font-semibold text-on-primary-fixed">Next Step Preview</h4>
+<p class="font-table-data text-on-primary-fixed-variant mt-1 leading-relaxed">In the next step, you will be able to search the global catalog to attach existing modules or define new specialized courses for this program.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Action Footer -->
+<div class="mt-4 flex items-center justify-between border-t border-surface-variant pt-6 pb-12">
+<button class="px-6 py-2.5 rounded-lg font-label-caps text-label-caps text-on-surface-variant border border-outline-variant hover:bg-surface-variant transition-colors flex items-center gap-2" type="button">
+<span class="material-symbols-outlined text-[18px]">arrow_back</span>
+                        Cancel
+                    </button>
+<button class="px-8 py-2.5 rounded-lg bg-secondary-container text-on-secondary-container font-label-caps text-label-caps hover:bg-opacity-90 transition-colors shadow-sm flex items-center gap-2" type="button">
+                        Proceed to Modules
+                        <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</main>
+</div>
+</body></html>
