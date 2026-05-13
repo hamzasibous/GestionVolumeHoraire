@@ -1,5 +1,20 @@
 import React from 'react';
 
+interface FiliereData {
+  name: string;
+  level: string;
+  totalHours: number;
+  status: 'Validated' | 'In Review' | 'Draft';
+}
+
+const mockFilieres: FiliereData[] = [
+  { name: 'Licence Informatique', level: 'L1 - L3', totalHours: 4200, status: 'Validated' },
+  { name: 'Master Génie Logiciel', level: 'M1 - M2', totalHours: 2850, status: 'Validated' },
+  { name: 'Master IA & Data Science', level: 'M1 - M2', totalHours: 3100, status: 'In Review' },
+  { name: 'Licence Pro Sécurité', level: 'L3', totalHours: 1200, status: 'Validated' },
+  { name: 'Master Réseaux', level: 'M1 - M2', totalHours: 2400, status: 'Draft' },
+];
+
 const Dashboard: React.FC = () => {
   return (
     <div className="max-w-[1400px] mx-auto">
@@ -12,7 +27,7 @@ const Dashboard: React.FC = () => {
       {/* Bento Grid: Summary Cards */}
       <div className="grid grid-cols-12 gap-gutter mb-lg">
         {/* Card 1: Total Hourly Volume */}
-        <div className="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between">
+        <div className="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between shadow-sm">
           <div className="flex justify-between items-start mb-sm">
             <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Total Hourly Volume</span>
             <div className="w-8 h-8 rounded-lg bg-primary-fixed/20 flex items-center justify-center">
@@ -29,7 +44,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Card 2: Avg Workload */}
-        <div className="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between">
+        <div className="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between shadow-sm">
           <div className="flex justify-between items-start mb-sm">
             <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Avg Workload / Teacher</span>
             <div className="w-8 h-8 rounded-lg bg-secondary-fixed/20 flex items-center justify-center">
@@ -46,7 +61,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Card 3: Faculty Count */}
-        <div className="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between">
+        <div className="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between shadow-sm">
           <div className="flex justify-between items-start mb-sm">
             <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Total Faculty Count</span>
             <div className="w-8 h-8 rounded-lg bg-primary-fixed/20 flex items-center justify-center">
@@ -63,7 +78,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Card 4: Active Programs */}
-        <div className="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between">
+        <div className="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between shadow-sm">
           <div className="flex justify-between items-start mb-sm">
             <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Active Programs (Filières)</span>
             <div className="w-8 h-8 rounded-lg bg-tertiary-fixed/20 flex items-center justify-center">
@@ -73,7 +88,7 @@ const Dashboard: React.FC = () => {
           <div>
             <div className="font-h2 text-h2 text-on-surface">12</div>
             <div className="mt-xs font-body-md text-body-md text-on-surface-variant flex items-center gap-1">
-              Across 3 degrees
+              Across 2 degrees
             </div>
           </div>
         </div>
@@ -82,7 +97,7 @@ const Dashboard: React.FC = () => {
       {/* Chart & Data Table Section */}
       <div className="grid grid-cols-12 gap-gutter">
         {/* Chart Module (Left) */}
-        <div className="col-span-12 lg:col-span-5 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col">
+        <div className="col-span-12 lg:col-span-5 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col shadow-sm">
           <div className="mb-md">
             <h3 className="font-h3 text-h3 text-on-surface">Hourly Breakdown by Type</h3>
             <p className="font-body-md text-body-md text-on-surface-variant">Distribution of total volume</p>
@@ -122,15 +137,12 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Data Table Module (Right) */}
-        <div className="col-span-12 lg:col-span-7 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
+        <div className="col-span-12 lg:col-span-7 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col shadow-sm">
           <div className="p-md border-b border-outline-variant flex justify-between items-center bg-surface">
             <div>
               <h3 className="font-h3 text-h3 text-on-surface">Current Filières</h3>
               <p className="font-body-md text-body-md text-on-surface-variant">Detailed status and allocated hours</p>
             </div>
-            <button className="p-2 text-on-surface-variant hover:bg-surface-container-high rounded transition-colors">
-              <span className="material-symbols-outlined">more_vert</span>
-            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -143,46 +155,22 @@ const Dashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="font-table-data text-table-data text-on-surface">
-                <tr className="h-[48px] border-b border-outline-variant even:bg-surface-container-low hover:bg-surface-container transition-colors">
-                  <td className="py-sm px-md font-medium">Licence Informatique</td>
-                  <td className="py-sm px-md text-on-surface-variant">L1 - L3</td>
-                  <td className="py-sm px-md text-right font-medium">4,200</td>
-                  <td className="py-sm px-md text-center">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-primary-fixed text-on-primary-fixed text-xs font-semibold">Validated</span>
-                  </td>
-                </tr>
-                <tr className="h-[48px] border-b border-outline-variant even:bg-surface-container-low hover:bg-surface-container transition-colors">
-                  <td className="py-sm px-md font-medium">Master Génie Logiciel</td>
-                  <td className="py-sm px-md text-on-surface-variant">M1 - M2</td>
-                  <td className="py-sm px-md text-right font-medium">2,850</td>
-                  <td className="py-sm px-md text-center">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-primary-fixed text-on-primary-fixed text-xs font-semibold">Validated</span>
-                  </td>
-                </tr>
-                <tr className="h-[48px] border-b border-outline-variant even:bg-surface-container-low hover:bg-surface-container transition-colors">
-                  <td className="py-sm px-md font-medium">Master IA & Data Science</td>
-                  <td className="py-sm px-md text-on-surface-variant">M1 - M2</td>
-                  <td className="py-sm px-md text-right font-medium">3,100</td>
-                  <td className="py-sm px-md text-center">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed text-xs font-semibold">In Review</span>
-                  </td>
-                </tr>
-                <tr className="h-[48px] border-b border-outline-variant even:bg-surface-container-low hover:bg-surface-container transition-colors">
-                  <td className="py-sm px-md font-medium">Licence Pro Sécurité</td>
-                  <td className="py-sm px-md text-on-surface-variant">L3</td>
-                  <td className="py-sm px-md text-right font-medium">1,200</td>
-                  <td className="py-sm px-md text-center">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-primary-fixed text-on-primary-fixed text-xs font-semibold">Validated</span>
-                  </td>
-                </tr>
-                <tr className="h-[48px] border-b border-outline-variant even:bg-surface-container-low hover:bg-surface-container transition-colors">
-                  <td className="py-sm px-md font-medium">Master Réseaux</td>
-                  <td className="py-sm px-md text-on-surface-variant">M1 - M2</td>
-                  <td className="py-sm px-md text-right font-medium">2,400</td>
-                  <td className="py-sm px-md text-center">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-surface-variant text-on-surface-variant border border-outline-variant text-xs font-semibold">Draft</span>
-                  </td>
-                </tr>
+                {mockFilieres.map((filiere, index) => (
+                  <tr key={index} className="h-[48px] border-b border-outline-variant even:bg-surface-container-low hover:bg-surface-container transition-colors">
+                    <td className="py-sm px-md font-medium">{filiere.name}</td>
+                    <td className="py-sm px-md text-on-surface-variant">{filiere.level}</td>
+                    <td className="py-sm px-md text-right font-medium">{filiere.totalHours.toLocaleString()}</td>
+                    <td className="py-sm px-md text-center">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
+                        filiere.status === 'Validated' ? 'bg-primary-fixed text-on-primary-fixed' :
+                        filiere.status === 'In Review' ? 'bg-secondary-fixed text-on-secondary-fixed' :
+                        'bg-surface-variant text-on-surface-variant border border-outline-variant'
+                      }`}>
+                        {filiere.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

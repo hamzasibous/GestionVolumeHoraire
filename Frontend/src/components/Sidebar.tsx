@@ -14,89 +14,89 @@ const Sidebar: React.FC = () => {
           <div className="w-8 h-8 rounded bg-sky-500 flex items-center justify-center">
             <span className="material-symbols-outlined text-white" style={{ fontVariationSettings: "'FILL' 1" }}>account_balance</span>
           </div>
-          <h1 className="text-xl font-black tracking-tight text-white">GVH Portal</h1>
+          <h1 className="text-xl font-black tracking-tight text-white uppercase tracking-tighter">GVH Portal</h1>
         </div>
-        <p className="font-inter antialiased text-sm font-medium text-slate-400">Management System</p>
+        <p className="font-inter antialiased text-[10px] font-bold text-slate-400 uppercase tracking-widest opacity-60">Management System</p>
       </div>
       {/* Main Tabs */}
-      <ul className="flex-1 mt-4">
+      <ul className="flex-1 mt-4 space-y-1">
         <li>
           <Link
             to="/"
-            className={`flex items-center gap-3 px-4 py-3 font-inter antialiased text-sm font-medium transition-transform active:scale-95 ${
+            className={`flex items-center gap-3 px-6 py-3 font-inter antialiased text-xs font-bold uppercase tracking-widest transition-all active:scale-95 ${
               isActive('/') ? 'text-white bg-slate-800 border-l-4 border-orange-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
             }`}
           >
-            <span className="material-symbols-outlined">dashboard</span>
+            <span className="material-symbols-outlined text-sm">dashboard</span>
             Dashboard
           </Link>
         </li>
         <li>
           <Link
             to="/programs"
-            className={`flex items-center gap-3 px-4 py-3 font-inter antialiased text-sm font-medium transition-transform active:scale-95 ${
-              isActive('/programs') ? 'text-white bg-slate-800 border-l-4 border-orange-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            className={`flex items-center gap-3 px-6 py-3 font-inter antialiased text-xs font-bold uppercase tracking-widest transition-all active:scale-95 ${
+              isActive('/programs') || location.pathname.startsWith('/programs/') ? 'text-white bg-slate-800 border-l-4 border-orange-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
             }`}
           >
-            <span className="material-symbols-outlined">account_tree</span>
+            <span className="material-symbols-outlined text-sm">account_tree</span>
             Programs
           </Link>
         </li>
         <li>
           <Link
             to="/faculty"
-            className={`flex items-center gap-3 px-4 py-3 font-inter antialiased text-sm font-medium transition-transform active:scale-95 ${
+            className={`flex items-center gap-3 px-6 py-3 font-inter antialiased text-xs font-bold uppercase tracking-widest transition-all active:scale-95 ${
               isActive('/faculty') ? 'text-white bg-slate-800 border-l-4 border-orange-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
             }`}
           >
-            <span className="material-symbols-outlined">groups</span>
+            <span className="material-symbols-outlined text-sm">groups</span>
             Faculty
           </Link>
         </li>
         <li>
           <Link
             to="/forecasting"
-            className={`flex items-center gap-3 px-4 py-3 font-inter antialiased text-sm font-medium transition-transform active:scale-95 ${
+            className={`flex items-center gap-3 px-6 py-3 font-inter antialiased text-xs font-bold uppercase tracking-widest transition-all active:scale-95 ${
               isActive('/forecasting') ? 'text-white bg-slate-800 border-l-4 border-orange-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
             }`}
           >
-            <span className="material-symbols-outlined">analytics</span>
+            <span className="material-symbols-outlined text-sm">analytics</span>
             Forecasting
           </Link>
         </li>
         <li>
           <Link
             to="/consultation"
-            className={`flex items-center gap-3 px-4 py-3 font-inter antialiased text-sm font-medium transition-transform active:scale-95 ${
+            className={`flex items-center gap-3 px-6 py-3 font-inter antialiased text-xs font-bold uppercase tracking-widest transition-all active:scale-95 ${
               isActive('/consultation') ? 'text-white bg-slate-800 border-l-4 border-orange-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
             }`}
           >
-            <span className="material-symbols-outlined">person</span>
+            <span className="material-symbols-outlined text-sm">person</span>
             My Workload
           </Link>
         </li>
       </ul>
       {/* Footer Tabs */}
-      <ul className="mb-4">
+      <ul className="mb-4 border-t border-slate-800/50 pt-4">
         <li>
           <Link
             to="/settings"
-            className={`flex items-center gap-3 px-4 py-3 font-inter antialiased text-sm font-medium transition-transform active:scale-95 ${
+            className={`flex items-center gap-3 px-6 py-3 font-inter antialiased text-xs font-bold uppercase tracking-widest transition-all active:scale-95 ${
               isActive('/settings') ? 'text-white bg-slate-800 border-l-4 border-orange-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
             }`}
           >
-            <span className="material-symbols-outlined">settings</span>
+            <span className="material-symbols-outlined text-sm">settings</span>
             Settings
           </Link>
         </li>
         <li>
           <Link
             to="/help"
-            className={`flex items-center gap-3 px-4 py-3 font-inter antialiased text-sm font-medium transition-transform active:scale-95 ${
+            className={`flex items-center gap-3 px-6 py-3 font-inter antialiased text-xs font-bold uppercase tracking-widest transition-all active:scale-95 ${
               isActive('/help') ? 'text-white bg-slate-800 border-l-4 border-orange-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
             }`}
           >
-            <span className="material-symbols-outlined">help</span>
+            <span className="material-symbols-outlined text-sm">help</span>
             Help
           </Link>
         </li>
