@@ -7,14 +7,16 @@ interface TimetableSlot {
   endTime: string;
   module: string;
   room: string;
+  type: string;
+  totalSessions: number;
   color: string;
 }
 
 const initialSlots: TimetableSlot[] = [
-  { id: '1', day: 'Lundi', startTime: '08:30', endTime: '10:30', module: 'ARCH ORDIN', room: 'BL8.3', color: 'bg-secondary-container/20 border-secondary text-on-secondary-container' },
-  { id: '2', day: 'Mardi', startTime: '08:30', endTime: '10:30', module: 'PROG LANG C', room: 'AMPHI E', color: 'bg-primary-container/10 border-primary text-primary' },
-  { id: '3', day: 'Mercredi', startTime: '14:30', endTime: '16:30', module: 'PROG OBJ', room: 'AMPHI H', color: 'bg-secondary-container/20 border-secondary text-on-secondary-container' },
-  { id: '4', day: 'Jeudi', startTime: '10:45', endTime: '12:45', module: 'PROBA STAT', room: 'BL9.4', color: 'bg-tertiary-container/20 border-tertiary text-on-tertiary-container' },
+  { id: '1', day: 'Lundi', startTime: '08:30', endTime: '10:30', module: 'ARCH ORDIN', room: 'BL8.3', type: 'Cours', totalSessions: 12, color: 'bg-secondary-container/20 border-secondary text-on-secondary-container' },
+  { id: '2', day: 'Mardi', startTime: '08:30', endTime: '10:30', module: 'PROG LANG C', room: 'AMPHI E', type: 'TD', totalSessions: 8, color: 'bg-primary-container/10 border-primary text-primary' },
+  { id: '3', day: 'Mercredi', startTime: '14:30', endTime: '16:30', module: 'PROG OBJ', room: 'AMPHI H', type: 'TP', totalSessions: 6, color: 'bg-secondary-container/20 border-secondary text-on-secondary-container' },
+  { id: '4', day: 'Jeudi', startTime: '10:45', endTime: '12:45', module: 'PROBA STAT', room: 'BL9.4', type: 'Cours', totalSessions: 14, color: 'bg-tertiary-container/20 border-tertiary text-on-tertiary-container' },
 ];
 
 const days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
@@ -44,30 +46,62 @@ const Timetable: React.FC = () => {
   
   const [formData, setFormData] = useState({
     module: '',
-    room: ''
+    room: '',
+    type: 'Cours',
+    customTime: '',
+    totalSessions: 18
   });
 
+  const totalPlannedHours = slots.length * 2; 
+
   const handleCellClick = (day: string, config: TimeConfig) => {
+    const defaultTime = `${config.label} - ${config.end}`;
     setSelectedCell({ day, time: config.label, endTime: config.end });
-    setFormData({ module: '', room: '' });
+    setFormData({ 
+      module: '', 
+      room: '', 
+      type: 'Cours',
+      customTime: defaultTime,
+      totalSessions: 18
+    });
     setIsModalOpen(true);
   };
 
   const handleValidate = () => {
     if (!selectedCell || !formData.module || !formData.room) return;
 
+    const [start, end] = formData.customTime.split(' - ');
+
     const newSlot: TimetableSlot = {
       id: Math.random().toString(36).substr(2, 9),
       day: selectedCell.day,
-      startTime: selectedCell.time,
-      endTime: selectedCell.endTime,
+      startTime: start,
+      endTime: end,
       module: formData.module,
       room: formData.room,
-      color: 'bg-primary-container/10 border-primary text-primary'
+      type: formData.type,
+      totalSessions: formData.totalSessions,
+      color: formData.type === 'Cours' ? 'bg-primary-container/10 border-primary text-primary' : 
+             formData.type === 'TD' ? 'bg-secondary-container/20 border-secondary text-on-secondary-container' :
+             'bg-tertiary-container/20 border-tertiary text-on-tertiary-container'
     };
 
     setSlots([...slots, newSlot]);
     setIsModalOpen(false);
+  };
+
+  const getTimeOptions = () => {
+    if (!selectedCell) return [];
+    const isMorning = ['08:30', '10:45'].includes(selectedCell.time) || (selectedCell.time === 'Pause' && selectedCell.endTime === ''); 
+    // Wait, selectedCell.time is config.label.
+    
+    if (['08:30', '10:45'].includes(selectedCell.time)) {
+      return ['08:30 - 10:30', '10:45 - 12:45', '08:30 - 12:45'];
+    }
+    if (['14:30', '16:45'].includes(selectedCell.time)) {
+      return ['14:30 - 16:30', '16:45 - 18:45', '14:30 - 18:45'];
+    }
+    return [`${selectedCell.time} - ${selectedCell.endTime}`];
   };
 
   return (
@@ -124,22 +158,37 @@ const Timetable: React.FC = () => {
                 <React.Fragment key={day}>
                   <div className="border-b border-r border-outline-variant font-bold text-on-surface bg-surface-container flex items-center justify-center uppercase text-[11px] tracking-widest">{day}</div>
                   {timeConfig.map((config, i) => {
-                    const slot = slots.find(s => s.day === day && s.startTime === config.label);
+                    const slot = slots.find(s => {
+                      if (s.day !== day) return false;
+                      if (config.isBreak) {
+                        const prev = timeConfig[i - 1];
+                        const next = timeConfig[i + 1];
+                        return prev && next && s.startTime <= prev.label && s.endTime >= next.end;
+                      }
+                      return s.startTime <= config.label && s.endTime >= config.end;
+                    });
                     
                     if (config.isBreak) {
-                      return <div key={i} className="border-b border-r border-outline-variant opacity-50 bg-[repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9_10px,#ffffff_10px,#ffffff_20px)] shadow-inner"></div>;
+                      return (
+                        <div key={i} className="border-b border-r border-outline-variant opacity-50 bg-[repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9_10px,#ffffff_10px,#ffffff_20px)] shadow-inner relative">
+                          {slot && (
+                            <div className={`absolute inset-0 z-10 opacity-90 ${slot.color} border-l-0 border-r-0`}></div>
+                          )}
+                        </div>
+                      );
                     }
 
                     return (
                       <div 
                         key={i} 
                         onClick={() => !slot && handleCellClick(day, config)}
-                        className={`border-b border-r border-outline-variant transition-all ${slot ? 'p-2' : 'hover:bg-primary/5 cursor-pointer bg-white group'}`}
+                        className={`border-b border-r border-outline-variant transition-all ${slot ? 'p-1' : 'hover:bg-primary/5 cursor-pointer bg-white group'}`}
                       >
                         {slot ? (
                           <div className={`h-full border-l-4 p-1 flex flex-col justify-between rounded-sm shadow-sm transition-transform hover:scale-[1.02] ${slot.color}`}>
-                            <span className="text-[10px] font-bold uppercase truncate leading-tight">{slot.module} : {slot.room}</span>
-                            <span className="text-[10px] font-medium opacity-80">{slot.startTime} - {slot.endTime}</span>
+                            <span className="text-[9px] font-bold uppercase truncate leading-tight">{slot.type} : {slot.module}</span>
+                            <span className="text-[9px] font-medium opacity-90">{slot.room}</span>
+                            <span className="text-[8px] font-medium opacity-70">{slot.startTime} - {slot.endTime}</span>
                           </div>
                         ) : (
                           <div className="w-full h-full opacity-0 group-hover:opacity-100 flex items-center justify-center">
@@ -184,13 +233,59 @@ const Timetable: React.FC = () => {
                   <div className="bg-surface-container-low p-sm rounded-lg border border-outline-variant font-bold text-primary text-sm shadow-inner">{selectedCell.day}</div>
                 </div>
                 <div>
-                  <label className="block font-label-caps text-outline mb-xs text-[10px] uppercase font-bold tracking-widest">HORAIRE</label>
-                  <div className="bg-surface-container-low p-sm rounded-lg border border-outline-variant font-bold text-primary text-sm shadow-inner">
-                    {selectedCell.time} - {selectedCell.endTime}
-                  </div>
+                  <label className="block font-label-caps text-outline mb-xs text-[10px] uppercase font-bold tracking-widest">PLAGE HORAIRE</label>
+                  <select 
+                    value={formData.customTime}
+                    onChange={(e) => setFormData({...formData, customTime: e.target.value})}
+                    className="w-full bg-white border border-outline-variant rounded-lg px-md py-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm font-medium shadow-sm transition-all"
+                  >
+                    {getTimeOptions().map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="space-y-sm">
+                <div className="grid grid-cols-2 gap-md">
+                  <div>
+                    <label className="block font-label-caps text-outline mb-xs text-[10px] uppercase font-bold tracking-widest">TYPE DE SÉANCE</label>
+                    <select 
+                      value={formData.type}
+                      onChange={(e) => setFormData({...formData, type: e.target.value})}
+                      className="w-full bg-white border border-outline-variant rounded-lg px-md py-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm font-medium shadow-sm transition-all"
+                    >
+                      <option value="Cours">Cours</option>
+                      <option value="TD">TD</option>
+                      <option value="TP">TP</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-label-caps text-outline mb-xs text-[10px] uppercase font-bold tracking-widest">TOTAL SCIENCES (MAX 24)</label>
+                    <input 
+                      type="number"
+                      min="1"
+                      max="24"
+                      value={formData.totalSessions}
+                      onChange={(e) => setFormData({...formData, totalSessions: Math.min(24, parseInt(e.target.value) || 0)})}
+                      className="w-full bg-white border border-outline-variant rounded-lg px-md py-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm font-medium shadow-sm transition-all"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-md">
+                  <div>
+                    <label className="block font-label-caps text-outline mb-xs text-[10px] uppercase font-bold tracking-widest">SALLE (LOCAL)</label>
+                    <select 
+                      value={formData.room}
+                      onChange={(e) => setFormData({...formData, room: e.target.value})}
+                      className="w-full bg-white border border-outline-variant rounded-lg px-md py-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm font-medium shadow-sm transition-all"
+                    >
+                      <option value="">Sélectionner...</option>
+                      <option value="AMPHI E">AMPHI E</option>
+                      <option value="BLOC 8 - Salle 3">BLOC 8 - Salle 3</option>
+                      <option value="LABO GINF 2">LABO GINF 2</option>
+                    </select>
+                  </div>
+                </div>
                 <div>
                   <label className="block font-label-caps text-outline mb-xs text-[10px] uppercase font-bold tracking-widest">MATIÈRE / MODULE</label>
                   <select 
@@ -203,19 +298,6 @@ const Timetable: React.FC = () => {
                     <option value="Architecture des Ordinateurs">Architecture des Ordinateurs</option>
                     <option value="Probabilités & Statistiques">Probabilités & Statistiques</option>
                     <option value="Programmation Web I">Programmation Web I</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-label-caps text-outline mb-xs text-[10px] uppercase font-bold tracking-widest">SALLE (LOCAL)</label>
-                  <select 
-                    value={formData.room}
-                    onChange={(e) => setFormData({...formData, room: e.target.value})}
-                    className="w-full bg-white border border-outline-variant rounded-lg px-md py-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm font-medium shadow-sm transition-all"
-                  >
-                    <option value="">Sélectionner...</option>
-                    <option value="AMPHI E">AMPHI E</option>
-                    <option value="BLOC 8 - Salle 3">BLOC 8 - Salle 3</option>
-                    <option value="LABO GINF 2">LABO GINF 2</option>
                   </select>
                 </div>
               </div>
@@ -251,10 +333,10 @@ const Timetable: React.FC = () => {
           <div>
             <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider mb-1">
               <span className="text-on-surface-variant">Heures Planifiées</span>
-              <span className="text-primary font-bold">18h / 24h</span>
+              <span className="text-primary font-bold">{totalPlannedHours}h / 24h</span>
             </div>
             <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden shadow-inner">
-              <div className="bg-primary h-full transition-all duration-1000" style={{ width: '75%' }}></div>
+              <div className="bg-primary h-full transition-all duration-1000" style={{ width: `${(totalPlannedHours / 24) * 100}%` }}></div>
             </div>
           </div>
           <div>

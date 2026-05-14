@@ -69,22 +69,36 @@ const CreateModule: React.FC = () => {
               <p className="text-[11px] text-on-surface-variant italic font-medium opacity-70">Selecting a Filière will enable specific academic path configurations.</p>
             </div>
 
+            {/* Description Field */}
+            <div className="flex flex-col gap-xs">
+              <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="description">Module Description</label>
+              <textarea 
+                id="description"
+                rows={3}
+                placeholder="Briefly describe the module's objectives and core topics..."
+                className="border-outline-variant border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary px-4 py-3 font-body-md text-on-surface bg-surface-bright outline-none transition-all shadow-inner resize-none"
+              ></textarea>
+              <p className="text-[11px] text-on-surface-variant italic font-medium opacity-70">A concise summary for the academic catalog.</p>
+            </div>
+
             {/* Conditional Section: Path Configuration */}
             <div className="p-md bg-surface-container-low/30 rounded-xl border border-outline-variant border-dashed space-y-md shadow-inner">
               <h4 className="font-label-caps text-on-surface-variant border-b border-outline-variant pb-xs uppercase text-[10px] font-bold tracking-widest opacity-80">Path Configuration</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-md">
-                <div className="flex flex-col gap-xs">
-                  <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest">Program Type</label>
-                  <div className="flex gap-md mt-2">
-                    <label className="flex items-center gap-xs cursor-pointer group">
-                      <input defaultChecked className="text-primary focus:ring-primary h-4 w-4 border-outline-variant" name="program" type="radio" value="licence" />
-                      <span className="font-body-md group-hover:text-primary transition-colors text-sm font-bold uppercase tracking-widest text-[10px]">Licence</span>
-                    </label>
-                    <label className="flex items-center gap-xs cursor-pointer group">
-                      <input className="text-primary focus:ring-primary h-4 w-4 border-outline-variant" name="program" type="radio" value="master" />
-                      <span className="font-body-md group-hover:text-primary transition-colors text-sm font-bold uppercase tracking-widest text-[10px]">Master</span>
-                    </label>
-                  </div>
+                <div className="flex flex-col gap-xs md:col-span-2">
+                  <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="program_type">Program Type</label>
+                  <select 
+                    id="program_type"
+                    className="border-outline-variant border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary px-4 py-3 font-body-md text-on-surface bg-surface-bright outline-none transition-all cursor-pointer shadow-inner"
+                    required
+                  >
+                    <option value="licence">Licence</option>
+                    <option value="licence_excellence">Licence Excellence</option>
+                    <option value="licence_temps_amenage">Licence Temps Aménagé</option>
+                    <option value="master">Master</option>
+                    <option value="master_excellence">Master Excellence</option>
+                    <option value="master_temps_amenage">Master Temps Aménagé</option>
+                  </select>
                 </div>
                 <div className="flex flex-col gap-xs">
                   <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="semester">Semester</label>
