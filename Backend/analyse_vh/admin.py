@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Enseignant, Module, Sceance, Departement, Filiere # Use the names from your models.py
+from core.models import Enseignant, Module, Sceance, Departement, Filiere
 
 admin.site.register(Enseignant)
 admin.site.register(Module)

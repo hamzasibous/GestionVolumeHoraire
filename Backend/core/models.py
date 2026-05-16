@@ -18,7 +18,7 @@ class Local(models.Model):
     capacite = models.IntegerField()
 
     def __str__(self):
-        return f"{self.numero}.{self.numero}"
+        return f"{self.bloc}.{self.numero}"
 
 
 class Filiere(models.Model):
