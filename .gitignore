@@ -29,3 +29,5 @@ Frontend/*.njsproj
 Frontend/*.sln
 Frontend/*.sw?
 Frontend/node_modules
+venv/
+.env
