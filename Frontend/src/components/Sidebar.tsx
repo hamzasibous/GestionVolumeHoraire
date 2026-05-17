@@ -82,6 +82,17 @@ const Sidebar: React.FC = () => {
             My Workload
           </Link>
         </li>
+        <li>
+          <Link
+            to="/profile"
+            className={`flex items-center gap-3 px-6 py-3 font-inter antialiased text-xs font-bold uppercase tracking-widest transition-all active:scale-95 ${
+              isActive('/profile') ? 'text-white bg-slate-800 border-l-4 border-orange-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <span className="material-symbols-outlined text-sm">account_circle</span>
+            Profile
+          </Link>
+        </li>
       </ul>
       {/* Footer Tabs */}
       <ul className="mb-4 border-t border-slate-800/50 pt-4">

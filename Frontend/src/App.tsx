@@ -10,6 +10,7 @@ import Timetable from './components/Timetable'
 import CreateModule from './components/CreateModule'
 import Login from './components/Login'
 import ProtectedRoute from './components/ProtectedRoute'
+import Profile from './components/Profile'
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
             <Layout>
               <Routes>
                 <Route path="/" element={<Dashboard />} />
+                <Route path="/profile" element={<Profile />} />
                 <Route path="/programs" element={<ProgramsManagement />} />
                 <Route path="/programs/new" element={<AddFiliere />} />
                 <Route path="/programs/new-module" element={<CreateModule />} />
