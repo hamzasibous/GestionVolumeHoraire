@@ -1,10 +1,17 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
 
   const isActive = (path: string) => location.pathname === path;
+
+  const handleLogout = () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    navigate('/login');
+  };
 
   return (
     <nav className="fixed left-0 top-0 h-screen w-[260px] bg-slate-900 dark:bg-slate-950 border-r border-slate-800 shadow-xl flex flex-col overflow-y-auto z-40">
@@ -99,6 +106,15 @@ const Sidebar: React.FC = () => {
             <span className="material-symbols-outlined text-sm">help</span>
             Help
           </Link>
+        </li>
+        <li>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-6 py-3 font-inter antialiased text-xs font-bold uppercase tracking-widest transition-all active:scale-95 text-slate-400 hover:bg-red-500/10 hover:text-red-500"
+          >
+            <span className="material-symbols-outlined text-sm">logout</span>
+            Logout
+          </button>
         </li>
       </ul>
     </nav>
