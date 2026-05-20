@@ -1,13 +1,60 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+
+interface Filiere {
+  id: number;
+  nom: string;
+}
 
 const CreateModule: React.FC = () => {
   const navigate = useNavigate();
+  const [moduleName, setModuleName] = useState('');
+  const [selectedFiliere, setSelectedFiliere] = useState('');
+  const [filieres, setFilieres] = useState<Filiere[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    fetch('http://localhost:8000/core/filiere/')
+      .then(res => res.json())
+      .then(data => setFilieres(data))
+      .catch(err => console.error('Error fetching filieres:', err));
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Logic for module creation
-    navigate('/programs');
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:8000/core/module/create-module/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nom: moduleName }),
+      });
+      
+      if (response.ok) {
+        const newModule = await response.json();
+        
+        // If a filiere is selected, affect it
+        if (selectedFiliere) {
+          await fetch('http://localhost:8000/core/module/affecter-filiere/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              filiere: selectedFiliere,
+              module: newModule.id,
+              semestre: 'S1_l', // Default semester as per backend choices
+            }),
+          });
+        }
+        
+        navigate('/programs');
+      } else {
+        alert('Failed to create module');
+      }
+    } catch (error) {
+      console.error('Error creating module:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -43,6 +90,8 @@ const CreateModule: React.FC = () => {
                   id="module_name" 
                   placeholder="e.g. Advanced Network Security" 
                   type="text" 
+                  value={moduleName}
+                  onChange={(e) => setModuleName(e.target.value)}
                   required
                 />
               </div>
@@ -60,11 +109,16 @@ const CreateModule: React.FC = () => {
             {/* Optional Filière */}
             <div className="flex flex-col gap-xs">
               <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="filiere">Filière (Optional)</label>
-              <select className="border-outline-variant border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary px-4 py-3 font-body-md text-on-surface bg-surface-bright outline-none transition-all cursor-pointer shadow-inner" id="filiere">
-                <option selected value="">Not Assigned</option>
-                <option value="inf-gen">Informatique Générale</option>
-                <option value="mi-math">Math-Informatique</option>
-                <option value="rt">Réseaux & Télécoms</option>
+              <select 
+                className="border-outline-variant border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary px-4 py-3 font-body-md text-on-surface bg-surface-bright outline-none transition-all cursor-pointer shadow-inner" 
+                id="filiere"
+                value={selectedFiliere}
+                onChange={(e) => setSelectedFiliere(e.target.value)}
+              >
+                <option value="">Not Assigned</option>
+                {filieres.map(f => (
+                  <option key={f.id} value={f.id}>{f.nom}</option>
+                ))}
               </select>
               <p className="text-[11px] text-on-surface-variant italic font-medium opacity-70">Selecting a Filière will enable specific academic path configurations.</p>
             </div>
@@ -125,9 +179,10 @@ const CreateModule: React.FC = () => {
               </button>
               <button 
                 type="submit"
-                className="px-lg py-base bg-primary text-on-primary font-label-caps uppercase text-[10px] font-bold tracking-widest rounded shadow-lg hover:bg-primary/90 active:scale-95 transition-all"
+                disabled={loading}
+                className="px-lg py-base bg-primary text-on-primary font-label-caps uppercase text-[10px] font-bold tracking-widest rounded shadow-lg hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-50"
               >
-                Create Module
+                {loading ? 'Creating...' : 'Create Module'}
               </button>
             </div>
           </form>
