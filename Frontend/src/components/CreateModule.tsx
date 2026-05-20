@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface Filiere {
   id: number;
@@ -7,6 +8,7 @@ interface Filiere {
 }
 
 const CreateModule: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [moduleName, setModuleName] = useState('');
   const [selectedFiliere, setSelectedFiliere] = useState('');
@@ -14,7 +16,7 @@ const CreateModule: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch('http://localhost:8000/core/filiere/')
+    fetch('http://localhost:8000/api/core/filiere/')
       .then(res => res.json())
       .then(data => setFilieres(data))
       .catch(err => console.error('Error fetching filieres:', err));
@@ -24,7 +26,7 @@ const CreateModule: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/core/module/create-module/', {
+      const response = await fetch('http://localhost:8000/api/core/module/create-module/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nom: moduleName }),
@@ -35,7 +37,7 @@ const CreateModule: React.FC = () => {
         
         // If a filiere is selected, affect it
         if (selectedFiliere) {
-          await fetch('http://localhost:8000/core/module/affecter-filiere/', {
+          await fetch('http://localhost:8000/api/core/module/affecter-filiere/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -62,12 +64,12 @@ const CreateModule: React.FC = () => {
       {/* Page Header & Breadcrumb */}
       <section className="flex flex-col gap-xs mt-md border-b border-outline-variant pb-md">
         <nav className="flex items-center gap-xs text-on-surface-variant font-label-caps text-[10px] uppercase font-bold tracking-widest">
-          <Link to="/programs" className="hover:text-primary transition-colors">Programs</Link>
+          <Link to="/programs" className="hover:text-primary transition-colors">{t('create_module.breadcrumb')}</Link>
           <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-          <span className="text-primary">Create Module</span>
+          <span className="text-primary">{t('create_module.title')}</span>
         </nav>
-        <h2 className="font-h1 text-h1 text-on-surface tracking-tight font-bold">Create New Module</h2>
-        <p className="text-on-surface-variant text-sm mt-1">Design a new educational unit with specific speciality and academic path.</p>
+        <h2 className="font-h1 text-h1 text-on-surface tracking-tight font-bold">{t('create_module.title')}</h2>
+        <p className="text-on-surface-variant text-sm mt-1">{t('create_module.subtitle')}</p>
       </section>
 
       {/* Bento Form Layout */}
@@ -78,17 +80,17 @@ const CreateModule: React.FC = () => {
             {/* Section Heading */}
             <div className="border-b border-outline-variant pb-sm mb-md flex items-center gap-base">
               <span className="material-symbols-outlined text-primary shadow-sm rounded p-1">assignment</span>
-              <h3 className="font-h3 text-h3 font-bold uppercase text-xs tracking-widest text-primary">Module Identity</h3>
+              <h3 className="font-h3 text-h3 font-bold uppercase text-xs tracking-widest text-primary">{t('create_module.identity_title')}</h3>
             </div>
 
             {/* Basic Info Fields */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-md">
               <div className="flex flex-col gap-xs">
-                <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="module_name">Module Name</label>
+                <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="module_name">{t('create_module.field_name')}</label>
                 <input 
                   className="border-outline-variant border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary px-4 py-3 font-body-md text-on-surface bg-surface-bright outline-none transition-all shadow-inner" 
                   id="module_name" 
-                  placeholder="e.g. Advanced Network Security" 
+                  placeholder={t('create_module.placeholder_name')} 
                   type="text" 
                   value={moduleName}
                   onChange={(e) => setModuleName(e.target.value)}
@@ -96,9 +98,9 @@ const CreateModule: React.FC = () => {
                 />
               </div>
               <div className="flex flex-col gap-xs">
-                <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="speciality">Speciality</label>
-                <select className="border-outline-variant border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary px-4 py-3 font-body-md text-on-surface bg-surface-bright outline-none transition-all cursor-pointer shadow-inner" id="speciality" required>
-                  <option disabled selected value="">Select a Speciality</option>
+                <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="speciality">{t('create_module.field_speciality')}</label>
+                <select className="border-outline-variant border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary px-4 py-3 font-body-md text-on-surface bg-surface-bright outline-none transition-all cursor-pointer shadow-inner" id="speciality" required defaultValue="">
+                  <option disabled value="">{t('create_module.select_speciality')}</option>
                   <option value="networking">Networking</option>
                   <option value="software">Software</option>
                   <option value="cyber">Cyber</option>
@@ -108,39 +110,39 @@ const CreateModule: React.FC = () => {
 
             {/* Optional Filière */}
             <div className="flex flex-col gap-xs">
-              <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="filiere">Filière (Optional)</label>
+              <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="filiere">{t('create_module.field_filiere')}</label>
               <select 
                 className="border-outline-variant border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary px-4 py-3 font-body-md text-on-surface bg-surface-bright outline-none transition-all cursor-pointer shadow-inner" 
                 id="filiere"
                 value={selectedFiliere}
                 onChange={(e) => setSelectedFiliere(e.target.value)}
               >
-                <option value="">Not Assigned</option>
+                <option value="">{t('common.unassigned')}</option>
                 {filieres.map(f => (
                   <option key={f.id} value={f.id}>{f.nom}</option>
                 ))}
               </select>
-              <p className="text-[11px] text-on-surface-variant italic font-medium opacity-70">Selecting a Filière will enable specific academic path configurations.</p>
+              <p className="text-[11px] text-on-surface-variant italic font-medium opacity-70">{t('create_module.filiere_hint')}</p>
             </div>
 
             {/* Description Field */}
             <div className="flex flex-col gap-xs">
-              <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="description">Module Description</label>
+              <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="description">{t('create_module.field_desc')}</label>
               <textarea 
                 id="description"
                 rows={3}
-                placeholder="Briefly describe the module's objectives and core topics..."
+                placeholder={t('create_module.placeholder_desc')}
                 className="border-outline-variant border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary px-4 py-3 font-body-md text-on-surface bg-surface-bright outline-none transition-all shadow-inner resize-none"
               ></textarea>
-              <p className="text-[11px] text-on-surface-variant italic font-medium opacity-70">A concise summary for the academic catalog.</p>
+              <p className="text-[11px] text-on-surface-variant italic font-medium opacity-70">{t('create_module.desc_hint')}</p>
             </div>
 
             {/* Conditional Section: Path Configuration */}
             <div className="p-md bg-surface-container-low/30 rounded-xl border border-outline-variant border-dashed space-y-md shadow-inner">
-              <h4 className="font-label-caps text-on-surface-variant border-b border-outline-variant pb-xs uppercase text-[10px] font-bold tracking-widest opacity-80">Path Configuration</h4>
+              <h4 className="font-label-caps text-on-surface-variant border-b border-outline-variant pb-xs uppercase text-[10px] font-bold tracking-widest opacity-80">{t('create_module.path_config')}</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-md">
                 <div className="flex flex-col gap-xs md:col-span-2">
-                  <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="program_type">Program Type</label>
+                  <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="program_type">{t('create_module.field_program_type')}</label>
                   <select 
                     id="program_type"
                     className="border-outline-variant border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary px-4 py-3 font-body-md text-on-surface bg-surface-bright outline-none transition-all cursor-pointer shadow-inner"
@@ -155,7 +157,7 @@ const CreateModule: React.FC = () => {
                   </select>
                 </div>
                 <div className="flex flex-col gap-xs">
-                  <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="semester">Semester</label>
+                  <label className="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold tracking-widest" htmlFor="semester">{t('create_module.field_semester')}</label>
                   <select className="border-outline-variant border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary px-4 py-3 font-body-md text-on-surface bg-surface-bright outline-none shadow-inner" id="semester">
                     <option value="s1">S1</option>
                     <option value="s2">S2</option>
@@ -175,14 +177,14 @@ const CreateModule: React.FC = () => {
                 onClick={() => navigate('/programs')}
                 className="px-lg py-base text-primary font-label-caps uppercase text-[10px] font-bold tracking-widest border border-primary rounded hover:bg-primary/5 transition-all active:scale-95"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button 
                 type="submit"
                 disabled={loading}
                 className="px-lg py-base bg-primary text-on-primary font-label-caps uppercase text-[10px] font-bold tracking-widest rounded shadow-lg hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-50"
               >
-                {loading ? 'Creating...' : 'Create Module'}
+                {loading ? t('create_module.btn_creating') : t('create_module.btn_create')}
               </button>
             </div>
           </form>
@@ -193,20 +195,20 @@ const CreateModule: React.FC = () => {
           <div className="bg-surface-container-low/50 p-md rounded-xl border border-outline-variant flex flex-col gap-base shadow-sm">
             <div className="flex items-center gap-xs border-b border-outline-variant pb-2 mb-2">
               <span className="material-symbols-outlined text-secondary text-sm">info</span>
-              <h3 className="font-h3 text-h3 text-secondary font-bold uppercase text-[10px] tracking-widest">Creation Guidelines</h3>
+              <h3 className="font-h3 text-h3 text-secondary font-bold uppercase text-[10px] tracking-widest">{t('create_module.guidance_title')}</h3>
             </div>
             <ul className="space-y-sm">
               <li className="flex items-start gap-xs text-[11px] text-on-surface-variant font-medium leading-relaxed">
                 <span className="material-symbols-outlined text-[16px] mt-0.5 text-primary">check_circle</span>
-                Ensure module names follow the official academic catalog nomenclature.
+                {t('create_module.guidance_1')}
               </li>
               <li className="flex items-start gap-xs text-[11px] text-on-surface-variant font-medium leading-relaxed">
                 <span className="material-symbols-outlined text-[16px] mt-0.5 text-primary">check_circle</span>
-                Modules in "Licence" must be mapped to semesters S1 through S6.
+                {t('create_module.guidance_2')}
               </li>
               <li className="flex items-start gap-xs text-[11px] text-on-surface-variant font-medium leading-relaxed">
                 <span className="material-symbols-outlined text-[16px] mt-0.5 text-primary">check_circle</span>
-                Core specialities (Cyber, Software) require validation by the Department Head.
+                {t('create_module.guidance_3')}
               </li>
             </ul>
           </div>

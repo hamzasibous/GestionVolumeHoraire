@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface Seance {
   id: string;
@@ -27,6 +28,7 @@ interface Filiere {
 }
 
 const ProgramsManagement: React.FC = () => {
+  const { t } = useTranslation();
   const [filieres, setFilieres] = useState<Filiere[]>([]);
   const [selectedFiliereId, setSelectedFiliereId] = useState<string>('');
   const [selectedModuleId, setSelectedModuleId] = useState<string>('');
@@ -35,7 +37,7 @@ const ProgramsManagement: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('http://localhost:8000/core/filiere/details/');
+        const response = await fetch('http://localhost:8000/api/core/filiere/details/');
         const data = await response.json();
         
         const mappedData: Filiere[] = data.map((f: any) => ({
@@ -80,7 +82,7 @@ const ProgramsManagement: React.FC = () => {
   const selectedModule = selectedFiliere?.modules.find(m => m.id === selectedModuleId) || selectedFiliere?.modules[0];
 
   if (loading) {
-    return <div className="flex items-center justify-center h-full">Loading...</div>;
+    return <div className="flex items-center justify-center h-full">{t('common.loading')}</div>;
   }
 
   if (filieres.length === 0) {
@@ -88,7 +90,7 @@ const ProgramsManagement: React.FC = () => {
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <p className="text-on-surface-variant">No programs found.</p>
         <Link to="/programs/new" className="bg-primary text-on-primary px-6 py-2 rounded-lg">
-          Add New Filière
+          {t('programs.add_filiere')}
         </Link>
       </div>
     );
@@ -99,17 +101,17 @@ const ProgramsManagement: React.FC = () => {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-h1 text-h1 text-on-surface">Programs & Séances Management</h2>
-          <p className="font-body-md text-body-md text-on-surface-variant mt-2">Manage Filières, Modules, and detailed Séance allocations.</p>
+          <h2 className="font-h1 text-h1 text-on-surface">{t('programs.title')}</h2>
+          <p className="font-body-md text-body-md text-on-surface-variant mt-2">{t('programs.description')}</p>
         </div>
         <div className="flex gap-3">
           <Link to="/programs/new-module" className="border border-outline text-on-surface hover:bg-surface-container-high px-6 py-2 rounded-lg font-body-md text-body-md flex items-center gap-2 transition-colors shadow-sm uppercase tracking-wider font-bold">
             <span className="material-symbols-outlined text-[20px]">add</span>
-            Create Module
+            {t('programs.create_module')}
           </Link>
           <Link to="/programs/new" className="bg-primary hover:bg-primary/90 text-on-primary px-6 py-2 rounded-lg font-body-md text-body-md flex items-center gap-2 transition-colors shadow-sm uppercase tracking-wider font-bold">
             <span className="material-symbols-outlined text-[20px]">add</span>
-            Add New Filière
+            {t('programs.add_filiere')}
           </Link>
         </div>
       </div>
@@ -122,10 +124,10 @@ const ProgramsManagement: React.FC = () => {
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm">
             <div className="relative focus-within:ring-2 focus-within:ring-primary rounded-lg">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
-              <input className="w-full pl-10 pr-4 py-2 border border-outline-variant rounded-lg text-sm bg-surface-bright focus:border-transparent focus:ring-0" placeholder="Search Filières..." type="text" />
+              <input className="w-full pl-10 pr-4 py-2 border border-outline-variant rounded-lg text-sm bg-surface-bright focus:border-transparent focus:ring-0" placeholder={t('programs.search_placeholder')} type="text" />
             </div>
             <div className="flex gap-2 mt-4 overflow-x-auto pb-1">
-              <button className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full font-label-caps text-label-caps whitespace-nowrap uppercase tracking-wider">All</button>
+              <button className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full font-label-caps text-label-caps whitespace-nowrap uppercase tracking-wider">{t('common.all')}</button>
               <button className="px-3 py-1 bg-surface-container border border-outline-variant text-on-surface rounded-full font-label-caps text-label-caps whitespace-nowrap hover:bg-surface-container-high transition-colors uppercase tracking-wider">Licence</button>
               <button className="px-3 py-1 bg-surface-container border border-outline-variant text-on-surface rounded-full font-label-caps text-label-caps whitespace-nowrap hover:bg-surface-container-high transition-colors uppercase tracking-wider">Master</button>
             </div>
@@ -152,8 +154,8 @@ const ProgramsManagement: React.FC = () => {
                   </div>
                   <p className="font-body-md text-body-md text-on-surface-variant text-sm mb-3">{filiere.description}</p>
                   <div className="flex items-center justify-between text-xs text-outline">
-                    <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">folder</span> {filiere.modules.length} Modules</span>
-                    <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">schedule</span> {filiere.modules.reduce((acc, m) => acc + m.totalHours, 0)}h Total</span>
+                    <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">folder</span> {filiere.modules.length} {t('programs.modules_count')}</span>
+                    <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">schedule</span> {filiere.modules.reduce((acc, m) => acc + m.totalHours, 0)}h {t('common.all')}</span>
                   </div>
                 </div>
                 {/* Nested Modules List */}
@@ -192,13 +194,13 @@ const ProgramsManagement: React.FC = () => {
                   <h2 className="font-h2 text-h2 text-on-surface tracking-tight font-bold">{selectedFiliere.name}</h2>
                   <p className="text-on-surface-variant text-sm mt-1 italic leading-relaxed">"{selectedFiliere.description}"</p>
                   <div className="mt-4 border-t border-outline-variant/30 pt-4">
-                    <h3 className="text-primary font-h3 text-sm font-bold uppercase tracking-widest">Active Module: {selectedModule?.name || 'None'}</h3>
+                    <h3 className="text-primary font-h3 text-sm font-bold uppercase tracking-widest">{t('programs.active_module')}: {selectedModule?.name || t('common.none')}</h3>
                   </div>
                 </div>
                 <div className="flex gap-3">
                   <Link to="/timetable" className="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-lg hover:bg-secondary-container/90 transition-colors font-body-md text-body-md flex items-center gap-2 shadow-sm uppercase tracking-wider font-bold">
                     <span className="material-symbols-outlined text-[18px]">add_box</span>
-                    Add/Edit Séance
+                    {t('programs.add_edit_seance')}
                   </Link>
                 </div>
               </div>
@@ -206,7 +208,7 @@ const ProgramsManagement: React.FC = () => {
               {selectedModule && (
                 <div className="grid grid-cols-2 gap-6">
                   <div className="p-4 bg-surface-bright border border-surface-variant rounded-lg">
-                    <div className="text-outline font-label-caps text-label-caps mb-1 uppercase tracking-wider">Total Hours Assigned</div>
+                    <div className="text-outline font-label-caps text-label-caps mb-1 uppercase tracking-wider">{t('programs.assigned_hours')}</div>
                     <div className="font-h2 text-h2 text-on-surface">{selectedModule.assignedHours}<span className="text-sm font-normal text-outline">/{selectedModule.totalHours}</span></div>
                     <div className="w-full bg-surface-container-high h-2 rounded-full mt-3">
                       <div className="bg-primary h-2 rounded-full" style={{ width: `${selectedModule.totalHours > 0 ? (selectedModule.assignedHours / selectedModule.totalHours) * 100 : 0}%` }}></div>
@@ -224,17 +226,17 @@ const ProgramsManagement: React.FC = () => {
           {selectedModule && (
             <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-outline-variant bg-surface-bright flex justify-between items-center">
-                <h3 className="font-h3 text-h3 text-on-surface">Séances Allocation</h3>
+                <h3 className="font-h3 text-h3 text-on-surface">{t('programs.seances_allocation')}</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-surface-container-lowest border-b border-outline-variant">
-                      <th className="px-6 py-3 font-label-caps text-label-caps text-outline uppercase tracking-wider">Séance Name</th>
-                      <th className="px-6 py-3 font-label-caps text-label-caps text-outline uppercase tracking-wider">Teacher</th>
-                      <th className="px-6 py-3 font-label-caps text-label-caps text-outline uppercase tracking-wider">Room</th>
-                      <th className="px-6 py-3 font-label-caps text-label-caps text-outline uppercase tracking-wider">Volume (h)</th>
-                      <th className="px-6 py-3 font-label-caps text-label-caps text-outline uppercase tracking-wider text-right">Actions</th>
+                      <th className="px-6 py-3 font-label-caps text-label-caps text-outline uppercase tracking-wider">{t('programs.seance_name')}</th>
+                      <th className="px-6 py-3 font-label-caps text-label-caps text-outline uppercase tracking-wider">{t('programs.teacher')}</th>
+                      <th className="px-6 py-3 font-label-caps text-label-caps text-outline uppercase tracking-wider">{t('programs.room')}</th>
+                      <th className="px-6 py-3 font-label-caps text-label-caps text-outline uppercase tracking-wider">{t('programs.volume')}</th>
+                      <th className="px-6 py-3 font-label-caps text-label-caps text-outline uppercase tracking-wider text-right">{t('common.actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="font-table-data text-table-data divide-y divide-surface-variant">
@@ -247,7 +249,7 @@ const ProgramsManagement: React.FC = () => {
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             {seance.teacher === 'Unassigned' ? (
-                              <span className="px-2 py-1 bg-error-container text-on-error-container text-xs rounded-full font-medium">Unassigned</span>
+                              <span className="px-2 py-1 bg-error-container text-on-error-container text-xs rounded-full font-medium">{t('programs.unassigned')}</span>
                             ) : (
                               <>
                                 <div className="w-6 h-6 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-xs font-bold uppercase">
@@ -273,7 +275,7 @@ const ProgramsManagement: React.FC = () => {
                     )) : (
                       <tr>
                         <td colSpan={5} className="px-6 py-8 text-center text-on-surface-variant opacity-60">
-                          No séances assigned to this module yet.
+                          {t('programs.no_seances')}
                         </td>
                       </tr>
                     )}

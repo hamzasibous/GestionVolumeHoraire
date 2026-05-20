@@ -29,6 +29,11 @@ class UtilisateurManager(BaseUserManager):
         return self.create_user(email, nom, prenom, password, **extra_fields)
 
 
+class Language(models.TextChoices):
+    FRENCH = "fr", "Français"
+    ENGLISH = "en", "English"
+
+
 class Utilisateur(AbstractBaseUser, PermissionsMixin):
     nom = models.CharField(max_length=100)
     prenom = models.CharField(max_length=100)
@@ -36,6 +41,9 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
     tel = models.CharField(max_length=20, blank=True, null=True)
     role = models.CharField(
         max_length=20, choices=Role.choices, default=Role.ENSEIGNANT
+    )
+    langue = models.CharField(
+        max_length=10, choices=Language.choices, default=Language.FRENCH
     )
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

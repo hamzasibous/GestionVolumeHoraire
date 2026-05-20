@@ -1,7 +1,9 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 const Sidebar: React.FC = () => {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -35,7 +37,7 @@ const Sidebar: React.FC = () => {
             }`}
           >
             <span className="material-symbols-outlined text-sm">dashboard</span>
-            Dashboard
+            {t('common.dashboard')}
           </Link>
         </li>
         <li>
@@ -46,7 +48,7 @@ const Sidebar: React.FC = () => {
             }`}
           >
             <span className="material-symbols-outlined text-sm">account_tree</span>
-            Programs
+            {t('common.programs')}
           </Link>
         </li>
         <li>
@@ -57,7 +59,7 @@ const Sidebar: React.FC = () => {
             }`}
           >
             <span className="material-symbols-outlined text-sm">groups</span>
-            Faculty
+            {t('common.faculty')}
           </Link>
         </li>
         <li>
@@ -68,7 +70,18 @@ const Sidebar: React.FC = () => {
             }`}
           >
             <span className="material-symbols-outlined text-sm">analytics</span>
-            Forecasting
+            {t('common.forecasting')}
+          </Link>
+        </li>
+        <li>
+          <Link
+            to="/users"
+            className={`flex items-center gap-3 px-6 py-3 font-inter antialiased text-xs font-bold uppercase tracking-widest transition-all active:scale-95 ${
+              isActive('/users') ? 'text-white bg-slate-800 border-l-4 border-orange-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <span className="material-symbols-outlined text-sm">manage_accounts</span>
+            {t('common.users')}
           </Link>
         </li>
         <li>
@@ -79,7 +92,7 @@ const Sidebar: React.FC = () => {
             }`}
           >
             <span className="material-symbols-outlined text-sm">person</span>
-            My Workload
+            {t('common.workload')}
           </Link>
         </li>
         <li>
@@ -90,7 +103,7 @@ const Sidebar: React.FC = () => {
             }`}
           >
             <span className="material-symbols-outlined text-sm">account_circle</span>
-            Profile
+            {t('common.profile')}
           </Link>
         </li>
       </ul>
@@ -104,7 +117,7 @@ const Sidebar: React.FC = () => {
             }`}
           >
             <span className="material-symbols-outlined text-sm">settings</span>
-            Settings
+            {t('common.settings')}
           </Link>
         </li>
         <li>
@@ -115,7 +128,7 @@ const Sidebar: React.FC = () => {
             }`}
           >
             <span className="material-symbols-outlined text-sm">help</span>
-            Help
+            {t('common.help')}
           </Link>
         </li>
         <li>
@@ -124,7 +137,7 @@ const Sidebar: React.FC = () => {
             className="w-full flex items-center gap-3 px-6 py-3 font-inter antialiased text-xs font-bold uppercase tracking-widest transition-all active:scale-95 text-slate-400 hover:bg-red-500/10 hover:text-red-500"
           >
             <span className="material-symbols-outlined text-sm">logout</span>
-            Logout
+            {t('common.logout')}
           </button>
         </li>
       </ul>

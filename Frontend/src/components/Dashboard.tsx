@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface FiliereData {
   name: string;
@@ -16,12 +17,14 @@ const mockFilieres: FiliereData[] = [
 ];
 
 const Dashboard: React.FC = () => {
+  const { t } = useTranslation();
+
   return (
     <div className="max-w-[1400px] mx-auto">
       {/* Page Header */}
       <div className="mb-lg">
-        <h1 className="font-h1 text-h1 text-on-surface mb-xs">Global Overview</h1>
-        <p className="font-body-lg text-body-lg text-on-surface-variant">Computer Science Department Statistics & Workload</p>
+        <h1 className="font-h1 text-h1 text-on-surface mb-xs">{t('dashboard.title')}</h1>
+        <p className="font-body-lg text-body-lg text-on-surface-variant">{t('dashboard.subtitle')}</p>
       </div>
 
       {/* Bento Grid: Summary Cards */}
@@ -29,7 +32,7 @@ const Dashboard: React.FC = () => {
         {/* Card 1: Total Hourly Volume */}
         <div className="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between shadow-sm">
           <div className="flex justify-between items-start mb-sm">
-            <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Total Hourly Volume</span>
+            <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">{t('dashboard.total_volume')}</span>
             <div className="w-8 h-8 rounded-lg bg-primary-fixed/20 flex items-center justify-center">
               <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>schedule</span>
             </div>
@@ -46,7 +49,7 @@ const Dashboard: React.FC = () => {
         {/* Card 2: Avg Workload */}
         <div className="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between shadow-sm">
           <div className="flex justify-between items-start mb-sm">
-            <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Avg Workload / Teacher</span>
+            <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">{t('dashboard.avg_workload')}</span>
             <div className="w-8 h-8 rounded-lg bg-secondary-fixed/20 flex items-center justify-center">
               <span className="material-symbols-outlined text-secondary-container" style={{ fontVariationSettings: "'FILL' 1" }}>assignment_ind</span>
             </div>
@@ -63,7 +66,7 @@ const Dashboard: React.FC = () => {
         {/* Card 3: Faculty Count */}
         <div className="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between shadow-sm">
           <div className="flex justify-between items-start mb-sm">
-            <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Total Faculty Count</span>
+            <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">{t('dashboard.total_faculty')}</span>
             <div className="w-8 h-8 rounded-lg bg-primary-fixed/20 flex items-center justify-center">
               <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>groups</span>
             </div>
@@ -80,7 +83,7 @@ const Dashboard: React.FC = () => {
         {/* Card 4: Active Programs */}
         <div className="col-span-12 sm:col-span-6 lg:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col justify-between shadow-sm">
           <div className="flex justify-between items-start mb-sm">
-            <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Active Programs (Filières)</span>
+            <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">{t('dashboard.active_programs')}</span>
             <div className="w-8 h-8 rounded-lg bg-tertiary-fixed/20 flex items-center justify-center">
               <span className="material-symbols-outlined text-tertiary-container" style={{ fontVariationSettings: "'FILL' 1" }}>school</span>
             </div>
@@ -99,8 +102,8 @@ const Dashboard: React.FC = () => {
         {/* Chart Module (Left) */}
         <div className="col-span-12 lg:col-span-5 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col shadow-sm">
           <div className="mb-md">
-            <h3 className="font-h3 text-h3 text-on-surface">Hourly Breakdown by Type</h3>
-            <p className="font-body-md text-body-md text-on-surface-variant">Distribution of total volume</p>
+            <h3 className="font-h3 text-h3 text-on-surface">{t('dashboard.breakdown_title')}</h3>
+            <p className="font-body-md text-body-md text-on-surface-variant">{t('dashboard.breakdown_subtitle')}</p>
           </div>
           {/* Visual Chart Area */}
           <div className="flex-1 flex flex-col justify-center py-lg">
@@ -114,21 +117,21 @@ const Dashboard: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-sm bg-primary"></span>
-                  <span className="font-body-md text-body-md text-on-surface">Cours Magistraux (CM)</span>
+                  <span className="font-body-md text-body-md text-on-surface">{t('dashboard.legend_cm')}</span>
                 </div>
                 <span className="font-h3 text-h3 text-on-surface">45%</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-sm bg-secondary-container"></span>
-                  <span className="font-body-md text-body-md text-on-surface">Travaux Dirigés (TD)</span>
+                  <span className="font-body-md text-body-md text-on-surface">{t('dashboard.legend_td')}</span>
                 </div>
                 <span className="font-h3 text-h3 text-on-surface">35%</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-sm bg-tertiary-container"></span>
-                  <span className="font-body-md text-body-md text-on-surface">Travaux Pratiques (TP)</span>
+                  <span className="font-body-md text-body-md text-on-surface">{t('dashboard.legend_tp')}</span>
                 </div>
                 <span className="font-h3 text-h3 text-on-surface">20%</span>
               </div>
@@ -140,18 +143,18 @@ const Dashboard: React.FC = () => {
         <div className="col-span-12 lg:col-span-7 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col shadow-sm">
           <div className="p-md border-b border-outline-variant flex justify-between items-center bg-surface">
             <div>
-              <h3 className="font-h3 text-h3 text-on-surface">Current Filières</h3>
-              <p className="font-body-md text-body-md text-on-surface-variant">Detailed status and allocated hours</p>
+              <h3 className="font-h3 text-h3 text-on-surface">{t('dashboard.table_title')}</h3>
+              <p className="font-body-md text-body-md text-on-surface-variant">{t('dashboard.table_subtitle')}</p>
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead className="bg-surface-container-lowest border-b border-outline-variant">
                 <tr>
-                  <th className="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Program Name</th>
-                  <th className="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Level</th>
-                  <th className="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Total Hours</th>
-                  <th className="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-center">Status</th>
+                  <th className="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">{t('dashboard.table_col_name')}</th>
+                  <th className="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">{t('dashboard.table_col_level')}</th>
+                  <th className="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">{t('dashboard.table_col_hours')}</th>
+                  <th className="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-center">{t('dashboard.table_col_status')}</th>
                 </tr>
               </thead>
               <tbody className="font-table-data text-table-data text-on-surface">
@@ -166,7 +169,9 @@ const Dashboard: React.FC = () => {
                         filiere.status === 'In Review' ? 'bg-secondary-fixed text-on-secondary-fixed' :
                         'bg-surface-variant text-on-surface-variant border border-outline-variant'
                       }`}>
-                        {filiere.status}
+                        {filiere.status === 'Validated' ? t('dashboard.status.validated') : 
+                         filiere.status === 'In Review' ? t('dashboard.status.review') : 
+                         t('dashboard.status.draft')}
                       </span>
                     </td>
                   </tr>
@@ -175,7 +180,7 @@ const Dashboard: React.FC = () => {
             </table>
           </div>
           <div className="p-sm bg-surface text-center border-t border-outline-variant">
-            <a className="font-body-md text-body-md text-primary hover:text-primary-container font-medium transition-colors" href="#">View All Programs</a>
+            <a className="font-body-md text-body-md text-primary hover:text-primary-container font-medium transition-colors" href="#">{t('dashboard.view_all')}</a>
           </div>
         </div>
       </div>
