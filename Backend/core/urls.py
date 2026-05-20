@@ -10,6 +10,7 @@ from core.views import (
     FiliereCreateView,
     ModuleCreateView,
     FiliereListView,
+    FiliereDetailListView,
     DepartmentListView,
     ModuleListView,
 
@@ -17,6 +18,7 @@ from core.views import (
 
 urlpatterns = [
     path("filiere/", FiliereListView.as_view(), name="filiere-list"),
+    path("filiere/details/", FiliereDetailListView.as_view(), name="filiere-details"),
     path("departement/", DepartmentListView.as_view(), name="departement-list"),
     path("module/", ModuleListView.as_view(), name="module-list"),
 

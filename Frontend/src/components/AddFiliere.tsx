@@ -1,28 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 interface Module {
   id: string;
-  name: string;
-  speciality: string;
-  semester: string;
+  nom: string;
 }
 
-const mockCatalog: Module[] = [
-  { id: 'm1', name: 'Advanced Web Technologies', speciality: 'SOFTWARE', semester: 'S5' },
-  { id: 'm2', name: 'Database Administration', speciality: 'DATA', semester: 'S5' },
-  { id: 'm3', name: 'Network Security', speciality: 'NETWORKING', semester: 'S6' },
-  { id: 'm4', name: 'Machine Learning', speciality: 'DATA', semester: 'S6' },
-  { id: 'm5', name: 'Operating Systems', speciality: 'SOFTWARE', semester: 'S4' },
-];
+interface Department {
+  id: string;
+  nom: string;
+}
 
 interface FormData {
   title: string;
   level: string;
   department: string;
   description: string;
-  selectedModules: string[];
+  selectedModules: { id: string, semester: string }[];
 }
+
+const levels = [
+  { value: 'Licence_f', label: 'Licence Fondamentale' },
+  { value: 'Licence_e', label: 'Licence Excellence' },
+  { value: 'Licence_t', label: 'Licence Temps Aménagé' },
+  { value: 'Master_f', label: 'Master Fondamental' },
+  { value: 'Master_e', label: 'Master Excellence' },
+  { value: 'Master_t', label: 'Master Temps Aménagé' },
+];
 
 const AddFiliere: React.FC = () => {
   const navigate = useNavigate();
@@ -34,7 +38,24 @@ const AddFiliere: React.FC = () => {
     description: '',
     selectedModules: [],
   });
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [availableModules, setAvailableModules] = useState<Module[]>([]);
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Fetch departments
+    fetch('http://localhost:8000/core/departement/')
+      .then(res => res.json())
+      .then(data => setDepartments(data.map((d: any) => ({ id: d.id.toString(), nom: d.nom }))))
+      .catch(err => console.error('Error fetching departments:', err));
+
+    // Fetch modules
+    fetch('http://localhost:8000/core/module/')
+      .then(res => res.json())
+      .then(data => setAvailableModules(data.map((m: any) => ({ id: m.id.toString(), nom: m.nom }))))
+      .catch(err => console.error('Error fetching modules:', err));
+  }, []);
 
   const validateStep1 = () => {
     const newErrors: Partial<Record<keyof FormData, string>> = {};
@@ -56,18 +77,77 @@ const AddFiliere: React.FC = () => {
   };
 
   const toggleModule = (id: string) => {
+    setFormData(prev => {
+      const isSelected = prev.selectedModules.some(m => m.id === id);
+      if (isSelected) {
+        return {
+          ...prev,
+          selectedModules: prev.selectedModules.filter(m => m.id !== id)
+        };
+      } else {
+        return {
+          ...prev,
+          selectedModules: [...prev.selectedModules, { id, semester: 'S1_l' }]
+        };
+      }
+    });
+  };
+
+  const updateModuleSemester = (id: string, semester: string) => {
     setFormData(prev => ({
       ...prev,
-      selectedModules: prev.selectedModules.includes(id)
-        ? prev.selectedModules.filter(mId => mId !== id)
-        : [...prev.selectedModules, id]
+      selectedModules: prev.selectedModules.map(m => m.id === id ? { ...m, semester } : m)
     }));
   };
 
-  const handleSubmit = () => {
-    console.log('Submitting:', formData);
-    // In a real app, this would be an API call
-    navigate('/programs');
+  const getSemesterOptions = () => {
+    const isMaster = formData.level.startsWith('Master');
+    const max = isMaster ? 4 : 6;
+    const options = [];
+    for (let i = 1; i <= max; i++) {
+      options.push(`S${i}_l`);
+    }
+    return options;
+  };
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      // 1. Create Filiere
+      const filiereRes = await fetch('http://localhost:8000/core/filiere/create-filiere/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nom: formData.title,
+          description: formData.description,
+          niveaux: formData.level,
+          departement: parseInt(formData.department),
+        }),
+      });
+
+      if (!filiereRes.ok) throw new Error('Failed to create filiere');
+      const filiereData = await filiereRes.json();
+
+      // 2. Affect Modules
+      for (const mod of formData.selectedModules) {
+        await fetch('http://localhost:8000/core/module/affecter-filiere/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filiere: filiereData.id,
+            module: parseInt(mod.id),
+            semestre: mod.semester,
+          }),
+        });
+      }
+
+      navigate('/programs');
+    } catch (error) {
+      console.error('Error:', error);
+      alert('An error occurred while creating the program.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -153,11 +233,9 @@ const AddFiliere: React.FC = () => {
                       onChange={(e) => setFormData({...formData, level: e.target.value})}
                     >
                       <option value="">Select Level...</option>
-                      <option value="L1">Licence 1 (L1)</option>
-                      <option value="L2">Licence 2 (L2)</option>
-                      <option value="L3">Licence 3 (L3)</option>
-                      <option value="M1">Master 1 (M1)</option>
-                      <option value="M2">Master 2 (M2)</option>
+                      {levels.map(l => (
+                        <option key={l.value} value={l.value}>{l.label}</option>
+                      ))}
                     </select>
                     {errors.level && <p className="text-error text-xs italic mt-1">{errors.level}</p>}
                   </div>
@@ -170,9 +248,9 @@ const AddFiliere: React.FC = () => {
                       onChange={(e) => setFormData({...formData, department: e.target.value})}
                     >
                       <option value="">Assign to Department...</option>
-                      <option value="CS">Computer Science & IT</option>
-                      <option value="MATH">Mathematics</option>
-                      <option value="PHY">Physics</option>
+                      {departments.map(d => (
+                        <option key={d.id} value={d.id}>{d.nom}</option>
+                      ))}
                     </select>
                     {errors.department && <p className="text-error text-xs italic mt-1">{errors.department}</p>}
                   </div>
@@ -200,27 +278,43 @@ const AddFiliere: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/30">
-                    {mockCatalog.map((module) => (
-                      <tr key={module.id} className={`group transition-colors ${formData.selectedModules.includes(module.id) ? 'bg-primary-container/10' : 'hover:bg-surface-container-low'}`}>
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-sm text-on-surface">{module.name}</div>
-                          <div className="text-[10px] font-bold text-primary-fixed-dim uppercase tracking-widest mt-1">{module.speciality}</div>
-                        </td>
-                        <td className="px-6 py-4 text-center font-bold text-sm text-on-surface-variant">{module.semester}</td>
-                        <td className="px-6 py-4 text-right">
-                          <button 
-                            onClick={() => toggleModule(module.id)}
-                            className={`px-4 py-1.5 rounded text-[10px] font-bold uppercase tracking-widest transition-all ${
-                              formData.selectedModules.includes(module.id) 
-                                ? 'bg-secondary text-on-secondary shadow-md hover:bg-error active:scale-95' 
-                                : 'bg-primary text-on-primary hover:bg-primary-container active:scale-95 shadow-sm'
-                            }`}
-                          >
-                            {formData.selectedModules.includes(module.id) ? 'Remove' : 'Add'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {availableModules.map((module) => {
+                      const selectedModule = formData.selectedModules.find(m => m.id === module.id);
+                      return (
+                        <tr key={module.id} className={`group transition-colors ${selectedModule ? 'bg-primary-container/10' : 'hover:bg-surface-container-low'}`}>
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-sm text-on-surface">{module.nom}</div>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            {selectedModule ? (
+                              <select 
+                                className="bg-surface-bright border border-outline-variant rounded px-2 py-1 text-xs font-bold"
+                                value={selectedModule.semester}
+                                onChange={(e) => updateModuleSemester(module.id, e.target.value)}
+                              >
+                                {getSemesterOptions().map(s => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-outline text-xs italic">-</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button 
+                              onClick={() => toggleModule(module.id)}
+                              className={`px-4 py-1.5 rounded text-[10px] font-bold uppercase tracking-widest transition-all ${
+                                selectedModule 
+                                  ? 'bg-secondary text-on-secondary shadow-md hover:bg-error active:scale-95' 
+                                  : 'bg-primary text-on-primary hover:bg-primary-container active:scale-95 shadow-sm'
+                              }`}
+                            >
+                              {selectedModule ? 'Remove' : 'Add'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -242,11 +336,11 @@ const AddFiliere: React.FC = () => {
                     </div>
                     <div>
                       <h4 className="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-widest font-bold mb-1 opacity-60">Academic Level</h4>
-                      <p className="font-bold text-on-surface">{formData.level}</p>
+                      <p className="font-bold text-on-surface">{levels.find(l => l.value === formData.level)?.label}</p>
                     </div>
                     <div>
                       <h4 className="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-widest font-bold mb-1 opacity-60">Department</h4>
-                      <p className="font-bold text-on-surface">{formData.department}</p>
+                      <p className="font-bold text-on-surface">{departments.find(d => d.id === formData.department)?.nom}</p>
                     </div>
                   </div>
                   <div className="space-y-6">
@@ -266,15 +360,14 @@ const AddFiliere: React.FC = () => {
                 <div>
                   <h4 className="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-widest font-bold mb-4 opacity-60">Selected Curriculum Structure</h4>
                   <div className="grid grid-cols-1 gap-2">
-                    {formData.selectedModules.map(mId => {
-                      const m = mockCatalog.find(mod => mod.id === mId);
+                    {formData.selectedModules.map(mInfo => {
+                      const m = availableModules.find(mod => mod.id === mInfo.id);
                       return m ? (
-                        <div key={mId} className="flex items-center justify-between p-3 bg-surface-bright border border-outline-variant rounded shadow-sm hover:border-primary transition-colors group">
+                        <div key={mInfo.id} className="flex items-center justify-between p-3 bg-surface-bright border border-outline-variant rounded shadow-sm hover:border-primary transition-colors group">
                           <div className="flex flex-col">
-                            <span className="font-bold text-sm text-on-surface group-hover:text-primary transition-colors">{m.name}</span>
-                            <span className="text-[10px] font-bold text-outline uppercase tracking-widest">{m.speciality}</span>
+                            <span className="font-bold text-sm text-on-surface group-hover:text-primary transition-colors">{m.nom}</span>
                           </div>
-                          <span className="text-[10px] font-black text-primary-container px-2 py-1 bg-primary-fixed rounded uppercase tracking-widest">{m.semester}</span>
+                          <span className="text-[10px] font-black text-primary-container px-2 py-1 bg-primary-fixed rounded uppercase tracking-widest">{mInfo.semester}</span>
                         </div>
                       ) : null;
                     })}
@@ -341,11 +434,12 @@ const AddFiliere: React.FC = () => {
         </button>
         <button 
           onClick={step === 3 ? handleSubmit : handleNext}
+          disabled={loading}
           className={`px-8 py-2.5 rounded-lg font-label-caps text-label-caps shadow-lg transition-all flex items-center gap-2 uppercase tracking-widest font-bold active:scale-95 ${
             step === 3 ? 'bg-primary text-on-primary hover:bg-primary-container' : 'bg-secondary-container text-on-secondary-container hover:bg-secondary transition-colors'
-          }`}
+          } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          {step === 3 ? 'Publish Program' : 'Continue'}
+          {loading ? 'Processing...' : (step === 3 ? 'Publish Program' : 'Continue')}
           <span className="material-symbols-outlined text-[18px]">{step === 3 ? 'publish' : 'arrow_forward'}</span>
         </button>
       </div>

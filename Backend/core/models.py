@@ -53,6 +53,7 @@ class Local(models.Model):
 
 class Filiere(models.Model):
     nom = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
     niveaux = models.CharField(max_length=20, choices=Niveaux.choices)
     departement = models.ForeignKey(
         Departement, on_delete=models.CASCADE, related_name="filieres"
