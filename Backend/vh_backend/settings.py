@@ -4,6 +4,19 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# --- Auto-load .env file ---
+env_path = BASE_DIR.parent / '.env'
+if env_path.exists():
+    with open(env_path) as f:
+        for line in f:
+            if line.strip() and not line.startswith('#'):
+                try:
+                    key, value = line.strip().split('=', 1)
+                    os.environ.setdefault(key, value)
+                except ValueError:
+                    continue
+# ---------------------------
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/

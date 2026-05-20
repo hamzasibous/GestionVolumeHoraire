@@ -29,7 +29,7 @@ class ComporteSerlizer(serializers.ModelSerializer):
 
 
 # In your views.py
-from rest_framework.generics import CreateAPIView
+from rest_framework.generics import CreateAPIView, ListAPIView
 from .models import Filiere
 
 
@@ -51,3 +51,15 @@ class ModuleCreateView(CreateAPIView):
 class ComporteCreateView(CreateAPIView):
     queryset = Comporte.objects.all()
     serializer_class = ComporteSerlizer
+
+class FiliereListView(ListAPIView):
+    queryset = Filiere.objects.all()
+    serializer_class = FiliereSerializer
+
+class DepartmentListView(ListAPIView):
+    queryset = Departement.objects.all()
+    serializer_class = DepartementSerializer
+
+class ModuleListView(ListAPIView):
+    queryset = Module.objects.all()
+    serializer_class = ModuleSerializer
