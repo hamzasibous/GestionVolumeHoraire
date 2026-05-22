@@ -17,12 +17,22 @@ const Profile: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchProfile = async () => {
+    setLoading(true);
+    setError(null);
     try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setError('No access token found');
+        setLoading(false);
+        return;
+      }
+
       const response = await fetch('http://localhost:8000/api/users/profile/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          'Authorization': `Bearer ${token}`
         }
       });
       if (response.ok) {
@@ -31,9 +41,12 @@ const Profile: React.FC = () => {
         if (data.langue && i18n.language !== data.langue) {
           i18n.changeLanguage(data.langue);
         }
+      } else {
+        setError(t('common.error'));
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
+      setError(t('common.error'));
     } finally {
       setLoading(false);
     }
@@ -62,11 +75,34 @@ const Profile: React.FC = () => {
     }
   };
 
-  if (loading) return <div className="p-8">{t('common.loading')}</div>;
-  if (!user) return <div className="p-8 text-error">{t('common.error')}</div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center p-20 gap-4">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <p className="text-on-surface-variant font-medium">{t('common.loading')}</p>
+    </div>
+  );
+
+  if (error || !user) return (
+    <div className="flex flex-col items-center justify-center p-20 gap-6 bg-surface-container-lowest rounded-xl border border-outline-variant max-w-2xl mx-auto mt-10">
+      <div className="w-16 h-16 rounded-full bg-error-container flex items-center justify-center">
+        <span className="material-symbols-outlined text-error text-3xl">error</span>
+      </div>
+      <div className="text-center">
+        <h2 className="text-h2 font-bold text-on-surface mb-2">{t('common.error')}</h2>
+        <p className="text-on-surface-variant mb-6">We couldn't load your profile information. Please check your connection or try again.</p>
+        <button 
+          onClick={fetchProfile}
+          className="bg-primary text-on-primary px-8 py-2.5 rounded-lg font-bold hover:bg-primary-container transition-all active:scale-95 flex items-center gap-2 mx-auto"
+        >
+          <span className="material-symbols-outlined text-lg">refresh</span>
+          Retry Loading
+        </button>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="p-gutter max-w-7xl mx-auto w-full">
+    <div className="p-gutter max-w-7xl mx-auto w-full animate-in fade-in duration-500">
       {/* Hero Header Section */}
       <section className="mb-md">
         <div className="relative w-full h-48 rounded-lg overflow-hidden mb-[-64px]">
@@ -78,11 +114,16 @@ const Profile: React.FC = () => {
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
         </div>
         <div className="relative px-gutter flex flex-col md:flex-row items-end gap-6">
-          <div className="w-32 h-32 rounded-lg border-4 border-surface overflow-hidden bg-white shadow-sm shrink-0">
+          <div className="w-32 h-32 rounded-lg border-4 border-surface overflow-hidden bg-slate-200 shadow-sm shrink-0 flex items-center justify-center">
             <img 
               alt="Avatar Principal" 
               className="w-full h-full object-cover" 
               src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEvDasyccbzreZr32R4u6oi0JAK-1FoanFH3ze8vM8jLMOhM8jE6nykmJiPLrSXSzZ9vzRfKSzs63DR4n6fzkN5PKRoTo-w2z1u-5Qg-WQM6cmzNKf40BoBPMu_z19YwatgZrcJZqg57YmYOW1z4SUCb2hpT9SgGD1qHcrpGXdOom4z6JZXBJNVt-fzVszeFvq3WfHnekXi2yWG6x8BBD41SaS25E1i6nroTcKjEzNhQlRlaB2gcebsbkOtzu4CCUbnxmoAiPX83g" 
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                target.parentElement!.innerHTML = `<span class="text-4xl font-bold text-sky-600">${user.prenom.charAt(0)}${user.nom.charAt(0)}</span>`;
+              }}
             />
           </div>
           <div className="pb-2">
@@ -123,25 +164,28 @@ const Profile: React.FC = () => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
             <div>
-              <p className="font-label-caps text-label-caps text-outline mb-1 uppercase">Email Institutionnel</p>
+              <p className="font-label-caps text-label-caps text-outline mb-1 uppercase tracking-widest text-[10px] font-bold">Email Institutionnel</p>
               <p className="font-body-lg text-body-lg text-on-surface">{user.email}</p>
             </div>
             <div>
-              <p className="font-label-caps text-label-caps text-outline mb-1 uppercase">Numéro de Téléphone</p>
+              <p className="font-label-caps text-label-caps text-outline mb-1 uppercase tracking-widest text-[10px] font-bold">Numéro de Téléphone</p>
               <p className="font-body-lg text-body-lg text-on-surface">{user.tel || 'N/A'}</p>
             </div>
           </div>
         </div>
 
-        {/* Academic Credentials Card - keep some parts static or based on user data if available */}
-        <div className="col-span-12 lg:col-span-4 bg-primary text-on-primary p-md rounded-lg shadow-sm">
-          <h3 className="font-h3 text-h3 mb-6 flex items-center gap-2">
+        {/* Academic Credentials Card */}
+        <div className="col-span-12 lg:col-span-4 bg-primary text-on-primary p-md rounded-lg shadow-sm relative overflow-hidden">
+          <div className="absolute -right-4 -top-4 opacity-10">
+            <span className="material-symbols-outlined text-[120px]">verified</span>
+          </div>
+          <h3 className="font-h3 text-h3 mb-6 flex items-center gap-2 z-10 relative">
             <span className="material-symbols-outlined">verified</span>
             {t('profile.academic_credentials')}
           </h3>
-          <div className="space-y-6">
+          <div className="space-y-6 z-10 relative">
             <div className="bg-white/10 p-4 rounded border border-white/20">
-              <p className="font-label-caps text-label-caps text-on-primary-container mb-1 opacity-90 uppercase">Role</p>
+              <p className="font-label-caps text-label-caps text-on-primary-container mb-1 opacity-90 uppercase tracking-widest text-[10px] font-bold">Role</p>
               <p className="font-h3 text-h3">{user.role}</p>
             </div>
           </div>
@@ -159,19 +203,19 @@ const Profile: React.FC = () => {
             {/* Language Preferences */}
             <div className="p-gutter flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h4 className="font-body-lg text-body-lg font-semibold text-on-surface">{t('profile.language_preferences')}</h4>
+                <h4 className="font-body-lg text-body-lg font-bold text-on-surface">{t('profile.language_preferences')}</h4>
                 <p className="font-body-md text-body-md text-on-surface-variant">{t('profile.choose_language')}</p>
               </div>
               <div className="flex gap-2">
                 <button 
                   onClick={() => changeLanguage('fr')}
-                  className={`px-3 py-1 rounded font-label-caps text-label-caps transition-all ${i18n.language.startsWith('fr') ? 'bg-secondary text-on-secondary shadow-md' : 'border border-outline text-on-surface-variant hover:bg-surface-container-high'}`}
+                  className={`px-4 py-1.5 rounded font-label-caps text-label-caps transition-all uppercase tracking-widest text-[10px] font-bold ${i18n.language.startsWith('fr') ? 'bg-secondary text-on-secondary shadow-md' : 'border border-outline text-on-surface-variant hover:bg-surface-container-high'}`}
                 >
                   {t('common.french')}
                 </button>
                 <button 
                   onClick={() => changeLanguage('en')}
-                  className={`px-3 py-1 rounded font-label-caps text-label-caps transition-all ${i18n.language.startsWith('en') ? 'bg-secondary text-on-secondary shadow-md' : 'border border-outline text-on-surface-variant hover:bg-surface-container-high'}`}
+                  className={`px-4 py-1.5 rounded font-label-caps text-label-caps transition-all uppercase tracking-widest text-[10px] font-bold ${i18n.language.startsWith('en') ? 'bg-secondary text-on-secondary shadow-md' : 'border border-outline text-on-surface-variant hover:bg-surface-container-high'}`}
                 >
                   {t('common.english')}
                 </button>

@@ -9,6 +9,7 @@ import UserManagement from './components/UserManagement'
 import AddFiliere from './components/AddFiliere'
 import Timetable from './components/Timetable'
 import CreateModule from './components/CreateModule'
+import VacationManagement from './components/VacationManagement'
 import Login from './components/Login'
 import ProtectedRoute from './components/ProtectedRoute'
 import Profile from './components/Profile'
@@ -31,6 +32,7 @@ function App() {
                 <Route path="/faculty" element={<FacultyAssignments />} />
                 <Route path="/forecasting" element={<ForecastingSimulation />} />
                 <Route path="/users" element={<UserManagement />} />
+                <Route path="/vacations" element={<VacationManagement />} />
                 <Route path="/consultation" element={<TeacherConsultation />} />
                 <Route path="/timetable" element={<Timetable />} />
               </Routes>
@@ -44,3 +46,4 @@ function App() {
 }
 
 export default App
+
