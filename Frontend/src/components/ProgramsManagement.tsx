@@ -174,7 +174,7 @@ const ProgramsManagement: React.FC = () => {
                   <p className="font-body-md text-body-md text-on-surface-variant text-sm mb-3">{filiere.description}</p>
                   <div className="flex items-center justify-between text-xs text-outline">
                     <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">folder</span> {filiere.modules.length} {t('programs.modules_count')}</span>
-                    <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">schedule</span> {filiere.modules.reduce((acc, m) => acc + m.totalHours, 0)}h {t('common.all')}</span>
+                    <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">schedule</span> {filiere.modules.reduce((acc, m) => acc + m.assignedHours, 0)}h {t('common.all')}</span>
                   </div>
                 </div>
                 {/* Nested Modules List */}

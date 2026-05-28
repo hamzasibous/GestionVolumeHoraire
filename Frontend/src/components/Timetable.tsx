@@ -121,7 +121,12 @@ const Timetable: React.FC = () => {
     const start = formatDate(weekDates[0]);
     const end = formatDate(weekDates[5]);
     
-    fetch(`http://localhost:8000/api/core/sceance/?start_date=${start}&end_date=${end}`)
+    let url = `http://localhost:8000/api/core/sceance/?start_date=${start}&end_date=${end}`;
+    if (filiereId) {
+      url += `&filiere=${filiereId}`;
+    }
+
+    fetch(url)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {

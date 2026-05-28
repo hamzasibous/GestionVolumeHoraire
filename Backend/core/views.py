@@ -182,8 +182,14 @@ class SceanceViewSet(viewsets.ModelViewSet):
         queryset = Sceance.objects.all()
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
+        filiere_id = self.request.query_params.get('filiere')
+        
         if start_date and end_date:
             queryset = queryset.filter(date__range=[start_date, end_date])
+            
+        if filiere_id:
+            queryset = queryset.filter(module__filieres__id=filiere_id)
+            
         return queryset
 
     def create(self, request, *args, **kwargs):
