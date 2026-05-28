@@ -83,6 +83,8 @@ const Timetable: React.FC = () => {
   const [currentWeekStart, setCurrentWeekStart] = useState(getMonday(new Date()));
   const [slots, setSlots] = useState<TimetableSlot[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [timeFilter, setTimeFilter] = useState<'Morning' | 'Afternoon'>('Morning');
   const [showCalendar, setShowCalendar] = useState(false);
   const [showNavCalendar, setShowNavCalendar] = useState(false);
   const [selectedCell, setSelectedCell] = useState<{ day: string; time: string; endTime: string; date: string } | null>(null);
@@ -114,6 +116,11 @@ const Timetable: React.FC = () => {
   const isDateHoliday = (date: Date) => {
     const dateStr = formatDate(date);
     return vacations.some(v => dateStr >= v.date_debut && dateStr <= v.date_fin);
+  };
+
+  const getHolidayInfo = (date: Date) => {
+    const dateStr = formatDate(date);
+    return vacations.find(v => dateStr >= v.date_debut && dateStr <= v.date_fin);
   };
 
   const fetchSlots = () => {
@@ -249,7 +256,31 @@ const Timetable: React.FC = () => {
     }
   };
 
+  const handleSlotClick = (slot: any) => {
+    // Find matching module and room IDs
+    const moduleId = modules.find(m => m.nom === slot.module)?.id || '';
+    const roomId = locaux.find(l => l.name === slot.room)?.id || '';
+    const teacher = teachers.find(t => `${t.prenom} ${t.nom}` === slot.teacher || `Pr. ${t.nom} ${t.prenom}` === slot.teacher)?.id || '';
+
+    setEditingSessionId(slot.id);
+    setTimeFilter(timeToMinutes(slot.startTime) < 780 ? 'Morning' : 'Afternoon'); // 13:00 threshold
+    setSelectedCell({ day: slot.day, time: slot.startTime, endTime: slot.endTime, date: slot.date });
+    setFormData({
+      module: moduleId.toString(),
+      room: roomId.toString(),
+      teacher: teacher.toString(),
+      type: slot.type,
+      customTime: `${slot.startTime} - ${slot.endTime}`,
+      number_of_sessions: 1,
+      startDate: slot.date
+    });
+    setAvailabilityError(null);
+    setIsModalOpen(true);
+  };
+
   const handleCellClick = (day: string, config: TimeConfig, date: string) => {
+    setEditingSessionId(null);
+    setTimeFilter(timeToMinutes(config.start) < 780 ? 'Morning' : 'Afternoon');
     const defaultTime = `${config.start} - ${config.end}`;
     setSelectedCell({ day, time: config.start, endTime: config.end, date });
     setFormData({ 
@@ -290,8 +321,13 @@ const Timetable: React.FC = () => {
       number_of_sessions: formData.number_of_sessions
     };
 
-    fetch('http://localhost:8000/api/core/sceance/', {
-      method: 'POST',
+    const method = editingSessionId ? 'PUT' : 'POST';
+    const url = editingSessionId 
+      ? `http://localhost:8000/api/core/sceance/${editingSessionId}/` 
+      : 'http://localhost:8000/api/core/sceance/';
+
+    fetch(url, {
+      method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
@@ -307,16 +343,11 @@ const Timetable: React.FC = () => {
   };
 
   const getTimeOptions = () => {
-    if (!selectedCell) return [];
-    // Morning blocks
-    if (['08:30', '10:45'].includes(selectedCell.time)) {
+    if (timeFilter === 'Morning') {
       return ['08:30 - 10:30', '10:45 - 12:45', '08:30 - 12:45'];
-    }
-    // Afternoon blocks
-    if (['14:30', '16:45'].includes(selectedCell.time)) {
+    } else {
       return ['14:30 - 16:30', '16:45 - 18:45', '14:30 - 18:45'];
     }
-    return [`${selectedCell.time} - ${selectedCell.endTime}`];
   };
 
   return (
@@ -416,13 +447,20 @@ const Timetable: React.FC = () => {
               {days.map((day, dayIndex) => {
                 const dayDate = weekDates[dayIndex];
                 const dateStr = formatDate(dayDate);
+                const holiday = getHolidayInfo(dayDate);
                 
                 return (
                   <React.Fragment key={day}>
-                    <div className="border-b border-r border-outline-variant bg-surface-container flex flex-col items-center justify-center gap-1">
-                      <span className="font-black text-on-surface uppercase text-[12px] tracking-tight">{day}</span>
+                    <div className={`border-b border-r border-outline-variant flex flex-col items-center justify-center gap-1 transition-colors ${
+                      holiday ? 'bg-error-container/20' : 'bg-surface-container'
+                    }`}>
+                      <span className={`font-black uppercase text-[12px] tracking-tight ${holiday ? 'text-error' : 'text-on-surface'}`}>{day}</span>
                       <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                        dateStr === formatDate(new Date()) ? 'bg-primary text-on-primary' : 'text-outline border border-outline-variant bg-white'
+                        dateStr === formatDate(new Date()) 
+                          ? 'bg-primary text-on-primary' 
+                          : holiday 
+                            ? 'bg-error text-white'
+                            : 'text-outline border border-outline-variant bg-white'
                       }`}>
                         {dayDate.getDate()} {dayDate.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '')}
                       </span>
@@ -440,6 +478,24 @@ const Timetable: React.FC = () => {
                         return (sStart < cEnd) && (cStart < sEnd);
                       });
                       
+                      if (holiday && !config.isBreak) {
+                        return (
+                          <div 
+                            key={i} 
+                            className="border-b border-r border-outline-variant bg-error-container/5 relative overflow-hidden group"
+                          >
+                             <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(185,28,28,0.03)_10px,rgba(185,28,28,0.03)_20px)]"></div>
+                             {/* Only show text in the second slot for cleaner look, or first if preferred */}
+                             {i === 0 && (
+                               <div className="absolute inset-y-0 left-4 flex items-center gap-2 text-error/40 z-10 pointer-events-none">
+                                 <span className="material-symbols-outlined text-sm">event_busy</span>
+                                 <span className="font-black text-[10px] uppercase tracking-widest whitespace-nowrap">{holiday.titre || holiday.type_conge}</span>
+                               </div>
+                             )}
+                          </div>
+                        );
+                      }
+
                       if (config.isBreak) {
                         return (
                           <div key={i} className="border-b border-r border-outline-variant opacity-30 bg-[repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9_10px,#ffffff_10px,#ffffff_20px)] shadow-inner relative">
@@ -453,7 +509,7 @@ const Timetable: React.FC = () => {
                       return (
                         <div 
                           key={i} 
-                          onClick={() => !slot && handleCellClick(day, config, dateStr)}
+                          onClick={() => slot ? handleSlotClick(slot) : handleCellClick(day, config, dateStr)}
                           className={`border-b border-r border-outline-variant transition-all ${slot ? 'p-2' : 'hover:bg-primary/5 cursor-pointer bg-white group'}`}
                         >
                           {slot ? (
@@ -497,8 +553,10 @@ const Timetable: React.FC = () => {
                    <span className="material-symbols-outlined text-sky-400">add_task</span>
                 </div>
                 <div>
-                  <h3 className="text-lg font-black uppercase tracking-tight">Assigner une Séance</h3>
-                  <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">Planification du {new Date(selectedCell.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  <h3 className="text-lg font-black uppercase tracking-tight">{editingSessionId ? 'Modifier la Séance' : 'Assigner une Séance'}</h3>
+                  <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">
+                    {editingSessionId ? `Modification de la séance du ${new Date(selectedCell.date).toLocaleDateString('fr-FR')}` : `Planification du ${new Date(selectedCell.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+                  </p>
                 </div>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
@@ -508,10 +566,31 @@ const Timetable: React.FC = () => {
             {/* Modal Content */}
             <div className="p-8 space-y-6">
               <div className="grid grid-cols-1 gap-6">
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Jour de la Semaine</label>
-                  <div className="bg-surface-container-low px-4 py-3 rounded-xl border border-outline-variant font-black text-primary text-sm shadow-inner uppercase">{selectedCell.day}</div>
+                <div className="flex justify-between items-center bg-surface-container-low p-4 rounded-xl border border-outline-variant">
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Période du jour</label>
+                    <div className="flex gap-2">
+                      {(['Morning', 'Afternoon'] as const).map(p => (
+                        <button
+                          key={p}
+                          onClick={() => setTimeFilter(p)}
+                          className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${
+                            timeFilter === p 
+                            ? 'bg-sky-500 text-white shadow-lg' 
+                            : 'bg-white border border-outline-variant text-on-surface-variant'
+                          }`}
+                        >
+                          {p === 'Morning' ? 'Matin' : 'Après-midi'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Jour</label>
+                    <div className="font-black text-primary text-sm uppercase">{selectedCell.day}</div>
+                  </div>
                 </div>
+
                 <div className="space-y-2">
                   <label className="block text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Sélectionner la Plage Horaire (2h ou 4h)</label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -642,18 +721,20 @@ const Timetable: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Nombre de Séances (Hebdomadaires)</label>
-                <input 
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={formData.number_of_sessions}
-                  onChange={(e) => setFormData({...formData, number_of_sessions: parseInt(e.target.value) || 1})}
-                  className="w-full bg-white border border-outline-variant rounded-xl px-4 py-3 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none text-sm font-bold shadow-sm transition-all"
-                />
-                <p className="text-[10px] text-outline italic">Les séances suivantes seront planifiées chaque semaine, en sautant les vacances.</p>
-              </div>
+              {!editingSessionId && (
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Nombre de Séances (Hebdomadaires)</label>
+                  <input 
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={formData.number_of_sessions}
+                    onChange={(e) => setFormData({...formData, number_of_sessions: parseInt(e.target.value) || 1})}
+                    className="w-full bg-white border border-outline-variant rounded-xl px-4 py-3 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none text-sm font-bold shadow-sm transition-all"
+                  />
+                  <p className="text-[10px] text-outline italic">Les séances suivantes seront planifiées chaque semaine, en sautant les vacances.</p>
+                </div>
+              )}
 
               {availabilityError && (
                 <div className="bg-error-container/20 p-4 rounded-xl border border-error/20 flex items-center gap-3 animate-in slide-in-from-top-2">
@@ -674,7 +755,7 @@ const Timetable: React.FC = () => {
                   disabled={!formData.module || !formData.room || !!availabilityError || isCheckingAvailability}
                   className="flex-1 bg-slate-900 text-white py-3 rounded-xl font-black hover:bg-slate-800 shadow-xl shadow-slate-900/20 uppercase text-[10px] tracking-widest active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                 >
-                  {isCheckingAvailability ? 'Vérification...' : 'Valider l\'Assignation'}
+                  {isCheckingAvailability ? 'Vérification...' : (editingSessionId ? 'Mettre à jour la Séance' : 'Valider l\'Assignation')}
                 </button>
               </div>
             </div>

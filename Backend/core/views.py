@@ -258,6 +258,49 @@ class SceanceViewSet(viewsets.ModelViewSet):
 
         return Response(created_sessions, status=status.HTTP_201_CREATED)
 
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        date_str = request.data.get('date', instance.date.strftime('%Y-%m-%d'))
+        heure_debut_str = request.data.get('heure_debut', instance.heure_debut.strftime('%H:%M') if instance.heure_debut else None)
+        duree = int(request.data.get('duree', instance.duree))
+        local_id = request.data.get('local', instance.local_id)
+        enseignant_id = request.data.get('enseignant', instance.enseignant_id)
+
+        from datetime import datetime, timedelta
+        current_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        heure_debut = datetime.strptime(heure_debut_str, '%H:%M').time() if heure_debut_str else None
+
+        # 1. Vacation Check
+        vacation_filter = models.Q(is_global=True)
+        if enseignant_id:
+            vacation_filter |= models.Q(enseignant_id=enseignant_id)
+            
+        on_vacation = Vacation.objects.filter(
+            vacation_filter,
+            date_debut__lte=current_date,
+            date_fin__gte=current_date
+        ).exists()
+        
+        if on_vacation:
+            return Response({"error": "L'enseignant est en congé ou c'est un jour férié à cette date."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 2. Conflict Check
+        if heure_debut:
+            start_dt = datetime.combine(current_date, heure_debut)
+            end_dt = start_dt + timedelta(minutes=duree)
+            
+            # Exclude current instance from conflict check
+            existing_sessions = Sceance.objects.filter(date=current_date, local_id=local_id).exclude(id=instance.id)
+            for sess in existing_sessions:
+                if not sess.heure_debut: continue
+                s_start = datetime.combine(sess.date, sess.heure_debut)
+                s_end = s_start + timedelta(minutes=sess.duree)
+                
+                if (start_dt < s_end) and (s_start < end_dt):
+                    return Response({"error": f"Conflit de salle détecté avec une autre séance à {current_date} {heure_debut}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        return super().update(request, *args, **kwargs)
+
     @action(detail=False, methods=['get'])
     def check_availability(self, request):
         local_id = request.query_params.get('local')
