@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import HolidayCalendar from './HolidayCalendar';
 
 interface TimetableSlot {
@@ -56,7 +57,19 @@ const getMonday = (d: Date) => {
 // Helper to format date as YYYY-MM-DD
 const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
+const addMinutes = (time: string, minutes: number) => {
+  const [h, m] = time.split(':').map(Number);
+  const totalMinutes = h * 60 + m + minutes;
+  const newH = Math.floor(totalMinutes / 60);
+  const newM = totalMinutes % 60;
+  return `${newH.toString().padStart(2, '0')}:${newM.toString().padStart(2, '0')}`;
+};
+
 const Timetable: React.FC = () => {
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const filiereId = queryParams.get('filiereId');
+
   const [currentWeekStart, setCurrentWeekStart] = useState(getMonday(new Date()));
   const [slots, setSlots] = useState<TimetableSlot[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -102,19 +115,23 @@ const Timetable: React.FC = () => {
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
-           const mapped = data.map((s: any) => ({
-             id: s.id.toString(),
-             day: days[new Date(s.date).getDay() - 1] || 'Lundi',
-             date: s.date,
-             startTime: s.heure_debut ? s.heure_debut.substring(0, 5) : '08:30',
-             endTime: '10:30', // Default or calculate from duree
-             module: s.module_name,
-             room: s.local_name,
-             type: s.type,
-             color: s.type === 'CM' ? 'bg-primary-container/10 border-primary text-primary' : 
-                    s.type === 'TD' ? 'bg-secondary-container/20 border-secondary text-on-secondary-container' :
-                    'bg-tertiary-container/20 border-tertiary text-on-tertiary-container'
-           }));
+           const mapped = data.map((s: any) => {
+             const startTime = s.heure_debut ? s.heure_debut.substring(0, 5) : '08:30';
+             const endTime = addMinutes(startTime, s.duree);
+             return {
+               id: s.id.toString(),
+               day: days[new Date(s.date).getDay() - 1] || 'Lundi',
+               date: s.date,
+               startTime: startTime,
+               endTime: endTime,
+               module: s.module_name,
+               room: s.local_name,
+               type: s.type,
+               color: s.type === 'CM' ? 'bg-primary-container/10 border-primary text-primary' : 
+                      s.type === 'TD' ? 'bg-secondary-container/20 border-secondary text-on-secondary-container' :
+                      'bg-tertiary-container/20 border-tertiary text-on-tertiary-container'
+             };
+           });
            setSlots(mapped);
         }
       })
@@ -127,10 +144,29 @@ const Timetable: React.FC = () => {
       .then(data => setLocaux(data))
       .catch(err => console.error('Error fetching locaux:', err));
 
-    fetch('http://localhost:8000/api/core/module/')
-      .then(res => res.json())
-      .then(data => setModules(data))
-      .catch(err => console.error('Error fetching modules:', err));
+    const modulesUrl = filiereId 
+      ? `http://localhost:8000/api/core/filiere/details/` // We'll need to filter from the detailed list or have a better endpoint
+      : 'http://localhost:8000/api/core/module/';
+
+    if (filiereId) {
+      fetch('http://localhost:8000/api/core/filiere/details/')
+        .then(res => res.json())
+        .then(data => {
+          const selectedFiliere = data.find((f: any) => f.id.toString() === filiereId);
+          if (selectedFiliere) {
+            setModules(selectedFiliere.modules.map((m: any) => ({
+              id: m.id,
+              nom: m.nom
+            })));
+          }
+        })
+        .catch(err => console.error('Error fetching filtered modules:', err));
+    } else {
+      fetch('http://localhost:8000/api/core/module/')
+        .then(res => res.json())
+        .then(data => setModules(data))
+        .catch(err => console.error('Error fetching modules:', err));
+    }
 
     fetch('http://localhost:8000/api/core/vacations/')
       .then(res => res.json())
@@ -452,22 +488,44 @@ const Timetable: React.FC = () => {
             </div>
             {/* Modal Content */}
             <div className="p-8 space-y-6">
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-6">
                 <div className="space-y-2">
                   <label className="block text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Jour de la Semaine</label>
                   <div className="bg-surface-container-low px-4 py-3 rounded-xl border border-outline-variant font-black text-primary text-sm shadow-inner uppercase">{selectedCell.day}</div>
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Plage Horaire</label>
-                  <select 
-                    value={formData.customTime}
-                    onChange={(e) => setFormData({...formData, customTime: e.target.value})}
-                    className="w-full bg-white border border-outline-variant rounded-xl px-4 py-3 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none text-sm font-bold shadow-sm transition-all cursor-pointer"
-                  >
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Sélectionner la Plage Horaire (2h ou 4h)</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {getTimeOptions().map(option => (
-                      <option key={option} value={option}>{option}</option>
+                      <button
+                        key={option}
+                        onClick={() => setFormData({...formData, customTime: option})}
+                        className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all gap-1 ${
+                          formData.customTime === option 
+                          ? 'border-primary bg-primary/5 shadow-md scale-[1.02]' 
+                          : 'border-outline-variant hover:border-primary/30 hover:bg-surface-container-low'
+                        }`}
+                      >
+                        <span className={`material-symbols-outlined text-lg ${formData.customTime === option ? 'text-primary' : 'text-outline'}`}>
+                          {option.includes('12:45') || option.includes('18:45') && option.length > 13 ? 'history_edu' : 'timer'}
+                        </span>
+                        <span className={`text-[11px] font-bold ${formData.customTime === option ? 'text-primary' : 'text-on-surface'}`}>
+                          {option}
+                        </span>
+                        <span className="text-[9px] font-black uppercase opacity-40">
+                          {option.split(' - ').length === 2 && 
+                            (() => {
+                              const [s, e] = option.split(' - ');
+                              const [sh, sm] = s.split(':').map(Number);
+                              const [eh, em] = e.split(':').map(Number);
+                              const diff = (eh * 60 + em) - (sh * 60 + sm);
+                              return diff > 130 ? 'Double Séance (4h+)' : 'Séance Simple (2h)';
+                            })()
+                          }
+                        </span>
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
               </div>
 

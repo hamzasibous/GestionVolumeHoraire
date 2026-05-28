@@ -198,7 +198,7 @@ const ProgramsManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex gap-3">
-                  <Link to="/timetable" className="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-lg hover:bg-secondary-container/90 transition-colors font-body-md text-body-md flex items-center gap-2 shadow-sm uppercase tracking-wider font-bold">
+                  <Link to={`/timetable?filiereId=${selectedFiliere.id}`} className="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-lg hover:bg-secondary-container/90 transition-colors font-body-md text-body-md flex items-center gap-2 shadow-sm uppercase tracking-wider font-bold">
                     <span className="material-symbols-outlined text-[18px]">add_box</span>
                     {t('programs.add_edit_seance')}
                   </Link>
