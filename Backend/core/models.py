@@ -84,13 +84,15 @@ class Comporte(models.Model):
 
 class Sceance(models.Model):
     type = models.CharField(max_length=10, choices=TypeSceance.choices)
-    duree = models.IntegerField()  # In minutes or hours
+    duree = models.IntegerField()  # In minutes
     date = models.DateField()
+    heure_debut = models.TimeField(null=True, blank=True)
     module = models.ForeignKey(
         Module, on_delete=models.CASCADE, related_name="sceances"
     )
     enseignant = models.ForeignKey(
-        Enseignant, on_delete=models.CASCADE, related_name="sceances"
+        Enseignant, on_delete=models.CASCADE, related_name="sceances",
+        null=True, blank=True
     )
     local = models.ForeignKey(Local, on_delete=models.CASCADE, related_name="sceances")
 

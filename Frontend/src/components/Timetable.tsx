@@ -66,6 +66,7 @@ const Timetable: React.FC = () => {
   
   const [locaux, setLocaux] = useState<Local[]>([]);
   const [modules, setModules] = useState<Module[]>([]);
+  const [teachers, setTeachers] = useState<any[]>([]);
   const [vacations, setVacations] = useState<any[]>([]);
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
@@ -73,9 +74,10 @@ const Timetable: React.FC = () => {
   const [formData, setFormData] = useState({
     module: '',
     room: '',
-    type: 'Cours',
+    teacher: '',
+    type: 'CM',
     customTime: '',
-    totalSessions: 18,
+    number_of_sessions: 1,
     startDate: ''
   });
 
@@ -104,12 +106,12 @@ const Timetable: React.FC = () => {
              id: s.id.toString(),
              day: days[new Date(s.date).getDay() - 1] || 'Lundi',
              date: s.date,
-             startTime: s.startTime || '08:30', // Fallback if backend structure differs
-             endTime: s.endTime || '10:30',
+             startTime: s.heure_debut ? s.heure_debut.substring(0, 5) : '08:30',
+             endTime: '10:30', // Default or calculate from duree
              module: s.module_name,
              room: s.local_name,
              type: s.type,
-             color: s.type === 'Cours' ? 'bg-primary-container/10 border-primary text-primary' : 
+             color: s.type === 'CM' ? 'bg-primary-container/10 border-primary text-primary' : 
                     s.type === 'TD' ? 'bg-secondary-container/20 border-secondary text-on-secondary-container' :
                     'bg-tertiary-container/20 border-tertiary text-on-tertiary-container'
            }));
@@ -134,6 +136,11 @@ const Timetable: React.FC = () => {
       .then(res => res.json())
       .then(data => setVacations(data))
       .catch(err => console.error('Error fetching vacations:', err));
+
+    fetch('http://localhost:8000/api/users/management/')
+      .then(res => res.json())
+      .then(data => setTeachers(data.filter((u: any) => u.role === 'ENSEIGNANT')))
+      .catch(err => console.error('Error fetching teachers:', err));
   }, []);
 
   useEffect(() => {
@@ -141,16 +148,24 @@ const Timetable: React.FC = () => {
   }, [currentWeekStart]);
 
   useEffect(() => {
-    if (formData.room && formData.startDate) {
-      checkAvailability(formData.room, formData.startDate);
+    if (formData.room && formData.startDate && formData.customTime) {
+      const timeParts = formData.customTime.split(' - ');
+      const startTime = timeParts[0];
+      const endTime = timeParts[1];
+      
+      const [startH, startM] = startTime.split(':').map(Number);
+      const [endH, endM] = endTime.split(':').map(Number);
+      const duree = (endH * 60 + endM) - (startH * 60 + startM);
+
+      checkAvailability(formData.room, formData.startDate, startTime, duree);
     } else {
       setAvailabilityError(null);
     }
-  }, [formData.room, formData.startDate]);
+  }, [formData.room, formData.startDate, formData.customTime]);
 
-  const checkAvailability = (roomId: string, date: string) => {
+  const checkAvailability = (roomId: string, date: string, startTime: string, duree: number) => {
     setIsCheckingAvailability(true);
-    fetch(`http://localhost:8000/api/core/sceance/check_availability/?local=${roomId}&date=${date}`)
+    fetch(`http://localhost:8000/api/core/sceance/check_availability/?local=${roomId}&date=${date}&heure_debut=${startTime}&duree=${duree}`)
       .then(res => res.json())
       .then(data => {
         if (!data.available) {
@@ -189,10 +204,11 @@ const Timetable: React.FC = () => {
     setFormData({ 
       module: '', 
       room: '', 
-      type: 'Cours',
+      teacher: '',
+      type: 'CM',
       customTime: defaultTime,
-      totalSessions: 18,
-      startDate: date // Pre-fill with the specific date of the clicked column
+      number_of_sessions: 1,
+      startDate: date 
     });
     setAvailabilityError(null);
     setIsModalOpen(true);
@@ -202,13 +218,25 @@ const Timetable: React.FC = () => {
   const handleValidate = () => {
     if (!selectedCell || !formData.module || !formData.room || availabilityError) return;
 
+    // Parse customTime to get heure_debut and duree
+    const timeParts = formData.customTime.split(' - ');
+    const startTime = timeParts[0];
+    const endTime = timeParts[1];
+    
+    // Calculate duration in minutes
+    const [startH, startM] = startTime.split(':').map(Number);
+    const [endH, endM] = endTime.split(':').map(Number);
+    const duree = (endH * 60 + endM) - (startH * 60 + startM);
+
     const payload = {
       type: formData.type,
-      duree: 120, // 2 hours by default
+      duree: duree,
       date: formData.startDate,
+      heure_debut: startTime,
       module: formData.module,
-      enseignant: 1, // This should come from the user's session in a full app
-      local: formData.room
+      enseignant: formData.teacher || null,
+      local: formData.room,
+      number_of_sessions: formData.number_of_sessions
     };
 
     fetch('http://localhost:8000/api/core/sceance/', {
@@ -221,7 +249,7 @@ const Timetable: React.FC = () => {
         fetchSlots();
         setIsModalOpen(false);
       } else {
-        alert("Erreur lors de l'enregistrement de la séance.");
+        res.json().then(data => alert(`Erreur: ${JSON.stringify(data)}`));
       }
     })
     .catch(err => console.error('Error saving session:', err));
@@ -476,7 +504,7 @@ const Timetable: React.FC = () => {
                 <div className="space-y-2">
                   <label className="block text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Type de Séance</label>
                   <div className="grid grid-cols-3 gap-2">
-                    {['Cours', 'TD', 'TP'].map(type => (
+                    {['CM', 'TD', 'TP'].map(type => (
                       <button
                         key={type}
                         onClick={() => setFormData({...formData, type})}
@@ -486,7 +514,7 @@ const Timetable: React.FC = () => {
                           : 'bg-white text-on-surface-variant border-outline-variant hover:border-primary/50'
                         }`}
                       >
-                        {type}
+                        {type === 'CM' ? 'Cours' : type}
                       </button>
                     ))}
                   </div>
@@ -508,18 +536,46 @@ const Timetable: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Module Académique</label>
+                  <select 
+                    value={formData.module}
+                    onChange={(e) => setFormData({...formData, module: e.target.value})}
+                    className="w-full bg-white border border-outline-variant rounded-xl px-4 py-3 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none text-sm font-bold shadow-sm transition-all cursor-pointer"
+                  >
+                    <option value="">Sélectionner un module...</option>
+                    {modules.map(m => (
+                      <option key={m.id} value={m.id}>{m.nom}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Enseignant (Optionnel)</label>
+                  <select 
+                    value={formData.teacher}
+                    onChange={(e) => setFormData({...formData, teacher: e.target.value})}
+                    className="w-full bg-white border border-outline-variant rounded-xl px-4 py-3 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none text-sm font-bold shadow-sm transition-all cursor-pointer"
+                  >
+                    <option value="">Aucun (Non assigné)</option>
+                    {teachers.map(t => (
+                      <option key={t.id} value={t.id}>{t.prenom} {t.nom}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <label className="block text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Module Académique</label>
-                <select 
-                  value={formData.module}
-                  onChange={(e) => setFormData({...formData, module: e.target.value})}
-                  className="w-full bg-white border border-outline-variant rounded-xl px-4 py-3 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none text-sm font-bold shadow-sm transition-all cursor-pointer"
-                >
-                  <option value="">Sélectionner un module...</option>
-                  {modules.map(m => (
-                    <option key={m.id} value={m.id}>{m.nom}</option>
-                  ))}
-                </select>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Nombre de Séances (Hebdomadaires)</label>
+                <input 
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={formData.number_of_sessions}
+                  onChange={(e) => setFormData({...formData, number_of_sessions: parseInt(e.target.value) || 1})}
+                  className="w-full bg-white border border-outline-variant rounded-xl px-4 py-3 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none text-sm font-bold shadow-sm transition-all"
+                />
+                <p className="text-[10px] text-outline italic">Les séances suivantes seront planifiées chaque semaine, en sautant les vacances.</p>
               </div>
 
               {availabilityError && (

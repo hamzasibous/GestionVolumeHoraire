@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from django.db import models
 
 from .models import Comporte, Departement, Filiere, Module, Sceance, Vacation, Local
 from rest_framework import serializers, viewsets, status
@@ -52,7 +53,7 @@ class SceanceSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Sceance
-        fields = ["id", "type", "duree", "date", "module", "module_name", "enseignant", "enseignant_name", "local", "local_name"]
+        fields = ["id", "type", "duree", "date", "heure_debut", "module", "module_name", "enseignant", "enseignant_name", "local", "local_name"]
 
 
 class VacationSerializer(serializers.ModelSerializer):
@@ -180,17 +181,109 @@ class SceanceViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(date__range=[start_date, end_date])
         return queryset
 
+    def create(self, request, *args, **kwargs):
+        number_of_sessions = int(request.data.get('number_of_sessions', 1))
+        initial_date_str = request.data.get('date')
+        if not initial_date_str:
+            return Response({"error": "Date is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        from datetime import datetime, timedelta
+        current_date = datetime.strptime(initial_date_str, '%Y-%m-%d').date()
+        
+        enseignant_id = request.data.get('enseignant')
+        local_id = request.data.get('local')
+        heure_debut_str = request.data.get('heure_debut')
+        duree = int(request.data.get('duree', 0))
+        
+        if not heure_debut_str:
+            return Response({"error": "Start time (heure_debut) is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        heure_debut = datetime.strptime(heure_debut_str, '%H:%M').time()
+        
+        created_sessions = []
+        
+        while len(created_sessions) < number_of_sessions:
+            # Check for vacations and increment week if necessary
+            on_vacation = Vacation.objects.filter(
+                (models.Q(is_global=True) | models.Q(enseignant_id=enseignant_id if enseignant_id else None)),
+                date_debut__lte=current_date,
+                date_fin__gte=current_date
+            ).exists()
+            
+            if on_vacation:
+                current_date += timedelta(days=7)
+                continue
+            
+            # Check for local conflicts
+            start_dt = datetime.combine(current_date, heure_debut)
+            end_dt = start_dt + timedelta(minutes=duree)
+            
+            # Find overlapping sessions in the same local
+            existing_sessions = Sceance.objects.filter(date=current_date, local_id=local_id)
+            conflict = False
+            for sess in existing_sessions:
+                if not sess.heure_debut: continue
+                s_start = datetime.combine(sess.date, sess.heure_debut)
+                s_end = s_start + timedelta(minutes=sess.duree)
+                
+                if (start_dt < s_end) and (s_start < end_dt):
+                    conflict = True
+                    break
+            
+            if conflict:
+                current_date += timedelta(days=7)
+                continue 
+            
+            # Create session
+            data = request.data.copy()
+            data['date'] = current_date.strftime('%Y-%m-%d')
+            serializer = self.get_serializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            session = serializer.save()
+            created_sessions.append(serializer.data)
+            
+            # Increment for next session
+            current_date += timedelta(days=7)
+
+        return Response(created_sessions, status=status.HTTP_201_CREATED)
+
     @action(detail=False, methods=['get'])
     def check_availability(self, request):
         local_id = request.query_params.get('local')
-        date = request.query_params.get('date')
-        if not local_id or not date:
+        date_str = request.query_params.get('date')
+        heure_debut_str = request.query_params.get('heure_debut')
+        duree = int(request.query_params.get('duree', 120))
+        
+        if not local_id or not date_str:
             return Response({"error": "Missing local or date"}, status=400)
             
-        conflicts = Sceance.objects.filter(local_id=local_id, date=date)
+        from datetime import datetime, timedelta
+        date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        
+        existing_sessions = Sceance.objects.filter(date=date, local_id=local_id)
+        
+        if heure_debut_str:
+            heure_debut = datetime.strptime(heure_debut_str, '%H:%M').time()
+            start_dt = datetime.combine(date, heure_debut)
+            end_dt = start_dt + timedelta(minutes=duree)
+            
+            conflicts = []
+            for sess in existing_sessions:
+                if not sess.heure_debut: continue
+                s_start = datetime.combine(sess.date, sess.heure_debut)
+                s_end = s_start + timedelta(minutes=sess.duree)
+                
+                if (start_dt < s_end) and (s_start < end_dt):
+                    conflicts.append(sess)
+            
+            return Response({
+                "available": len(conflicts) == 0,
+                "conflicts": SceanceSerializer(conflicts, many=True).data
+            })
+            
         return Response({
-            "available": not conflicts.exists(),
-            "conflicts": SceanceSerializer(conflicts, many=True).data
+            "available": not existing_sessions.exists(),
+            "conflicts": SceanceSerializer(existing_sessions, many=True).data
         })
 
 class ModuleListView(ListAPIView):
