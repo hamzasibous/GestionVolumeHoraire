@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import HolidayCalendar from './HolidayCalendar';
 
 interface TimetableSlot {
   id: string;
@@ -7,9 +8,20 @@ interface TimetableSlot {
   endTime: string;
   module: string;
   room: string;
+  room_id?: string;
   type: string;
   totalSessions: number;
   color: string;
+}
+
+interface Local {
+  id: number;
+  name: string;
+}
+
+interface Module {
+  id: number;
+  nom: string;
 }
 
 const initialSlots: TimetableSlot[] = [
@@ -42,15 +54,62 @@ const timeConfig: TimeConfig[] = [
 const Timetable: React.FC = () => {
   const [slots, setSlots] = useState<TimetableSlot[]>(initialSlots);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
   const [selectedCell, setSelectedCell] = useState<{ day: string; time: string; endTime: string } | null>(null);
   
+  const [locaux, setLocaux] = useState<Local[]>([]);
+  const [modules, setModules] = useState<Module[]>([]);
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
     module: '',
     room: '',
     type: 'Cours',
     customTime: '',
-    totalSessions: 18
+    totalSessions: 18,
+    startDate: ''
   });
+
+  useEffect(() => {
+    // Fetch Locaux
+    fetch('http://localhost:8000/api/core/local/')
+      .then(res => res.json())
+      .then(data => setLocaux(data))
+      .catch(err => console.error('Error fetching locaux:', err));
+
+    // Fetch Modules
+    fetch('http://localhost:8000/api/core/module/')
+      .then(res => res.json())
+      .then(data => setModules(data))
+      .catch(err => console.error('Error fetching modules:', err));
+  }, []);
+
+  useEffect(() => {
+    if (formData.room && formData.startDate) {
+      checkAvailability(formData.room, formData.startDate);
+    } else {
+      setAvailabilityError(null);
+    }
+  }, [formData.room, formData.startDate]);
+
+  const checkAvailability = (roomId: string, date: string) => {
+    setIsCheckingAvailability(true);
+    fetch(`http://localhost:8000/api/core/sceance/check_availability/?local=${roomId}&date=${date}`)
+      .then(res => res.json())
+      .then(data => {
+        if (!data.available) {
+          setAvailabilityError(`Attention: Cette salle est déjà occupée à cette date par: ${data.conflicts[0].module_name || 'une autre séance'}`);
+        } else {
+          setAvailabilityError(null);
+        }
+        setIsCheckingAvailability(false);
+      })
+      .catch(err => {
+        console.error('Error checking availability:', err);
+        setIsCheckingAvailability(false);
+      });
+  };
 
   const totalPlannedHours = slots.length * 2; 
 
@@ -62,23 +121,29 @@ const Timetable: React.FC = () => {
       room: '', 
       type: 'Cours',
       customTime: defaultTime,
-      totalSessions: 18
+      totalSessions: 18,
+      startDate: ''
     });
+    setAvailabilityError(null);
     setIsModalOpen(true);
+    setShowCalendar(false);
   };
 
   const handleValidate = () => {
-    if (!selectedCell || !formData.module || !formData.room) return;
+    if (!selectedCell || !formData.module || !formData.room || availabilityError) return;
 
     const [start, end] = formData.customTime.split(' - ');
+    const selectedRoom = locaux.find(l => l.id.toString() === formData.room);
+    const selectedModule = modules.find(m => m.id.toString() === formData.module);
 
     const newSlot: TimetableSlot = {
       id: Math.random().toString(36).substr(2, 9),
       day: selectedCell.day,
       startTime: start,
       endTime: end,
-      module: formData.module,
-      room: formData.room,
+      module: selectedModule?.nom || 'Inconnu',
+      room: selectedRoom?.name || 'Inconnu',
+      room_id: formData.room,
       type: formData.type,
       totalSessions: formData.totalSessions,
       color: formData.type === 'Cours' ? 'bg-primary-container/10 border-primary text-primary' : 
@@ -92,9 +157,6 @@ const Timetable: React.FC = () => {
 
   const getTimeOptions = () => {
     if (!selectedCell) return [];
-    const isMorning = ['08:30', '10:45'].includes(selectedCell.time) || (selectedCell.time === 'Pause' && selectedCell.endTime === ''); 
-    // Wait, selectedCell.time is config.label.
-    
     if (['08:30', '10:45'].includes(selectedCell.time)) {
       return ['08:30 - 10:30', '10:45 - 12:45', '08:30 - 12:45'];
     }
@@ -245,8 +307,37 @@ const Timetable: React.FC = () => {
                   </select>
                 </div>
               </div>
+
+              <div className="relative">
+                <label className="block font-label-caps text-outline mb-xs text-[10px] uppercase font-bold tracking-widest">DATE DE DÉBUT (VÉRIFIER LES JOURS FÉRIÉS)</label>
+                <div className="flex gap-2">
+                  <div className="flex-1 bg-surface-container-low p-sm rounded-lg border border-outline-variant font-bold text-primary text-sm shadow-inner min-h-[40px] flex items-center px-4">
+                    {formData.startDate || "Choisir une date..."}
+                  </div>
+                  <button 
+                    onClick={() => setShowCalendar(!showCalendar)}
+                    className="bg-primary text-on-primary px-4 rounded-lg flex items-center justify-center hover:bg-primary/90 transition-all active:scale-95 shadow-md"
+                  >
+                    <span className="material-symbols-outlined">calendar_month</span>
+                  </button>
+                </div>
+                
+                {showCalendar && (
+                  <div className="absolute left-0 right-0 top-full mt-2 z-[110]">
+                    <HolidayCalendar 
+                      selectedDate={formData.startDate}
+                      onDateSelect={(date) => {
+                        setFormData({...formData, startDate: date});
+                        setShowCalendar(false);
+                      }}
+                      onClose={() => setShowCalendar(false)}
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-sm">
-                <div className="grid grid-cols-2 gap-md">
+                <div className="grid grid-cols-1 gap-md">
                   <div>
                     <label className="block font-label-caps text-outline mb-xs text-[10px] uppercase font-bold tracking-widest">TYPE DE SÉANCE</label>
                     <select 
@@ -259,17 +350,6 @@ const Timetable: React.FC = () => {
                       <option value="TP">TP</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block font-label-caps text-outline mb-xs text-[10px] uppercase font-bold tracking-widest">TOTAL SCIENCES (MAX 24)</label>
-                    <input 
-                      type="number"
-                      min="1"
-                      max="24"
-                      value={formData.totalSessions}
-                      onChange={(e) => setFormData({...formData, totalSessions: Math.min(24, parseInt(e.target.value) || 0)})}
-                      className="w-full bg-white border border-outline-variant rounded-lg px-md py-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm font-medium shadow-sm transition-all"
-                    />
-                  </div>
                 </div>
                 <div className="grid grid-cols-1 gap-md">
                   <div>
@@ -277,13 +357,15 @@ const Timetable: React.FC = () => {
                     <select 
                       value={formData.room}
                       onChange={(e) => setFormData({...formData, room: e.target.value})}
-                      className="w-full bg-white border border-outline-variant rounded-lg px-md py-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm font-medium shadow-sm transition-all"
+                      className={`w-full bg-white border rounded-lg px-md py-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm font-medium shadow-sm transition-all ${availabilityError ? 'border-error ring-error/20' : 'border-outline-variant'}`}
                     >
                       <option value="">Sélectionner...</option>
-                      <option value="AMPHI E">AMPHI E</option>
-                      <option value="BLOC 8 - Salle 3">BLOC 8 - Salle 3</option>
-                      <option value="LABO GINF 2">LABO GINF 2</option>
+                      {locaux.map(l => (
+                        <option key={l.id} value={l.id}>{l.name}</option>
+                      ))}
                     </select>
+                    {isCheckingAvailability && <p className="text-[10px] text-primary mt-1 animate-pulse italic">Vérification de la disponibilité...</p>}
+                    {availabilityError && <p className="text-[10px] text-error mt-1 font-bold">{availabilityError}</p>}
                   </div>
                 </div>
                 <div>
@@ -294,10 +376,9 @@ const Timetable: React.FC = () => {
                     className="w-full bg-white border border-outline-variant rounded-lg px-md py-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm font-medium shadow-sm transition-all"
                   >
                     <option value="">Sélectionner un module...</option>
-                    <option value="Algorithmique & C">Algorithmique & C</option>
-                    <option value="Architecture des Ordinateurs">Architecture des Ordinateurs</option>
-                    <option value="Probabilités & Statistiques">Probabilités & Statistiques</option>
-                    <option value="Programmation Web I">Programmation Web I</option>
+                    {modules.map(m => (
+                      <option key={m.id} value={m.id}>{m.nom}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -306,11 +387,11 @@ const Timetable: React.FC = () => {
                   onClick={() => setIsModalOpen(false)}
                   className="flex-1 bg-surface-container py-sm rounded-lg font-bold text-on-surface-variant hover:bg-outline-variant transition-colors uppercase text-[10px] tracking-widest active:scale-95"
                 >
-                  Effacer
+                  Annuler
                 </button>
                 <button 
                   onClick={handleValidate}
-                  disabled={!formData.module || !formData.room}
+                  disabled={!formData.module || !formData.room || !!availabilityError || isCheckingAvailability}
                   className="flex-1 bg-secondary text-on-secondary py-sm rounded-lg font-bold hover:opacity-90 shadow-md uppercase text-[10px] tracking-widest active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                 >
                   Valider l'Assignation

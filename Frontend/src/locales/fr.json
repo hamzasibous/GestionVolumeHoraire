@@ -207,5 +207,41 @@
     "footer_rights": "© 2024 Université Moulay Ismaïl - Faculté des Sciences. Tous droits réservés.",
     "footer_support": "Support Technique",
     "footer_privacy": "Politique de Confidentialité"
+  },
+  "vacations": {
+    "title": "Gestion des Vacances & Congés",
+    "subtitle": "Gérer les demandes de congé du corps professoral et importer des données à partir de documents officiels.",
+    "new_entry": "Nouvelle Entrée de Vacances",
+    "faculty_member": "Membre du Corps Professoral",
+    "select_teacher": "Sélectionner un Enseignant...",
+    "all_professors": "Tous les Professeurs (Congé Global)",
+    "holiday_title": "Titre du Congé / Vacances",
+    "placeholder_holiday": "ex: Vacances d'été",
+    "placeholder_medical": "ex: Congé Médical",
+    "start_date": "Date de Début",
+    "end_date": "Date de Fin",
+    "leave_type": "Type de Congé",
+    "save_vacation": "Enregistrer le Congé",
+    "save_all": "Assigner un Congé Global",
+    "ai_import": "Importation Assistée par IA",
+    "ai_upload_desc": "Télécharger le calendrier des vacances ou un décret officiel",
+    "ai_extract_btn": "Extraction IA & Assignation à Tous",
+    "ai_processing": "IA en cours d'extraction...",
+    "ai_success": "L'IA a extrait avec succès {{count}} jours fériés de votre image !",
+    "table_title": "Calendrier des Vacances & Congés",
+    "table_col_teacher": "Enseignant / Nom du Congé",
+    "table_col_duration": "Durée",
+    "table_col_type": "Type",
+    "table_col_scope": "Portée",
+    "scope_all": "Tous les Professeurs",
+    "scope_individual": "Individuel",
+    "no_entries": "Aucune vacance enregistrée pour le moment.",
+    "types": {
+      "annual": "Congé Annuel",
+      "public": "Jour Férié",
+      "sick": "Congé Maladie",
+      "parental": "Maternité/Paternité",
+      "other": "Autre"
+    }
   }
 }

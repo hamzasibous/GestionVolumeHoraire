@@ -207,5 +207,41 @@
     "footer_rights": "© 2024 Moulay Ismaïl University - Faculty of Sciences. All rights reserved.",
     "footer_support": "Technical Support",
     "footer_privacy": "Privacy Policy"
+  },
+  "vacations": {
+    "title": "Vacation & Leave Management",
+    "subtitle": "Manage faculty leave requests and import data from official documents.",
+    "new_entry": "New Vacation Entry",
+    "faculty_member": "Faculty Member",
+    "select_teacher": "Select Teacher...",
+    "all_professors": "All Professors (Global Holiday)",
+    "holiday_title": "Holiday/Vacation Title",
+    "placeholder_holiday": "e.g. Summer Break",
+    "placeholder_medical": "e.g. Medical Leave",
+    "start_date": "Start Date",
+    "end_date": "End Date",
+    "leave_type": "Leave Type",
+    "save_vacation": "Save Vacation",
+    "save_all": "Assign Global Holiday",
+    "ai_import": "AI-Powered Import",
+    "ai_upload_desc": "Upload holiday calendar or official decree",
+    "ai_extract_btn": "AI Extract & Assign to All",
+    "ai_processing": "AI Extracting Holidays...",
+    "ai_success": "AI successfully extracted {{count}} holidays from your image!",
+    "table_title": "Vacation & Holiday Schedule",
+    "table_col_teacher": "Teacher / Holiday Name",
+    "table_col_duration": "Duration",
+    "table_col_type": "Type",
+    "table_col_scope": "Scope",
+    "scope_all": "All Professors",
+    "scope_individual": "Individual",
+    "no_entries": "No vacations recorded yet.",
+    "types": {
+      "annual": "Annual Leave",
+      "public": "Public Holiday",
+      "sick": "Sick Leave",
+      "parental": "Maternity/Paternity",
+      "other": "Other"
+    }
   }
 }

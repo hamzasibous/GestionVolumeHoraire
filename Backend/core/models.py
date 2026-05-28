@@ -96,3 +96,21 @@ class Sceance(models.Model):
 
     def __str__(self):
         return f"{self.module} - {self.type} ({self.date})"
+
+
+class Vacation(models.Model):
+    enseignant = models.ForeignKey(
+        Enseignant, on_delete=models.CASCADE, related_name="vacations",
+        null=True, blank=True
+    )
+    titre = models.CharField(max_length=200, blank=True, null=True)
+    date_debut = models.DateField()
+    date_fin = models.DateField()
+    type_conge = models.CharField(max_length=100)
+    statut = models.CharField(max_length=20, default="Pending")
+    is_global = models.BooleanField(default=False)
+
+    def __str__(self):
+        if self.is_global:
+            return f"Global Holiday: {self.titre or self.type_conge}"
+        return f"Vacation for {self.enseignant} ({self.date_debut} to {self.date_fin})"

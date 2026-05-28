@@ -4,3 +4,5 @@ djangorestframework-simplejwt
 django-stubs
 psycopg2-binary
 django-cors-headers
+google-generativeai
+Pillow
