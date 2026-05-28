@@ -33,9 +33,16 @@ class ComporteSerlizer(serializers.ModelSerializer):
 
 class LocalSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source="__str__", read_only=True)
+    departement_name = serializers.CharField(source="departement.nom", read_only=True)
+
     class Meta:
         model = Local
-        fields = ["id", "bloc", "numero", "capacite", "name"]
+        fields = ["id", "bloc", "numero", "capacite", "departement", "departement_name", "name"]
+
+
+class LocalViewSet(viewsets.ModelViewSet):
+    queryset = Local.objects.all()
+    serializer_class = LocalSerializer
 
 
 class SceanceSerializer(serializers.ModelSerializer):

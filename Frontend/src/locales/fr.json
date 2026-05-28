@@ -6,6 +6,7 @@
     "forecasting": "Prévisions",
     "users": "Utilisateurs",
     "vacations": "Vacations",
+    "locals": "Locaux",
     "workload": "Ma Charge",
     "profile": "Profil",
     "settings": "Paramètres",
@@ -243,5 +244,25 @@
       "parental": "Maternité/Paternité",
       "other": "Autre"
     }
+  },
+  "locals": {
+    "title": "Gestion des Locaux",
+    "subtitle": "Gérer les salles du campus, les capacités et les affectations aux départements.",
+    "new_entry": "Ajouter une Salle",
+    "field_bloc": "Bloc / Bâtiment",
+    "placeholder_bloc": "ex: A, B, Annexe",
+    "field_numero": "Numéro de Salle",
+    "placeholder_numero": "ex: 101",
+    "field_capacite": "Capacité",
+    "placeholder_capacite": "ex: 40",
+    "field_dept": "Département",
+    "select_dept": "Sélectionner un Département...",
+    "save_btn": "Enregistrer la Salle",
+    "table_title": "Liste des Locaux",
+    "table_col_name": "Salle",
+    "table_col_bloc": "Bloc",
+    "table_col_capacity": "Capacité",
+    "table_col_dept": "Département",
+    "no_entries": "Aucun local enregistré pour le moment."
   }
 }

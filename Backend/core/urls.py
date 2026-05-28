@@ -15,6 +15,7 @@ from core.views import (
     DepartmentListView,
     ModuleListView,
     LocalListView,
+    LocalViewSet,
     SceanceViewSet,
     VacationViewSet,
     ExtractVacationsView,
@@ -23,6 +24,7 @@ from core.views import (
 router = DefaultRouter()
 router.register(r'vacations', VacationViewSet, basename='vacation')
 router.register(r'sceance', SceanceViewSet, basename='sceance')
+router.register(r'local', LocalViewSet, basename='local')
 
 urlpatterns = [
     path("vacations/extract/", ExtractVacationsView.as_view(), name="vacation-extract"),

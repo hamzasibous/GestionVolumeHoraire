@@ -11,6 +11,7 @@ import AddFiliere from './components/AddFiliere'
 import Timetable from './components/Timetable'
 import CreateModule from './components/CreateModule'
 import VacationManagement from './components/VacationManagement'
+import LocalManagement from './components/LocalManagement'
 import Login from './components/Login'
 import ProtectedRoute from './components/ProtectedRoute'
 import Profile from './components/Profile'
@@ -82,6 +83,7 @@ function App() {
                     <Route path="/forecasting" element={<ForecastingSimulation />} />
                     <Route path="/users" element={<UserManagement />} />
                     <Route path="/vacations" element={<VacationManagement />} />
+                    <Route path="/locals" element={<LocalManagement />} />
                     <Route path="/timetable" element={<Timetable />} />
                   </>
                 ) : null}

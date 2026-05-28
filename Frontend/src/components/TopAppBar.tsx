@@ -68,6 +68,7 @@ const TopAppBar: React.FC = () => {
     { path: '/forecasting', label: t('common.forecasting'), icon: 'analytics', adminOnly: true },
     { path: '/users', label: t('common.users'), icon: 'manage_accounts', adminOnly: true },
     { path: '/vacations', label: t('common.vacations'), icon: 'event_busy', adminOnly: true },
+    { path: '/locals', label: t('common.locals'), icon: 'meeting_room', adminOnly: true },
     { path: '/consultation', label: t('common.workload'), icon: 'person', adminOnly: false },
   ];
 

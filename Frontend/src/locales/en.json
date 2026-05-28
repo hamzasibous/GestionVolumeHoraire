@@ -6,6 +6,7 @@
     "forecasting": "Forecasting",
     "users": "Users",
     "vacations": "Vacations",
+    "locals": "Locals",
     "workload": "My Workload",
     "profile": "Profile",
     "settings": "Settings",
@@ -243,5 +244,25 @@
       "parental": "Maternity/Paternity",
       "other": "Other"
     }
+  },
+  "locals": {
+    "title": "Classroom Management",
+    "subtitle": "Manage campus rooms, capacities, and department assignments.",
+    "new_entry": "Add New Room",
+    "field_bloc": "Building/Block",
+    "placeholder_bloc": "e.g. A, B, Annex",
+    "field_numero": "Room Number",
+    "placeholder_numero": "e.g. 101",
+    "field_capacite": "Capacity",
+    "placeholder_capacite": "e.g. 40",
+    "field_dept": "Department",
+    "select_dept": "Select Department...",
+    "save_btn": "Save Room",
+    "table_title": "Classrooms List",
+    "table_col_name": "Room",
+    "table_col_bloc": "Block",
+    "table_col_capacity": "Capacity",
+    "table_col_dept": "Department",
+    "no_entries": "No classrooms recorded yet."
   }
 }
