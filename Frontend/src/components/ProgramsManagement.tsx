@@ -45,20 +45,39 @@ const ProgramsManagement: React.FC = () => {
           name: f.nom,
           level: f.niveaux_display,
           description: `Programme de ${f.nom}`,
-          modules: f.modules.map((m: any) => ({
-            id: m.id.toString(),
-            name: m.nom,
-            totalHours: m.total_hours || 0,
-            assignedHours: m.assigned_hours || 0,
-            seances: m.seances.map((s: any) => ({
-              id: s.id.toString(),
-              name: `${s.type} - ${s.date}`,
-              type: s.type,
-              teacher: s.enseignant_name,
-              room: s.local_name,
-              volume: s.duree
-            }))
-          }))
+          modules: f.modules.map((m: any) => {
+            const aggregatedSeancesMap = m.seances.reduce((acc: any, s: any) => {
+              const key = s.type;
+              const teacherName = (s.enseignant_name && !s.enseignant_name.includes('NoneType')) ? s.enseignant_name : null;
+
+              if (!acc[key]) {
+                acc[key] = {
+                  id: `${m.id}-${s.type}`,
+                  name: `${s.type} - ${m.nom}`,
+                  type: s.type,
+                  teacher: teacherName,
+                  room: s.local_name,
+                  volume: 0,
+                };
+              }
+              acc[key].volume += s.duree;
+              return acc;
+            }, {});
+
+            const totalMinutes = m.seances.reduce((acc: number, s: any) => acc + s.duree, 0);
+
+            return {
+              id: m.id.toString(),
+              name: m.nom,
+              totalHours: m.total_hours || 0,
+              assignedHours: totalMinutes / 60,
+              seancesCount: m.seances.length,
+              seances: Object.values(aggregatedSeancesMap).map((s: any) => ({
+                ...s,
+                volume: s.volume / 60, // Convert minutes to hours
+              }))
+            };
+          })
         }));
 
         setFilieres(mappedData);
@@ -216,7 +235,7 @@ const ProgramsManagement: React.FC = () => {
                   </div>
                   <div className="p-4 bg-surface-bright border border-surface-variant rounded-lg">
                     <div className="text-outline font-label-caps text-label-caps mb-1 uppercase tracking-wider">Séances</div>
-                    <div className="font-h2 text-h2 text-on-surface">{selectedModule.seances.length}</div>
+                    <div className="font-h2 text-h2 text-on-surface">{(selectedModule as any).seancesCount}</div>
                   </div>
                 </div>
               )}
@@ -248,12 +267,12 @@ const ProgramsManagement: React.FC = () => {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
-                            {seance.teacher === 'Unassigned' ? (
-                              <span className="px-2 py-1 bg-error-container text-on-error-container text-xs rounded-full font-medium">{t('programs.unassigned')}</span>
+                            {!seance.teacher || seance.teacher === 'Unassigned' ? (
+                              <span className="px-2 py-1 bg-surface-container-high text-outline text-xs rounded-full font-medium uppercase tracking-widest">{t('common.none')}</span>
                             ) : (
                               <>
                                 <div className="w-6 h-6 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-xs font-bold uppercase">
-                                  {seance.teacher.split(' ').map(n => n[0]).join('')}
+                                  {seance.teacher.split(' ').filter(Boolean).map((n: string) => n[0]).join('')}
                                 </div>
                                 <span className="text-on-surface">{seance.teacher}</span>
                               </>
@@ -261,7 +280,7 @@ const ProgramsManagement: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-on-surface">
-                          <span className={seance.room === 'Pending' ? 'text-outline italic' : ''}>{seance.room}</span>
+                          <span className={!seance.room || seance.room === 'Pending' ? 'text-outline italic' : ''}>{seance.room || t('common.n_a')}</span>
                         </td>
                         <td className="px-6 py-4">
                           <span className="px-2 py-1 bg-surface-container-high rounded text-xs font-medium text-on-surface-variant">{seance.volume}h</span>

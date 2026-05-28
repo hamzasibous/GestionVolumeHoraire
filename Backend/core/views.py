@@ -47,13 +47,18 @@ class LocalViewSet(viewsets.ModelViewSet):
 
 
 class SceanceSerializer(serializers.ModelSerializer):
-    enseignant_name = serializers.CharField(source="enseignant.__str__", read_only=True)
+    enseignant_name = serializers.SerializerMethodField()
     local_name = serializers.CharField(source="local.__str__", read_only=True)
     module_name = serializers.CharField(source="module.nom", read_only=True)
     
     class Meta:
         model = Sceance
         fields = ["id", "type", "duree", "date", "heure_debut", "module", "module_name", "enseignant", "enseignant_name", "local", "local_name"]
+
+    def get_enseignant_name(self, obj):
+        if obj.enseignant:
+            return str(obj.enseignant)
+        return ""
 
 
 class VacationSerializer(serializers.ModelSerializer):

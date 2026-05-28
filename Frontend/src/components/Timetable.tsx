@@ -30,6 +30,7 @@ const days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
 interface TimeConfig {
   label: string;
+  start: string;
   end: string;
   isBreak?: boolean;
   breakType?: string;
@@ -37,13 +38,13 @@ interface TimeConfig {
 }
 
 const timeConfig: TimeConfig[] = [
-  { label: '08:30', end: '10:30' },
-  { label: 'Pause', end: '', isBreak: true, breakType: 'Pause', breakDuration: '15 min' },
-  { label: '10:45', end: '12:45' },
-  { label: 'Midi', end: '', isBreak: true, breakType: 'Midi', breakDuration: 'Pause' },
-  { label: '14:30', end: '16:30' },
-  { label: 'Pause', end: '', isBreak: true, breakType: 'Pause', breakDuration: '15 min' },
-  { label: '16:45', end: '18:45' },
+  { label: '08:30', start: '08:30', end: '10:30' },
+  { label: 'Pause', start: '10:30', end: '10:45', isBreak: true, breakType: 'Pause', breakDuration: '15 min' },
+  { label: '10:45', start: '10:45', end: '12:45' },
+  { label: 'Midi', start: '12:45', end: '14:30', isBreak: true, breakType: 'Midi', breakDuration: 'Pause' },
+  { label: '14:30', start: '14:30', end: '16:30' },
+  { label: 'Pause', start: '16:30', end: '16:45', isBreak: true, breakType: 'Pause', breakDuration: '15 min' },
+  { label: '16:45', start: '16:45', end: '18:45' },
 ];
 
 // Helper to get the Monday of the week for a given date
@@ -54,12 +55,21 @@ const getMonday = (d: Date) => {
   return new Date(date.setDate(diff));
 };
 
-// Helper to format date as YYYY-MM-DD
-const formatDate = (date: Date) => date.toISOString().split('T')[0];
+// Helper to format date as YYYY-MM-DD (Timezone safe)
+const formatDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const timeToMinutes = (time: string) => {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+};
 
 const addMinutes = (time: string, minutes: number) => {
-  const [h, m] = time.split(':').map(Number);
-  const totalMinutes = h * 60 + m + minutes;
+  const totalMinutes = timeToMinutes(time) + minutes;
   const newH = Math.floor(totalMinutes / 60);
   const newM = totalMinutes % 60;
   return `${newH.toString().padStart(2, '0')}:${newM.toString().padStart(2, '0')}`;
@@ -128,8 +138,8 @@ const Timetable: React.FC = () => {
                room: s.local_name,
                type: s.type,
                color: s.type === 'CM' ? 'bg-primary-container/10 border-primary text-primary' : 
-                      s.type === 'TD' ? 'bg-secondary-container/20 border-secondary text-on-secondary-container' :
-                      'bg-tertiary-container/20 border-tertiary text-on-tertiary-container'
+                      s.type === 'TD' ? 'bg-secondary-container/20 border-secondary text-secondary' :
+                      'bg-tertiary-container/20 border-tertiary text-tertiary'
              };
            });
            setSlots(mapped);
@@ -235,8 +245,8 @@ const Timetable: React.FC = () => {
   };
 
   const handleCellClick = (day: string, config: TimeConfig, date: string) => {
-    const defaultTime = `${config.label} - ${config.end}`;
-    setSelectedCell({ day, time: config.label, endTime: config.end, date });
+    const defaultTime = `${config.start} - ${config.end}`;
+    setSelectedCell({ day, time: config.start, endTime: config.end, date });
     setFormData({ 
       module: '', 
       room: '', 
@@ -293,9 +303,11 @@ const Timetable: React.FC = () => {
 
   const getTimeOptions = () => {
     if (!selectedCell) return [];
+    // Morning blocks
     if (['08:30', '10:45'].includes(selectedCell.time)) {
       return ['08:30 - 10:30', '10:45 - 12:45', '08:30 - 12:45'];
     }
+    // Afternoon blocks
     if (['14:30', '16:45'].includes(selectedCell.time)) {
       return ['14:30 - 16:30', '16:45 - 18:45', '14:30 - 18:45'];
     }
@@ -413,12 +425,14 @@ const Timetable: React.FC = () => {
                     {timeConfig.map((config, i) => {
                       const slot = slots.find(s => {
                         if (s.date !== dateStr) return false;
-                        if (config.isBreak) {
-                          const prev = timeConfig[i - 1];
-                          const next = timeConfig[i + 1];
-                          return prev && next && s.startTime <= prev.label && s.endTime >= next.end;
-                        }
-                        return s.startTime <= config.label && s.endTime >= config.end;
+                        
+                        const sStart = timeToMinutes(s.startTime);
+                        const sEnd = timeToMinutes(s.endTime);
+                        const cStart = timeToMinutes(config.start);
+                        const cEnd = timeToMinutes(config.end);
+
+                        // Numerical overlap check
+                        return (sStart < cEnd) && (cStart < sEnd);
                       });
                       
                       if (config.isBreak) {
