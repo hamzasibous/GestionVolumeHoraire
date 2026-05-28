@@ -49,7 +49,7 @@ const UserManagement: React.FC = () => {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch('http://localhost:8000/core/departement/');
+      const response = await fetch('http://localhost:8000/api/core/departement/');
       const data = await response.json();
       setDepartments(data);
       // Auto-select the first department if available and not editing
@@ -111,7 +111,7 @@ const UserManagement: React.FC = () => {
     
     const payload: any = { ...formData };
     if (!payload.password) delete payload.password;
-    if (payload.role === 'ADMIN') delete payload.departement;
+    if (payload.role === 'ADMIN' || !payload.departement) delete payload.departement;
 
     try {
       const res = await fetch(url, {

@@ -12,9 +12,10 @@ interface HolidayCalendarProps {
   onDateSelect: (date: string) => void;
   onClose: () => void;
   selectedDate?: string;
+  allowHolidayClick?: boolean;
 }
 
-const HolidayCalendar: React.FC<HolidayCalendarProps> = ({ onDateSelect, onClose, selectedDate }) => {
+const HolidayCalendar: React.FC<HolidayCalendarProps> = ({ onDateSelect, onClose, selectedDate, allowHolidayClick = false }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [vacations, setVacations] = useState<Vacation[]>([]);
 
@@ -52,12 +53,14 @@ const HolidayCalendar: React.FC<HolidayCalendarProps> = ({ onDateSelect, onClose
         </h4>
         <div className="flex gap-2">
           <button 
+            type="button"
             onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
             className="p-1 hover:bg-surface-container rounded-full transition-colors"
           >
             <span className="material-symbols-outlined text-sm">chevron_left</span>
           </button>
           <button 
+            type="button"
             onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
             className="p-1 hover:bg-surface-container rounded-full transition-colors"
           >
@@ -96,10 +99,12 @@ const HolidayCalendar: React.FC<HolidayCalendarProps> = ({ onDateSelect, onClose
       days.push(
         <button
           key={i}
-          disabled={!!holiday}
+          type="button"
+          disabled={!allowHolidayClick && !!holiday}
           onClick={() => onDateSelect(date.toISOString().split('T')[0])}
           className={`h-10 relative flex flex-col items-center justify-center rounded-lg transition-all text-xs
-            ${holiday ? 'bg-error-container/20 text-error cursor-not-allowed opacity-60' : 'hover:bg-primary/10 text-on-surface'}
+            ${holiday ? 'bg-error-container/20 text-error' : 'hover:bg-primary/10 text-on-surface'}
+            ${!allowHolidayClick && !!holiday ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}
             ${isSelected ? 'bg-primary !text-on-primary shadow-md scale-110 z-10' : ''}
             ${isToday && !isSelected ? 'border-2 border-primary-container' : ''}
           `}
@@ -130,7 +135,7 @@ const HolidayCalendar: React.FC<HolidayCalendarProps> = ({ onDateSelect, onClose
             <div className="w-2 h-2 bg-error rounded-full"></div>
             <span className="text-[9px] uppercase font-bold text-outline">Jour Férié / Vacances</span>
          </div>
-         <button onClick={onClose} className="text-[9px] uppercase font-bold text-primary hover:underline">Fermer</button>
+         <button type="button" onClick={onClose} className="text-[9px] uppercase font-bold text-primary hover:underline">Fermer</button>
       </div>
     </div>
   );

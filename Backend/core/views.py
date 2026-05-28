@@ -165,6 +165,14 @@ class SceanceViewSet(viewsets.ModelViewSet):
     queryset = Sceance.objects.all()
     serializer_class = SceanceSerializer
 
+    def get_queryset(self):
+        queryset = Sceance.objects.all()
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        if start_date and end_date:
+            queryset = queryset.filter(date__range=[start_date, end_date])
+        return queryset
+
     @action(detail=False, methods=['get'])
     def check_availability(self, request):
         local_id = request.query_params.get('local')

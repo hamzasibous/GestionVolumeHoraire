@@ -62,14 +62,19 @@ const TopAppBar: React.FC = () => {
   };
 
   const navLinks = [
-    { path: '/', label: t('common.dashboard'), icon: 'dashboard' },
-    { path: '/programs', label: t('common.programs'), icon: 'account_tree' },
-    { path: '/faculty', label: t('common.faculty'), icon: 'groups' },
-    { path: '/forecasting', label: t('common.forecasting'), icon: 'analytics' },
-    { path: '/users', label: t('common.users'), icon: 'manage_accounts' },
-    { path: '/vacations', label: t('common.vacations'), icon: 'event_busy' },
-    { path: '/consultation', label: t('common.workload'), icon: 'person' },
+    { path: '/', label: t('common.dashboard'), icon: 'dashboard', adminOnly: true },
+    { path: '/programs', label: t('common.programs'), icon: 'account_tree', adminOnly: true },
+    { path: '/faculty', label: t('common.faculty'), icon: 'groups', adminOnly: true },
+    { path: '/forecasting', label: t('common.forecasting'), icon: 'analytics', adminOnly: true },
+    { path: '/users', label: t('common.users'), icon: 'manage_accounts', adminOnly: true },
+    { path: '/vacations', label: t('common.vacations'), icon: 'event_busy', adminOnly: true },
+    { path: '/consultation', label: t('common.workload'), icon: 'person', adminOnly: false },
   ];
+
+  const filteredLinks = navLinks.filter(link => {
+    if (user?.role === 'ADMIN') return true;
+    return !link.adminOnly;
+  });
 
   const getInitials = () => {
     if (!user) return 'GVH';
@@ -96,7 +101,7 @@ const TopAppBar: React.FC = () => {
 
           {/* Nav Links */}
           <nav className="hidden lg:flex items-center gap-1">
-            {navLinks.map((link) => (
+            {filteredLinks.map((link) => (
               <Link
                 key={link.path}
                 to={link.path}

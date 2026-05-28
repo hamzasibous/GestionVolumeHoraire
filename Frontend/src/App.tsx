@@ -1,4 +1,5 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
 import Layout from './components/Layout'
 import Dashboard from './components/Dashboard'
 import ProgramsManagement from './components/ProgramsManagement'
@@ -15,6 +16,49 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Profile from './components/Profile'
 
 function App() {
+  const [role, setRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const location = useLocation();
+
+  useEffect(() => {
+    const fetchRole = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setRole(null);
+        setLoading(false);
+        return;
+      }
+
+      // If we already have a role, don't re-fetch unless on login/root
+      if (role && location.pathname !== '/login') {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch('http://localhost:8000/api/users/profile/', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setRole(data.role);
+        } else if (response.status === 401) {
+          setRole(null);
+        }
+      } catch (error) {
+        console.error("Error fetching role in App:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRole();
+  }, [location.pathname]); // Re-fetch on navigation to handle post-login state
+
+  if (loading && localStorage.getItem('access_token')) return null;
+
+  const isAdmin = role === 'ADMIN';
+  const isEnseignant = role === 'ENSEIGNANT';
+
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -24,17 +68,29 @@ function App() {
           <ProtectedRoute> 
             <Layout>
               <Routes>
-                <Route path="/" element={<Dashboard />} />
+                {/* Admin or Default Dashboard */}
+                <Route path="/" element={!isEnseignant ? <Dashboard /> : <Navigate to="/consultation" />} />
                 <Route path="/profile" element={<Profile />} />
-                <Route path="/programs" element={<ProgramsManagement />} />
-                <Route path="/programs/new" element={<AddFiliere />} />
-                <Route path="/programs/new-module" element={<CreateModule />} />
-                <Route path="/faculty" element={<FacultyAssignments />} />
-                <Route path="/forecasting" element={<ForecastingSimulation />} />
-                <Route path="/users" element={<UserManagement />} />
-                <Route path="/vacations" element={<VacationManagement />} />
+                
+                {/* Admin Only Routes - only strictly hide if we KNOW they are a regular teacher */}
+                {!isEnseignant ? (
+                  <>
+                    <Route path="/programs" element={<ProgramsManagement />} />
+                    <Route path="/programs/new" element={<AddFiliere />} />
+                    <Route path="/programs/new-module" element={<CreateModule />} />
+                    <Route path="/faculty" element={<FacultyAssignments />} />
+                    <Route path="/forecasting" element={<ForecastingSimulation />} />
+                    <Route path="/users" element={<UserManagement />} />
+                    <Route path="/vacations" element={<VacationManagement />} />
+                    <Route path="/timetable" element={<Timetable />} />
+                  </>
+                ) : null}
+
+                {/* Shared or User Routes */}
                 <Route path="/consultation" element={<TeacherConsultation />} />
-                <Route path="/timetable" element={<Timetable />} />
+                
+                {/* Fallback */}
+                <Route path="*" element={<Navigate to={!isEnseignant ? "/" : "/consultation"} />} />
               </Routes>
             </Layout>
           </ProtectedRoute>

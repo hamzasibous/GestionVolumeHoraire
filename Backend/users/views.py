@@ -25,7 +25,10 @@ class EnseignantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Enseignant
         fields = ['id', 'nom', 'prenom', 'email', 'tel', 'role', 'langue', 'is_active', 'departement', 'departement_name', 'password']
-        extra_kwargs = {'password': {'write_only': True, 'required': False}}
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False},
+            'departement': {'required': False, 'allow_null': True}
+        }
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
@@ -67,8 +70,10 @@ class UserViewSet(viewsets.ModelViewSet):
         role = self.request.data.get('role')
         is_staff = (role == Role.ADMIN)
         if role == Role.ENSEIGNANT or role == Role.CHEF_DEPARTEMENT:
-            if not self.request.data.get('departement'):
-                raise serializers.ValidationError({"departement": "This field is required for teachers."})
+            if not serializer.validated_data.get('departement'):
+                departement, _ = Departement.objects.get_or_create(nom="Informatique")
+                serializer.save(is_staff=is_staff, departement=departement)
+                return
         serializer.save(is_staff=is_staff)
 
     def perform_update(self, serializer):
