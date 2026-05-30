@@ -1,11 +1,13 @@
 from django.shortcuts import render
 from django.db import models
 
-from .models import Comporte, Departement, Filiere, Module, Sceance, Vacation, Local
+from .models import Comporte, Departement, Filiere, Module, Sceance, Vacation, Local, SemesterPeriod, ScheduleTask
 from rest_framework import serializers, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from users.models import Enseignant
+import threading
+from .solver import run_genetic_algorithm
 
 
 class FiliereSerializer(serializers.ModelSerializer):
@@ -92,34 +94,62 @@ class VacationViewSet(viewsets.ModelViewSet):
 
 
 class ModuleDetailSerializer(serializers.ModelSerializer):
-    seances = SceanceSerializer(many=True, source="sceances", read_only=True)
     total_hours = serializers.SerializerMethodField()
     assigned_hours = serializers.SerializerMethodField()
+    semestre = serializers.SerializerMethodField()
+    v_h_hebdo = serializers.SerializerMethodField()
+    seances = SceanceSerializer(many=True, source="sceances", read_only=True)
     
     class Meta:
         model = Module
-        fields = ["id", "nom", "seances", "total_hours", "assigned_hours"]
+        fields = ["id", "nom", "total_hours", "assigned_hours", "semestre", "v_h_hebdo", "seances"]
 
     def get_total_hours(self, obj):
-        # Default value since not in model yet
-        return 0
+        # 12 weeks * weekly hours
+        vh = self.get_v_h_hebdo(obj)
+        return 12 * vh
 
     def get_assigned_hours(self, obj):
-        return sum(s.duree for s in obj.sceances.all())
+        if hasattr(obj, 'prefetched_assigned_minutes'):
+            return obj.prefetched_assigned_minutes / 60
+        return sum(s.duree for s in obj.sceances.all()) / 60
 
+    def _get_comporte(self, obj):
+        filiere_id = self.context.get('filiere_id')
+        if not filiere_id: return None
+        if hasattr(obj, 'prefetched_comportes'):
+            for c in obj.prefetched_comportes:
+                if c.filiere_id == filiere_id: return c
+        return Comporte.objects.filter(filiere_id=filiere_id, module=obj).first()
+
+    def get_semestre(self, obj):
+        c = self._get_comporte(obj)
+        return c.semestre if c else None
+
+    def get_v_h_hebdo(self, obj):
+        c = self._get_comporte(obj)
+        return c.v_h_hebdo if c else 0
 
 class FiliereDetailSerializer(serializers.ModelSerializer):
-    modules = ModuleDetailSerializer(many=True, read_only=True)
+    modules = serializers.SerializerMethodField()
     niveaux_display = serializers.CharField(source="get_niveaux_display", read_only=True)
     
     class Meta:
         model = Filiere
         fields = ["id", "nom", "description", "niveaux", "niveaux_display", "modules"]
 
+    def get_modules(self, obj):
+        # Use prefetched modules and comporta data
+        modules = list(obj.modules.all())
+        comportes = list(obj.comporte_set.all())
+        for m in modules:
+            m.prefetched_comportes = [c for c in comportes if c.module_id == m.id]
+            m.prefetched_assigned_minutes = sum(s.duree for s in m.sceances.all())
+        return ModuleDetailSerializer(modules, many=True, context={'filiere_id': obj.id}).data
+
 
 # In your views.py
 from rest_framework.generics import CreateAPIView, ListAPIView
-from .models import Filiere
 
 
 from rest_framework.views import APIView
@@ -162,6 +192,97 @@ class ComporteCreateView(CreateAPIView):
     queryset = Comporte.objects.all()
     serializer_class = ComporteSerlizer
 
+class DashboardStatsView(APIView):
+    def get(self, request):
+        from .models import Filiere, Module, Sceance, Local
+        from users.models import Enseignant
+        from django.db.models import Sum, Count
+        
+        total_filieres = Filiere.objects.count()
+        total_modules = Module.objects.count()
+        total_profs = Enseignant.objects.count()
+        total_rooms = Local.objects.count()
+        
+        # Total volume in hours
+        total_minutes = Sceance.objects.aggregate(Sum('duree'))['duree__sum'] or 0
+        total_hours = total_minutes // 60
+        
+        # Breakdown by type
+        breakdown = Sceance.objects.values('type').annotate(count=Count('id'))
+        total_sceances = sum(item['count'] for item in breakdown)
+        
+        type_stats = {
+            'CM': 0, 'TD': 0, 'TP': 0
+        }
+        if total_sceances > 0:
+            for item in breakdown:
+                type_stats[item['type']] = round((item['count'] / total_sceances) * 100)
+
+        # Recent filieres
+        filieres_data = []
+        for f in Filiere.objects.all()[:5]:
+            # Simple aggregation for hours per filiere
+            f_minutes = Sceance.objects.filter(module__filieres=f).aggregate(Sum('duree'))['duree__sum'] or 0
+            filieres_data.append({
+                'name': f.nom,
+                'level': f.get_niveaux_display(),
+                'totalHours': f_minutes // 60,
+                'status': 'Validated' # Placeholder for now
+            })
+
+        return Response({
+            'total_filieres': total_filieres,
+            'total_modules': total_modules,
+            'total_profs': total_profs,
+            'total_rooms': total_rooms,
+            'total_hours': total_hours,
+            'type_stats': type_stats,
+            'filieres': filieres_data,
+            'avg_workload': (total_hours // total_profs) if total_profs > 0 else 0
+        })
+
+class FacultyAssignmentListView(APIView):
+    def get(self, request):
+        from users.models import Enseignant
+        from .models import Module, Sceance
+        from django.db.models import Sum, Count
+        
+        faculty = Enseignant.objects.all().prefetch_related('modules', 'sceances')
+        data = []
+        
+        for prof in faculty:
+            # Total assigned hours
+            total_minutes = prof.sceances.aggregate(Sum('duree'))['duree__sum'] or 0
+            workload = total_minutes // 60
+            
+            # Group assignments by module
+            assignments = []
+            assigned_modules = prof.modules.all()
+            for mod in assigned_modules:
+                mod_minutes = prof.sceances.filter(module=mod).aggregate(Sum('duree'))['duree__sum'] or 0
+                if mod_minutes > 0:
+                    assignments.append({
+                        'id': f"m{mod.id}",
+                        'moduleCode': f"MOD{mod.id}",
+                        'moduleName': mod.nom,
+                        'type': 'Cours', # Default
+                        'hours': mod_minutes // 60
+                    })
+
+            data.append({
+                'id': str(prof.id),
+                'name': str(prof),
+                'department': prof.departement.nom if prof.departement else 'N/A',
+                'title': 'Professeur',
+                'workload': workload,
+                'maxWorkload': 36, # Our new 18 sessions * 2h limit
+                'isOverloaded': workload > 36,
+                'assignments': assignments,
+                'initials': "".join([n[0] for n in str(prof).split() if n]).upper()[:2]
+            })
+
+        return Response(data)
+
 class FiliereListView(ListAPIView):
     queryset = Filiere.objects.all()
     serializer_class = FiliereSerializer
@@ -183,6 +304,7 @@ class SceanceViewSet(viewsets.ModelViewSet):
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
         filiere_id = self.request.query_params.get('filiere')
+        semester = self.request.query_params.get('semester')
         
         if start_date and end_date:
             queryset = queryset.filter(date__range=[start_date, end_date])
@@ -190,9 +312,33 @@ class SceanceViewSet(viewsets.ModelViewSet):
         if filiere_id:
             queryset = queryset.filter(module__filieres__id=filiere_id)
             
+        if semester:
+            queryset = queryset.filter(module__comporte__semestre=semester, module__comporte__filiere_id=filiere_id)
+            
         return queryset
 
     def create(self, request, *args, **kwargs):
+        module_id = request.data.get('module')
+        filiere_id = request.query_params.get('filiere') # Or from elsewhere
+        initial_date_str = request.data.get('date')
+        
+        # Validation: Ensure session date matches module semester period
+        if module_id and initial_date_str:
+            from .models import SemesterPeriod, Comporte
+            from datetime import datetime
+            
+            # Find the semester for this module in the filiere
+            comporte = Comporte.objects.filter(module_id=module_id).first()
+            if comporte:
+                period = SemesterPeriod.objects.filter(semester=comporte.semestre).first()
+                if period:
+                    session_date = datetime.strptime(initial_date_str, '%Y-%m-%d').date()
+                    if session_date < period.date_debut or session_date > period.date_fin:
+                        return Response(
+                            {"error": f"Cette date ({initial_date_str}) n'est pas comprise dans la période du {period.get_semester_display()} ({period.date_debut} à {period.date_fin})."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
         number_of_sessions = int(request.data.get('number_of_sessions', 1))
         initial_date_str = request.data.get('date')
         if not initial_date_str:
@@ -307,6 +453,7 @@ class SceanceViewSet(viewsets.ModelViewSet):
         date_str = request.query_params.get('date')
         heure_debut_str = request.query_params.get('heure_debut')
         duree = int(request.query_params.get('duree', 120))
+        exclude_id = request.query_params.get('exclude_id')
         
         if not local_id or not date_str:
             return Response({"error": "Missing local or date"}, status=400)
@@ -315,6 +462,8 @@ class SceanceViewSet(viewsets.ModelViewSet):
         date = datetime.strptime(date_str, '%Y-%m-%d').date()
         
         existing_sessions = Sceance.objects.filter(date=date, local_id=local_id)
+        if exclude_id:
+            existing_sessions = existing_sessions.exclude(id=exclude_id)
         
         if heure_debut_str:
             heure_debut = datetime.strptime(heure_debut_str, '%H:%M').time()
@@ -340,10 +489,142 @@ class SceanceViewSet(viewsets.ModelViewSet):
             "conflicts": SceanceSerializer(existing_sessions, many=True).data
         })
 
+
+class GenerateScheduleView(APIView):
+    def get(self, request):
+        check_dates = request.query_params.get('check_dates')
+        if check_dates == 'all':
+            from .models import SemesterPeriod
+            periods = SemesterPeriod.objects.all()
+            return Response([{
+                "semester": p.semester,
+                "start": p.date_debut,
+                "end": p.date_fin
+            } for p in periods])
+        return Response({"error": "Method not allowed"}, status=405)
+
+    def post(self, request):
+        semesters_str = request.data.get('semesters', '')
+        if not semesters_str:
+            return Response({"error": "No semesters provided"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        semester_codes = semesters_str.split(',')
+        task = ScheduleTask.objects.create(status='RUNNING', progress=0, message="Démarrage de l'algorithme...")
+        
+        def bg_solver():
+            try:
+                success, results = run_genetic_algorithm(semester_codes, task_id=task.id)
+                if success:
+                    task.status = 'COMPLETED'
+                    task.result_data = results
+                    task.message = "Génération terminée avec succès. Veuillez confirmer l'aperçu."
+                else:
+                    task.status = 'FAILED'
+                    task.message = results
+            except Exception as e:
+                task.status = 'FAILED'
+                task.message = str(e)
+            task.save()
+
+        thread = threading.Thread(target=bg_solver)
+        thread.start()
+        return Response({"task_id": task.id, "message": "Génération démarrée"}, status=status.HTTP_202_ACCEPTED)
+
+
+class ConfirmScheduleView(APIView):
+    def post(self, request):
+        task_id = request.data.get('task_id')
+        if not task_id:
+            return Response({"error": "Task ID required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            task = ScheduleTask.objects.get(id=task_id, status='COMPLETED')
+            schedule = task.result_data
+            semester_codes = list(set([s['semester'] for s in schedule]))
+            periods = {p.semester: p for p in SemesterPeriod.objects.filter(semester__in=semester_codes)}
+
+            from datetime import timedelta
+            days_list = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi']
+            times = ['08:30', '10:45', '14:30', '16:45']
+            days_map = {'Lundi': 0, 'Mardi': 1, 'Mercredi': 2, 'Jeudi': 3, 'Vendredi': 4}
+
+            semester_groups = {}
+            for gene in schedule:
+                sem = gene['semester']
+                if sem not in semester_groups: semester_groups[sem] = []
+                semester_groups[sem].append(gene)
+
+            for sem, genes in semester_groups.items():
+                if sem not in periods: continue
+                period = periods[sem]
+                
+                # Delete existing sessions in this period for these semesters
+                Sceance.objects.filter(module__comporte__semestre=sem, date__range=[period.date_debut, period.date_fin]).delete()
+
+                for gene in genes:
+                    slot_idx = gene['slot']
+                    day_name = days_list[slot_idx // 4]
+                    target_day_of_week = days_map[day_name]
+                    
+                    # Find the first valid date for this specific session
+                    # Start from period.date_debut and find the first occurrence of target_day_of_week
+                    curr_date = period.date_debut
+                    while curr_date.weekday() != target_day_of_week:
+                        curr_date += timedelta(days=1)
+                    
+                    sessions_created = 0
+                    while sessions_created < 12:
+                        # Check if the week containing curr_date is blocked
+                        # Find the Monday of the week curr_date is in
+                        monday_of_week = curr_date - timedelta(days=curr_date.weekday())
+                        is_blocked = Vacation.objects.filter(
+                            is_global=True, 
+                            date_debut__lte=monday_of_week + timedelta(days=6), 
+                            date_fin__gte=monday_of_week
+                        ).count() >= 3
+                        
+                        if not is_blocked:
+                            Sceance.objects.create(
+                                type='CM', 
+                                duree=120, 
+                                date=curr_date, 
+                                heure_debut=times[slot_idx % 4], 
+                                module_id=gene['module_id'], 
+                                enseignant_id=gene['teacher_id'], 
+                                local_id=gene['room_id']
+                            )
+                            sessions_created += 1
+                        
+                        curr_date += timedelta(days=7)
+
+            return Response({"message": "Emploi du temps enregistré avec succès !"}, status=status.HTTP_200_OK)
+        except ScheduleTask.DoesNotExist:
+            return Response({"error": "Task not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class TaskStatusView(APIView):
+    def get(self, request, task_id):
+        try:
+            task = ScheduleTask.objects.get(id=task_id)
+            return Response({
+                "id": task.id,
+                "status": task.status,
+                "progress": task.progress,
+                "message": task.message
+            }, status=status.HTTP_200_OK)
+        except ScheduleTask.DoesNotExist:
+            return Response({"error": "Task not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
 class ModuleListView(ListAPIView):
     queryset = Module.objects.all()
     serializer_class = ModuleSerializer
 
+
 class FiliereDetailListView(ListAPIView):
-    queryset = Filiere.objects.all()
+    queryset = Filiere.objects.all().prefetch_related(
+        'modules__sceances__enseignant',
+        'modules__sceances__local',
+        'comporte_set'
+    )
     serializer_class = FiliereDetailSerializer

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import HolidayCalendar from './HolidayCalendar';
 
 interface TimetableSlot {
@@ -11,6 +11,8 @@ interface TimetableSlot {
   module: string;
   room: string;
   room_id?: string;
+  teacher?: string;
+  teacher_id?: number;
   type: string;
   totalSessions: number;
   color: string;
@@ -77,8 +79,10 @@ const addMinutes = (time: string, minutes: number) => {
 
 const Timetable: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const queryParams = new URLSearchParams(location.search);
   const filiereId = queryParams.get('filiereId');
+  const semesterParam = queryParams.get('semester');
 
   const [currentWeekStart, setCurrentWeekStart] = useState(getMonday(new Date()));
   const [slots, setSlots] = useState<TimetableSlot[]>([]);
@@ -93,6 +97,19 @@ const Timetable: React.FC = () => {
   const [modules, setModules] = useState<Module[]>([]);
   const [teachers, setTeachers] = useState<any[]>([]);
   const [vacations, setVacations] = useState<any[]>([]);
+  const [filieres, setFilieres] = useState<any[]>([]);
+  const [selectedFiliere, setSelectedFiliere] = useState<any>(null);
+  const [selectedSemester, setSelectedSemester] = useState<string>(semesterParam || '');
+
+  useEffect(() => {
+    setSelectedSemester(semesterParam || '');
+  }, [semesterParam]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [generationMessage, setGenerationMessage] = useState('');
+  const [pendingTaskId, setPendingTaskId] = useState<number | null>(null);
+  const [previewSlots, setPreviewSlots] = useState<TimetableSlot[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
 
@@ -127,10 +144,13 @@ const Timetable: React.FC = () => {
     // In a real app, you'd fetch slots for the specific week range
     const start = formatDate(weekDates[0]);
     const end = formatDate(weekDates[5]);
-    
+
     let url = `http://localhost:8000/api/core/sceance/?start_date=${start}&end_date=${end}`;
     if (filiereId) {
       url += `&filiere=${filiereId}`;
+    }
+    if (selectedSemester) {
+      url += `&semester=${selectedSemester}`;
     }
 
     fetch(url)
@@ -148,62 +168,209 @@ const Timetable: React.FC = () => {
                endTime: endTime,
                module: s.module_name,
                room: s.local_name,
+               teacher: s.enseignant_name,
+               teacher_id: s.enseignant,
                type: s.type,
                color: s.type === 'CM' ? 'bg-primary-container/10 border-primary text-primary' : 
                       s.type === 'TD' ? 'bg-secondary-container/20 border-secondary text-secondary' :
                       'bg-tertiary-container/20 border-tertiary text-tertiary'
              };
            });
-           setSlots(mapped);
+
+           // Filter and merge preview slots for this specific filiere and date range
+           const filteredPreview = previewSlots.filter(ps => 
+             ps.date >= start && 
+             ps.date <= end && 
+             // We need to check if the preview belongs to current filiere
+             // Let's assume we filter by date for now as the preview is already calculated for Week 1
+             true 
+           );
+
+           setSlots([...mapped, ...filteredPreview]);
         }
       })
       .catch(err => console.error('Error fetching slots:', err));
   };
-
   useEffect(() => {
-    fetch('http://localhost:8000/api/core/local/')
-      .then(res => res.json())
-      .then(data => setLocaux(data))
-      .catch(err => console.error('Error fetching locaux:', err));
+    // 1. Fetch metadata (Locaux, Filieres, Teachers, Vacations, and Semester Periods)
+    const fetchMetadata = async () => {
+      try {
+        const [locRes, filRes, vacRes, teaRes, semRes] = await Promise.all([
+          fetch('http://localhost:8000/api/core/local/'),
+          fetch('http://localhost:8000/api/core/filiere/details/'),
+          fetch('http://localhost:8000/api/core/vacations/'),
+          fetch('http://localhost:8000/api/users/management/'),
+          fetch('http://localhost:8000/api/core/generate-schedule/?check_dates=all')
+        ]);
 
-    const modulesUrl = filiereId 
-      ? `http://localhost:8000/api/core/filiere/details/` // We'll need to filter from the detailed list or have a better endpoint
-      : 'http://localhost:8000/api/core/module/';
+        const [locData, filData, vacData, teaData, semData] = await Promise.all([
+          locRes.json(), filRes.json(), vacRes.json(), teaRes.json(), semRes.json()
+        ]);
 
-    if (filiereId) {
-      fetch('http://localhost:8000/api/core/filiere/details/')
-        .then(res => res.json())
-        .then(data => {
-          const selectedFiliere = data.find((f: any) => f.id.toString() === filiereId);
-          if (selectedFiliere) {
-            setModules(selectedFiliere.modules.map((m: any) => ({
-              id: m.id,
-              nom: m.nom
-            })));
+        setLocaux(locData);
+        setFilieres(filData);
+        setVacations(vacData);
+        setTeachers(teaData.filter((u: any) => u.role === 'ENSEIGNANT'));
+        setSemesterPeriods(semData);
+
+        // 2. Handle initial state from URL params
+        if (filiereId) {
+          const currentFiliere = filData.find((f: any) => f.id.toString() === filiereId);
+          if (currentFiliere) {
+            setSelectedFiliere(currentFiliere);
+            
+            // Set modules filtered by semester
+            const filteredModules = selectedSemester 
+              ? currentFiliere.modules.filter((m: any) => m.semestre === selectedSemester)
+              : currentFiliere.modules;
+            setModules(filteredModules.map((m: any) => ({ id: m.id, nom: m.nom })));
+
+            // JUMP TO START DATE of selected semester if not already in range
+            if (selectedSemester) {
+              const period = semData.find((p: any) => p.semester === selectedSemester);
+              if (period) {
+                const startDate = new Date(period.start);
+                // Only jump if the current view is far away (e.g. before the start)
+                const current = new Date(currentWeekStart);
+                if (current < startDate || current > new Date(period.end)) {
+                   setCurrentWeekStart(getMonday(startDate));
+                }
+              }
+            }
           }
-        })
-        .catch(err => console.error('Error fetching filtered modules:', err));
-    } else {
-      fetch('http://localhost:8000/api/core/module/')
-        .then(res => res.json())
-        .then(data => setModules(data))
-        .catch(err => console.error('Error fetching modules:', err));
-    }
+        }
+      } catch (err) {
+        console.error('Error fetching metadata:', err);
+      }
+    };
 
-    fetch('http://localhost:8000/api/core/vacations/')
-      .then(res => res.json())
-      .then(data => setVacations(data))
-      .catch(err => console.error('Error fetching vacations:', err));
-
-    fetch('http://localhost:8000/api/users/management/')
-      .then(res => res.json())
-      .then(data => setTeachers(data.filter((u: any) => u.role === 'ENSEIGNANT')))
-      .catch(err => console.error('Error fetching teachers:', err));
-  }, []);
+    fetchMetadata();
+  }, [filiereId, selectedSemester]);
 
   useEffect(() => {
     fetchSlots();
-  }, [currentWeekStart]);
+  }, [currentWeekStart, filiereId, selectedSemester]);
+
+  const handleFiliereChange = (id: string) => {
+    const newParams = new URLSearchParams(location.search);
+    newParams.set('filiereId', id);
+    newParams.delete('semester'); // Clear semester on filiere change
+    navigate(`${location.pathname}?${newParams.toString()}`);
+  };
+
+  const handleSemesterChange = (sem: string) => {
+    const newParams = new URLSearchParams(location.search);
+    newParams.set('semester', sem);
+    navigate(`${location.pathname}?${newParams.toString()}`);
+  };
+
+  const handleGenerate = async () => {
+    if (!selectedSemester) {
+      alert("Veuillez d'abord sélectionner un semestre.");
+      return;
+    }
+    
+    setIsGenerating(true);
+    setGenerationProgress(0);
+    setGenerationMessage("Démarrage de l'IA...");
+
+    const isAutumn = ['S1', 'S3', 'S5', 'M1', 'M3'].includes(selectedSemester);
+    const targetSemesters = isAutumn ? 'S1,S3,S5,M1,M3' : 'S2,S4,S6,M2,M4';
+
+    try {
+      const response = await fetch('http://localhost:8000/api/core/generate-schedule/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ semesters: targetSemesters })
+      });
+      
+      if (response.ok) {
+        const { task_id } = await response.json();
+        // Start polling
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusRes = await fetch(`http://localhost:8000/api/core/task-status/${task_id}/`);
+            if (statusRes.ok) {
+              const task = await statusRes.json();
+              setGenerationProgress(task.progress);
+              setGenerationMessage(task.message);
+              
+              if (task.status === 'COMPLETED') {
+                clearInterval(pollInterval);
+                setPendingTaskId(task.id);
+
+                // Map preview data to TimetableSlot format
+                const mappedPreview: TimetableSlot[] = (task.result_data || [])
+                  .filter((s: any) => s.filiere_id.toString() === filiereId && s.semester === selectedSemester) // Strict Filter
+                  .map((s: any) => ({
+                    id: `preview-${s.module_id}-${s.slot}`,
+                    day: days[new Date(s.date).getDay() - 1] || 'Lundi',
+                    date: s.date,
+                    startTime: s.heure_debut,
+                    endTime: addMinutes(s.heure_debut, 120),
+                    module: s.module_name,
+                    room: s.room_name,
+                    teacher: s.teacher_name,
+                    teacher_id: s.teacher_id,
+                    type: 'CM',
+                    color: 'bg-sky-500/20 border-sky-500 text-sky-700 italic border-dashed border-2',
+                    isPreview: true
+                  }));
+                setPreviewSlots(mappedPreview);
+
+                setIsGenerating(false);
+              } else if (task.status === 'FAILED') {
+                clearInterval(pollInterval);
+                setIsGenerating(false);
+                alert(`Erreur de génération: ${task.message}`);
+              }
+            }
+          } catch (pollError) {
+            console.error("Polling error:", pollError);
+          }
+        }, 1000);
+      } else {
+        const data = await response.json();
+        alert(`Erreur: ${data.error}`);
+        setIsGenerating(false);
+      }
+    } catch (error) {
+      console.error("Generation error:", error);
+      setIsGenerating(false);
+    }
+  };
+
+  const handleConfirmSave = async () => {
+    if (!pendingTaskId) return;
+
+    setIsSaving(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/core/confirm-schedule/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: pendingTaskId })
+      });
+
+      if (response.ok) {
+        alert("Emploi du temps enregistré définitivement dans la base de données !");
+        setPendingTaskId(null);
+        setPreviewSlots([]); // Clear preview
+        fetchSlots();
+      } else {
+        const data = await response.json();
+        alert(`Erreur d'enregistrement: ${data.error}`);
+      }
+    } catch (error) {
+      console.error("Save error:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelPreview = () => {
+    setPendingTaskId(null);
+    setPreviewSlots([]);
+  };
 
   useEffect(() => {
     if (formData.room && formData.startDate && formData.customTime) {
@@ -223,7 +390,12 @@ const Timetable: React.FC = () => {
 
   const checkAvailability = (roomId: string, date: string, startTime: string, duree: number) => {
     setIsCheckingAvailability(true);
-    fetch(`http://localhost:8000/api/core/sceance/check_availability/?local=${roomId}&date=${date}&heure_debut=${startTime}&duree=${duree}`)
+    let url = `http://localhost:8000/api/core/sceance/check_availability/?local=${roomId}&date=${date}&heure_debut=${startTime}&duree=${duree}`;
+    if (editingSessionId) {
+      url += `&exclude_id=${editingSessionId}`;
+    }
+    
+    fetch(url)
       .then(res => res.json())
       .then(data => {
         if (!data.available) {
@@ -239,23 +411,48 @@ const Timetable: React.FC = () => {
       });
   };
 
+  const [semesterPeriods, setSemesterPeriods] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Fetch Semester Periods to know the boundaries
+    fetch('http://localhost:8000/api/core/generate-schedule/?check_dates=all') // We'll need to implement this or similar
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setSemesterPeriods(data);
+      })
+      .catch(err => console.error('Error fetching semester periods:', err));
+  }, []);
+
   const navigateWeek = (direction: 'prev' | 'next') => {
     let newDate = new Date(currentWeekStart);
     const step = direction === 'next' ? 7 : -7;
-    
-    // Attempt to find the next/prev non-holiday Monday
-    let attempts = 0;
-    do {
-      newDate.setDate(newDate.getDate() + step);
-      attempts++;
-      // Stop searching after 52 weeks to avoid infinite loop if entire year is holiday (unlikely)
-    } while (isDateHoliday(newDate) && attempts < 52);
 
-    if (!isDateHoliday(newDate)) {
-      setCurrentWeekStart(newDate);
+    newDate.setDate(newDate.getDate() + step);
+
+    // Academic Year Boundaries (Sept 1 to Aug 31)
+    const yearStart = new Date(2026, 8, 1);
+    const yearEnd = new Date(2027, 7, 31);
+
+    // Infinite Loop Logic
+    if (newDate > yearEnd) {
+      newDate = getMonday(yearStart);
+    } else if (newDate < yearStart) {
+      newDate = getMonday(yearEnd);
+    }
+
+    setCurrentWeekStart(newDate);
+
+    // Auto-detect and update semester context based on date
+    const dateStr = formatDate(newDate);
+    const activeSem = semesterPeriods.find(p => dateStr >= p.start && dateStr <= p.end);
+    
+    if (activeSem && activeSem.semester !== selectedSemester) {
+       // Update URL and state to match the new semester we scrolled into
+       const newParams = new URLSearchParams(location.search);
+       newParams.set('semester', activeSem.semester);
+       navigate(`${location.pathname}?${newParams.toString()}`);
     }
   };
-
   const handleSlotClick = (slot: any) => {
     // Find matching module and room IDs
     const moduleId = modules.find(m => m.nom === slot.module)?.id || '';
@@ -323,8 +520,8 @@ const Timetable: React.FC = () => {
 
     const method = editingSessionId ? 'PUT' : 'POST';
     const url = editingSessionId 
-      ? `http://localhost:8000/api/core/sceance/${editingSessionId}/` 
-      : 'http://localhost:8000/api/core/sceance/';
+      ? `http://localhost:8000/api/core/sceance/${editingSessionId}/?filiere=${filiereId}` 
+      : `http://localhost:8000/api/core/sceance/?filiere=${filiereId}`;
 
     fetch(url, {
       method: method,
@@ -360,18 +557,118 @@ const Timetable: React.FC = () => {
              GESTION DES EMPLOIS
           </h1>
           <div className="hidden lg:flex items-center gap-4 ml-8 bg-slate-800/50 px-4 py-1.5 rounded-full border border-slate-700">
-            <span className="text-sky-400 font-bold text-xs uppercase">GINF</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sky-400 font-bold text-xs uppercase">
+                {selectedFiliere?.nom || 'SÉLECTIONNER UNE FILIÈRE'}
+              </span>
+              <div className="relative group/filiere">
+                <button className="text-slate-400 hover:text-white transition-colors flex items-center">
+                  <span className="material-symbols-outlined text-sm">arrow_drop_down</span>
+                </button>
+                {/* Filière Selection Dropdown */}
+                <div className="absolute left-0 top-full mt-2 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 py-2 opacity-0 invisible group-hover/filiere:opacity-100 group-hover/filiere:visible transition-all duration-200">
+                  <div className="px-4 py-2 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700/50 mb-1">
+                    Choisir une Filière
+                  </div>
+                  {filieres.map((f) => (
+                    <button
+                      key={f.id}
+                      onClick={() => handleFiliereChange(f.id.toString())}
+                      className={`w-full text-left px-4 py-2 text-xs transition-colors ${
+                        filiereId === f.id.toString() 
+                          ? 'text-sky-400 bg-slate-700/50 font-bold' 
+                          : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      {f.nom}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
             <div className="w-1 h-1 rounded-full bg-slate-600"></div>
-            <span className="text-slate-400 font-medium text-xs">Semestre III</span>
+            
+            {/* Semester Selection */}
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400 font-medium text-xs uppercase">
+                {selectedSemester ? (selectedSemester.startsWith('M') ? `Master - ${selectedSemester}` : `Semestre ${selectedSemester}`) : 'CHOISIR SEMESTRE'}
+              </span>
+              <div className="relative group/semester">
+                <button className="text-slate-400 hover:text-white transition-colors flex items-center">
+                  <span className="material-symbols-outlined text-sm">arrow_drop_down</span>
+                </button>
+                <div className="absolute left-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 py-2 opacity-0 invisible group-hover/semester:opacity-100 group-hover/semester:visible transition-all duration-200">
+                  <div className="px-4 py-2 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700/50 mb-1">
+                    Semestres
+                  </div>
+                  {selectedFiliere && (selectedFiliere.niveaux.startsWith('Master') ? ['M1', 'M2', 'M3', 'M4'] : ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']).map((sem) => (
+                    <button
+                      key={sem}
+                      onClick={() => handleSemesterChange(sem)}
+                      className={`w-full text-left px-4 py-2 text-xs transition-colors ${
+                        selectedSemester === sem
+                          ? 'text-sky-400 bg-slate-700/50 font-bold' 
+                          : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      {sem}
+                    </button>
+                  ))}
+                  {!selectedFiliere && (
+                    <div className="px-4 py-2 text-xs text-slate-500 italic">Sélectionnez une filière d'abord</div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-md">
+          <button 
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className={`bg-slate-800 text-sky-400 border border-slate-700 px-6 py-2 rounded-lg font-bold hover:bg-slate-700 transition-all uppercase text-[10px] tracking-widest flex items-center gap-2 ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <span className="material-symbols-outlined text-sm">{isGenerating ? 'sync' : 'psychology'}</span>
+            {isGenerating ? 'Génération en cours...' : 'Générer avec l\'IA'}
+          </button>
           <button className="bg-sky-500 text-white px-6 py-2 rounded-lg font-bold hover:bg-sky-400 transition-all uppercase text-[10px] tracking-widest shadow-lg shadow-sky-500/20 active:scale-95">Exporter PDF</button>
         </div>
       </header>
 
       {/* Week Navigator */}
       <div className="bg-white border-b border-outline-variant px-gutter py-4 flex items-center justify-between shadow-sm relative">
+        {/* Progress Modal */}
+        {isGenerating && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-10 border border-slate-200 animate-in zoom-in duration-300">
+              <div className="flex flex-col items-center text-center gap-6">
+                <div className="w-16 h-16 rounded-full bg-sky-50 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-sky-500 text-4xl animate-spin">psychology</span>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Optimisation IA en cours</h3>
+                  <p className="text-slate-500 text-sm font-medium">{generationMessage}</p>
+                </div>
+                
+                {/* Progress Bar Container */}
+                <div className="w-full space-y-3">
+                  <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    <span>Progression</span>
+                    <span>{generationProgress}%</span>
+                  </div>
+                  <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                    <div 
+                      className="h-full bg-sky-500 transition-all duration-500 ease-out" 
+                      style={{ width: `${generationProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+                
+                <p className="text-[10px] text-slate-400 italic">Veuillez ne pas fermer cette fenêtre. L'algorithme résout actuellement les conflits de locaux et d'enseignants...</p>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex items-center gap-4">
           <button 
             onClick={() => navigateWeek('prev')}
@@ -516,10 +813,17 @@ const Timetable: React.FC = () => {
                             <div className={`h-full border-l-4 p-2 flex flex-col justify-between rounded-lg shadow-md transition-all hover:scale-[1.03] hover:shadow-lg ${slot.color}`}>
                               <span className="text-[10px] font-black uppercase truncate leading-tight">{slot.type} : {slot.module}</span>
                               <div className="flex flex-col">
+                                {slot.teacher && (
+                                  <span className="text-[9px] font-black text-sky-700/80 mb-1 flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-[12px]">person</span>
+                                    {slot.teacher}
+                                  </span>
+                                )}
                                 <span className="text-[9px] font-bold opacity-80 flex items-center gap-1">
                                   <span className="material-symbols-outlined text-[12px]">location_on</span>
                                   {slot.room}
                                 </span>
+
                                 <span className="text-[8px] font-bold opacity-60 flex items-center gap-1">
                                   <span className="material-symbols-outlined text-[12px]">schedule</span>
                                   {slot.startTime} - {slot.endTime}
@@ -759,6 +1063,31 @@ const Timetable: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Floating Save Bar */}
+      {pendingTaskId && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl p-6 flex items-center gap-8 animate-in slide-in-from-bottom-10 duration-500 max-w-2xl w-full mx-4">
+          <div className="flex-1">
+            <h4 className="text-white font-black text-sm uppercase tracking-tight">Emploi du temps prêt !</h4>
+            <p className="text-slate-400 text-[11px] font-medium leading-relaxed mt-1">L'IA a optimisé le planning. Cliquez sur enregistrer pour l'appliquer définitivement aux 12 semaines du semestre.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={handleCancelPreview}
+              className="px-6 py-2.5 rounded-xl text-slate-400 font-bold text-xs hover:bg-slate-800 transition-colors uppercase tracking-widest"
+            >
+              Annuler
+            </button>
+            <button 
+              onClick={handleConfirmSave}
+              disabled={isSaving}
+              className={`bg-sky-500 text-white px-8 py-2.5 rounded-xl font-black text-xs hover:bg-sky-400 transition-all uppercase tracking-widest shadow-lg shadow-sky-500/20 flex items-center gap-2 ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <span className="material-symbols-outlined text-sm">{isSaving ? 'sync' : 'save_as'}</span>
+              {isSaving ? 'Enregistrement...' : 'Enregistrer dans la DB'}
+            </button>
           </div>
         </div>
       )}

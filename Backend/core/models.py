@@ -1,6 +1,16 @@
 from django.db import models
 from users.models import Enseignant
 
+class ScheduleTask(models.Model):
+    status = models.CharField(max_length=20, default='PENDING') # PENDING, RUNNING, COMPLETED, FAILED
+    progress = models.IntegerField(default=0) # 0 to 100
+    message = models.TextField(blank=True, null=True)
+    result_data = models.JSONField(blank=True, null=True) # Stores the master week schedule
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Task {self.id}: {self.status} ({self.progress}%)"
 
 class Niveaux(models.TextChoices):
     LICENCE_F = "Licence_f", "Licence Fondamontale"
@@ -18,7 +28,25 @@ class TypeSceance(models.TextChoices):
 
 
 class Semester(models.TextChoices):
-    S1_L = "S1_l"
+    S1 = "S1", "Semestre 1"
+    S2 = "S2", "Semestre 2"
+    S3 = "S3", "Semestre 3"
+    S4 = "S4", "Semestre 4"
+    S5 = "S5", "Semestre 5"
+    S6 = "S6", "Semestre 6"
+    M1 = "M1", "Semestre 7 (M1)"
+    M2 = "M2", "Semestre 8 (M2)"
+    M3 = "M3", "Semestre 9 (M3)"
+    M4 = "M4", "Semestre 10 (M4)"
+
+
+class SemesterPeriod(models.Model):
+    semester = models.CharField(max_length=10, choices=Semester.choices, unique=True)
+    date_debut = models.DateField()
+    date_fin = models.DateField()
+
+    def __str__(self):
+        return f"{self.get_semester_display()}: {self.date_debut} to {self.date_fin}"
 
 
 class Departement(models.Model):
@@ -37,7 +65,7 @@ class Departement(models.Model):
 
 class Local(models.Model):
     bloc = models.CharField(max_length=100)
-    numero = models.IntegerField()
+    numero = models.CharField(max_length=100)
     capacite = models.IntegerField()
     departement = models.ForeignKey(
         Departement,
@@ -77,6 +105,7 @@ class Comporte(models.Model):
     filiere = models.ForeignKey(Filiere, on_delete=models.CASCADE)
     module = models.ForeignKey(Module, on_delete=models.CASCADE)
     semestre = models.CharField(max_length=50, choices=Semester.choices)
+    v_h_hebdo = models.IntegerField(default=2) # Weekly hours (e.g., 2 or 4)
 
     class Meta:
         unique_together = ("filiere", "module")

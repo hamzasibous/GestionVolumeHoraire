@@ -61,21 +61,27 @@ const TopAppBar: React.FC = () => {
     navigate('/login');
   };
 
-  const navLinks = [
+  const mainLinks = [
     { path: '/', label: t('common.dashboard'), icon: 'dashboard', adminOnly: true },
-    { path: '/programs', label: t('common.programs'), icon: 'account_tree', adminOnly: true },
     { path: '/faculty', label: t('common.faculty'), icon: 'groups', adminOnly: true },
     { path: '/forecasting', label: t('common.forecasting'), icon: 'analytics', adminOnly: true },
-    { path: '/users', label: t('common.users'), icon: 'manage_accounts', adminOnly: true },
-    { path: '/vacations', label: t('common.vacations'), icon: 'event_busy', adminOnly: true },
-    { path: '/locals', label: t('common.locals'), icon: 'meeting_room', adminOnly: true },
-    { path: '/consultation', label: t('common.workload'), icon: 'person', adminOnly: false },
   ];
 
-  const filteredLinks = navLinks.filter(link => {
-    if (user?.role === 'ADMIN') return true;
-    return !link.adminOnly;
-  });
+  const programLinks = [
+    { path: '/programs/new', label: t('programs.add_filiere'), icon: 'add_circle' },
+    { path: '/programs/new-module', label: t('programs.create_module'), icon: 'post_add' },
+    { path: '/timetable', label: t('common.timetable'), icon: 'calendar_today' },
+  ];
+
+  const managementLinks = [
+    { path: '/users', label: t('common.users'), icon: 'manage_accounts' },
+    { path: '/vacations', label: t('common.vacations'), icon: 'event_busy' },
+    { path: '/locals', label: t('common.locals'), icon: 'meeting_room' },
+  ];
+
+  const personalLinks = [
+    { path: '/consultation', label: t('common.workload'), icon: 'person', adminOnly: false },
+  ];
 
   const getInitials = () => {
     if (!user) return 'GVH';
@@ -102,7 +108,95 @@ const TopAppBar: React.FC = () => {
 
           {/* Nav Links */}
           <nav className="hidden lg:flex items-center gap-1">
-            {filteredLinks.map((link) => (
+            {/* Main Links */}
+            {mainLinks.filter(link => user?.role === 'ADMIN' || !link.adminOnly).map((link) => (
+              <Link
+                key={link.path}
+                to={link.path}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm font-medium transition-all ${
+                  isActive(link.path)
+                    ? 'text-white bg-slate-800/50 border-b-2 border-orange-500 rounded-b-none'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                }`}
+              >
+                <span className="material-symbols-outlined text-lg">{link.icon}</span>
+                {link.label}
+              </Link>
+            ))}
+
+            {/* Programs Dropdown (Admin only) */}
+            {user?.role === 'ADMIN' && (
+              <div className="relative group px-1">
+                <Link
+                  to="/programs"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm font-medium transition-all ${
+                    isActive('/programs') || programLinks.some(link => isActive(link.path))
+                      ? 'text-white bg-slate-800/50'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-lg">account_tree</span>
+                  {t('common.programs')}
+                  <span className="material-symbols-outlined text-sm transition-transform group-hover:rotate-180">expand_more</span>
+                </Link>
+                
+                {/* Dropdown Menu */}
+                <div className="absolute left-0 top-full mt-1 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-30 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                  {programLinks.map((link) => (
+                    <Link
+                      key={link.path}
+                      to={link.path}
+                      className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                        isActive(link.path)
+                          ? 'text-sky-400 bg-slate-700/50'
+                          : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-lg">{link.icon}</span>
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Management Dropdown (Admin only) */}
+            {user?.role === 'ADMIN' && (
+              <div className="relative group px-1">
+                <button
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm font-medium transition-all ${
+                    managementLinks.some(link => isActive(link.path))
+                      ? 'text-white bg-slate-800/50'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-lg">settings_suggest</span>
+                  {t('common.management')}
+                  <span className="material-symbols-outlined text-sm transition-transform group-hover:rotate-180">expand_more</span>
+                </button>
+                
+                {/* Dropdown Menu */}
+                <div className="absolute left-0 top-full mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-30 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                  {managementLinks.map((link) => (
+                    <Link
+                      key={link.path}
+                      to={link.path}
+                      className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                        isActive(link.path)
+                          ? 'text-sky-400 bg-slate-700/50'
+                          : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-lg">{link.icon}</span>
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Personal Links */}
+            {personalLinks.filter(link => user?.role === 'ADMIN' || !link.adminOnly).map((link) => (
               <Link
                 key={link.path}
                 to={link.path}

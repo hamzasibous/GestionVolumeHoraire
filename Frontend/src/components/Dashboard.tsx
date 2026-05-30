@@ -1,23 +1,46 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
-interface FiliereData {
-  name: string;
-  level: string;
-  totalHours: number;
-  status: 'Validated' | 'In Review' | 'Draft';
+interface DashboardStats {
+  total_filieres: number;
+  total_modules: number;
+  total_profs: number;
+  total_rooms: number;
+  total_hours: number;
+  avg_workload: number;
+  type_stats: {
+    CM: number;
+    TD: number;
+    TP: number;
+  };
+  filieres: any[];
 }
-
-const mockFilieres: FiliereData[] = [
-  { name: 'Licence Informatique', level: 'L1 - L3', totalHours: 4200, status: 'Validated' },
-  { name: 'Master Génie Logiciel', level: 'M1 - M2', totalHours: 2850, status: 'Validated' },
-  { name: 'Master IA & Data Science', level: 'M1 - M2', totalHours: 3100, status: 'In Review' },
-  { name: 'Licence Pro Sécurité', level: 'L3', totalHours: 1200, status: 'Validated' },
-  { name: 'Master Réseaux', level: 'M1 - M2', totalHours: 2400, status: 'Draft' },
-];
 
 const Dashboard: React.FC = () => {
   const { t } = useTranslation();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('http://localhost:8000/api/core/dashboard-stats/')
+      .then(res => res.json())
+      .then(data => {
+        setStats(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Error fetching dashboard stats:', err);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading || !stats) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <span className="material-symbols-outlined animate-spin text-primary text-4xl">sync</span>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1400px] mx-auto">
@@ -38,10 +61,10 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
           <div>
-            <div className="font-h2 text-h2 text-on-surface">14,850 h</div>
+            <div className="font-h2 text-h2 text-on-surface">{stats.total_hours.toLocaleString()} h</div>
             <div className="mt-xs font-body-md text-body-md text-primary flex items-center gap-1">
               <span className="material-symbols-outlined text-sm">trending_up</span>
-              +4.2% vs last year
+              Volume total du semestre
             </div>
           </div>
         </div>
@@ -55,10 +78,9 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
           <div>
-            <div className="font-h2 text-h2 text-on-surface">215 h</div>
+            <div className="font-h2 text-h2 text-on-surface">{stats.avg_workload} h</div>
             <div className="mt-xs font-body-md text-body-md text-on-surface-variant flex items-center gap-1">
-              <span className="material-symbols-outlined text-sm text-outline">horizontal_rule</span>
-              Stable workload
+              Moyenne par enseignant
             </div>
           </div>
         </div>
@@ -72,10 +94,9 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
           <div>
-            <div className="font-h2 text-h2 text-on-surface">68</div>
+            <div className="font-h2 text-h2 text-on-surface">{stats.total_profs}</div>
             <div className="mt-xs font-body-md text-body-md text-secondary-container flex items-center gap-1">
-              <span className="material-symbols-outlined text-sm">warning</span>
-              2 pending recruitments
+              Enseignants actifs
             </div>
           </div>
         </div>
@@ -89,9 +110,9 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
           <div>
-            <div className="font-h2 text-h2 text-on-surface">12</div>
+            <div className="font-h2 text-h2 text-on-surface">{stats.total_filieres}</div>
             <div className="mt-xs font-body-md text-body-md text-on-surface-variant flex items-center gap-1">
-              Across 2 degrees
+              Filières enregistrées
             </div>
           </div>
         </div>
@@ -108,9 +129,9 @@ const Dashboard: React.FC = () => {
           {/* Visual Chart Area */}
           <div className="flex-1 flex flex-col justify-center py-lg">
             <div className="w-full h-8 rounded-full overflow-hidden flex bg-surface-container shadow-inner mb-md border border-outline-variant/30">
-              <div className="bg-primary h-full" style={{ width: '45%' }} title="CM: 45%"></div>
-              <div className="bg-secondary-container h-full" style={{ width: '35%' }} title="TD: 35%"></div>
-              <div className="bg-tertiary-container h-full" style={{ width: '20%' }} title="TP: 20%"></div>
+              <div className="bg-primary h-full" style={{ width: `${stats.type_stats.CM}%` }} title={`CM: ${stats.type_stats.CM}%`}></div>
+              <div className="bg-secondary-container h-full" style={{ width: `${stats.type_stats.TD}%` }} title={`TD: ${stats.type_stats.TD}%`}></div>
+              <div className="bg-tertiary-container h-full" style={{ width: `${stats.type_stats.TP}%` }} title={`TP: ${stats.type_stats.TP}%`}></div>
             </div>
             {/* Legend */}
             <div className="flex flex-col gap-sm mt-4 px-md">
@@ -119,21 +140,21 @@ const Dashboard: React.FC = () => {
                   <span className="w-3 h-3 rounded-sm bg-primary"></span>
                   <span className="font-body-md text-body-md text-on-surface">{t('dashboard.legend_cm')}</span>
                 </div>
-                <span className="font-h3 text-h3 text-on-surface">45%</span>
+                <span className="font-h3 text-h3 text-on-surface">{stats.type_stats.CM}%</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-sm bg-secondary-container"></span>
                   <span className="font-body-md text-body-md text-on-surface">{t('dashboard.legend_td')}</span>
                 </div>
-                <span className="font-h3 text-h3 text-on-surface">35%</span>
+                <span className="font-h3 text-h3 text-on-surface">{stats.type_stats.TD}%</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-sm bg-tertiary-container"></span>
                   <span className="font-body-md text-body-md text-on-surface">{t('dashboard.legend_tp')}</span>
                 </div>
-                <span className="font-h3 text-h3 text-on-surface">20%</span>
+                <span className="font-h3 text-h3 text-on-surface">{stats.type_stats.TP}%</span>
               </div>
             </div>
           </div>
@@ -158,7 +179,7 @@ const Dashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="font-table-data text-table-data text-on-surface">
-                {mockFilieres.map((filiere, index) => (
+                {stats.filieres.map((filiere: any, index: number) => (
                   <tr key={index} className="h-[48px] border-b border-outline-variant even:bg-surface-container-low hover:bg-surface-container transition-colors">
                     <td className="py-sm px-md font-medium">{filiere.name}</td>
                     <td className="py-sm px-md text-on-surface-variant">{filiere.level}</td>
@@ -178,9 +199,6 @@ const Dashboard: React.FC = () => {
                 ))}
               </tbody>
             </table>
-          </div>
-          <div className="p-sm bg-surface text-center border-t border-outline-variant">
-            <a className="font-body-md text-body-md text-primary hover:text-primary-container font-medium transition-colors" href="#">{t('dashboard.view_all')}</a>
           </div>
         </div>
       </div>
