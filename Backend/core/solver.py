@@ -3,42 +3,69 @@ import copy
 from datetime import timedelta
 from .models import Filiere, Module, Comporte, Local, Enseignant, Sceance, SemesterPeriod, Vacation, ScheduleTask
 
-def run_genetic_algorithm(semester_codes, task_id=None):
+def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progress_callback=None):
     def update_progress(p, msg=None):
-        if task_id:
+        if progress_callback:
+            progress_callback(p, msg)
+        elif task_id:
             ScheduleTask.objects.filter(id=task_id).update(progress=p, message=msg or "Optimisation en cours...")
 
     # 1. Initialization
     update_progress(5, "Initialisation des données...")
-    filieres = list(Filiere.objects.all())
-    locaux = list(Local.objects.all())
-    teachers = list(Enseignant.objects.all())
     
-    days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi']
+    if custom_data:
+        filieres = custom_data.get('filieres')
+        locaux = custom_data.get('locaux')
+        teachers = custom_data.get('teachers')
+        # comportes_list is expected to be a pre-filtered list of Comporte-like objects
+        comportes_list = custom_data.get('comportes')
+    else:
+        filieres = list(Filiere.objects.all())
+        locaux = list(Local.objects.all())
+        teachers = list(Enseignant.objects.all())
+        comportes_list = None
+    
+    days_list = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi']
     times = ['08:30', '10:45', '14:30', '16:45']
-    all_slots = [(d, t) for d in days for t in times]
+    all_slots = [(d, t) for d in days_list for t in times]
     total_slots = len(all_slots)
 
     # 2. Gather session requirements
     requirements = []
-    for sem in semester_codes:
-        update_progress(10, f"Chargement des besoins pour {sem}...")
-        for f in filieres:
-            comportes = Comporte.objects.filter(filiere=f, semestre=sem)
-            for cp in comportes:
-                eligible_teachers = list(cp.module.enseignants_habilites.all())
-                if not eligible_teachers: eligible_teachers = teachers
+    
+    if comportes_list is not None:
+        # Use provided requirements (Simulation mode)
+        for cp in comportes_list:
+            eligible_teachers = cp.eligible_teachers if hasattr(cp, 'eligible_teachers') else teachers
+            session_types = ['CM', random.choice(['TD', 'TP'])] if cp.v_h_hebdo >= 4 else ['CM']
+            for s_type in session_types:
+                requirements.append({
+                    'module': cp.module,
+                    'filiere': cp.filiere,
+                    'semester': cp.semestre,
+                    'eligible_teachers': eligible_teachers,
+                    'type': s_type
+                })
+    else:
+        # DB mode
+        for sem in semester_codes:
+            update_progress(10, f"Chargement des besoins pour {sem}...")
+            for f in filieres:
+                comportes = Comporte.objects.filter(filiere=f, semestre=sem)
+                for cp in comportes:
+                    eligible_teachers = list(cp.module.users_habilites.all())
+                    if not eligible_teachers: eligible_teachers = teachers
 
-                session_types = ['CM', random.choice(['TD', 'TP'])] if cp.v_h_hebdo == 4 else ['CM']
+                    session_types = ['CM', random.choice(['TD', 'TP'])] if cp.v_h_hebdo == 4 else ['CM']
 
-                for s_type in session_types:
-                    requirements.append({
-                        'module': cp.module,
-                        'filiere': f,
-                        'semester': sem,
-                        'eligible_teachers': eligible_teachers,
-                        'type': s_type
-                    })
+                    for s_type in session_types:
+                        requirements.append({
+                            'module': cp.module,
+                            'filiere': f,
+                            'semester': sem,
+                            'eligible_teachers': eligible_teachers,
+                            'type': s_type
+                        })
 
     if not requirements: return False, "Aucun module trouvé pour ces semestres."
 
@@ -149,8 +176,6 @@ def run_genetic_algorithm(semester_codes, task_id=None):
     # Calculate first week dates for each semester
     periods = {p.semester: p for p in SemesterPeriod.objects.filter(semester__in=semester_codes)}
     
-    days_list = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi']
-    times = ['08:30', '10:45', '14:30', '16:45']
     days_map = {'Lundi': 0, 'Mardi': 1, 'Mercredi': 2, 'Jeudi': 3, 'Vendredi': 4}
 
     # Map objects to IDs for serialization
@@ -158,19 +183,17 @@ def run_genetic_algorithm(semester_codes, task_id=None):
     for gene in best_schedule:
         sem = gene['semester']
         slot_idx = gene['slot']
+        day_name = days_list[slot_idx // 4]
         
         # Calculate preview date (The very first occurrence of this session)
         period = periods.get(sem)
         if period:
-            day_name = days_list[slot_idx // 4]
             target_day_of_week = days_map[day_name]
             
             # Start from period.date_debut and find the first occurrence of target_day_of_week
             preview_date = period.date_debut
             while preview_date.weekday() != target_day_of_week:
                 preview_date += timedelta(days=1)
-            
-            # Note: We don't check for 'is_blocked' here because preview is just for week 1 layout
         else:
             preview_date = None
 
@@ -180,12 +203,14 @@ def run_genetic_algorithm(semester_codes, task_id=None):
             'teacher_id': gene['teacher'].id,
             'teacher_name': str(gene['teacher']),
             'filiere_id': gene['filiere'].id,
+            'filiere_name': str(gene['filiere']),
             'semester': sem,
             'slot': slot_idx,
+            'day': day_name,
             'room_id': gene['room'].id,
             'room_name': str(gene['room']),
             'date': preview_date.strftime('%Y-%m-%d') if preview_date else None,
-            'heure_debut': times[slot_idx % 4],
+            'startTime': times[slot_idx % 4],
             'type': gene.get('type', 'CM')
         })
     

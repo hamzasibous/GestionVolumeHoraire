@@ -251,19 +251,16 @@ class MyAssignmentsView(APIView):
         from django.db.models import Sum
 
         user = request.user
-        # Treat anyone with a department as a teacher for this view
-        if not user.departement:
-            return Response({'error': 'User is not assigned to a department'}, status=403)
+        # Direct query for sessions to avoid proxy model related_name issues
+        from .models import Sceance
+        from django.db.models import Sum
         
-        prof = user
-        
-        # Total assigned hours
-        total_minutes = prof.sceances.aggregate(Sum('duree'))['duree__sum'] or 0
+        total_minutes = Sceance.objects.filter(enseignant_id=user.id).aggregate(total=Sum('duree'))['total'] or 0
         total_hours = total_minutes // 60
         
         # Group assignments by module and type
         assignments = []
-        sceances_summary = prof.sceances.values('module__id', 'module__nom', 'type').annotate(total_minutes=Sum('duree'))
+        sceances_summary = Sceance.objects.filter(enseignant_id=user.id).values('module__id', 'module__nom', 'type').annotate(total_minutes=Sum('duree'))
         
         for item in sceances_summary:
             mod_id = item['module__id']
@@ -271,8 +268,8 @@ class MyAssignmentsView(APIView):
             s_type = item['type']
             mod_minutes = item['total_minutes'] or 0
             
-            # Find a representative session to get location/students (mocked for now as we don't have students field)
-            first_sceance = prof.sceances.filter(module_id=mod_id, type=s_type).first()
+            # Find a representative session to get location
+            first_sceance = Sceance.objects.filter(enseignant_id=user.id, module_id=mod_id, type=s_type).first()
             
             if mod_minutes > 0:
                 assignments.append({
@@ -281,7 +278,7 @@ class MyAssignmentsView(APIView):
                     'name': mod_nom,
                     'type': s_type,
                     'hours': mod_minutes // 60,
-                    'students': 'Calculated', # Placeholder
+                    'students': 'Calculated', 
                     'location': str(first_sceance.local) if first_sceance else 'N/A'
                 })
 
@@ -290,9 +287,9 @@ class MyAssignmentsView(APIView):
             'statutory_requirement': 192,
             'overload': max(0, total_hours - 192),
             'breakdown': {
-                'CM': prof.sceances.filter(type='CM').aggregate(Sum('duree'))['duree__sum'] // 60 if prof.sceances.filter(type='CM').exists() else 0,
-                'TD': prof.sceances.filter(type='TD').aggregate(Sum('duree'))['duree__sum'] // 60 if prof.sceances.filter(type='TD').exists() else 0,
-                'TP': prof.sceances.filter(type='TP').aggregate(Sum('duree'))['duree__sum'] // 60 if prof.sceances.filter(type='TP').exists() else 0,
+                'CM': Sceance.objects.filter(enseignant_id=user.id, type='CM').aggregate(total=Sum('duree'))['total'] // 60 if Sceance.objects.filter(enseignant_id=user.id, type='CM').exists() else 0,
+                'TD': Sceance.objects.filter(enseignant_id=user.id, type='TD').aggregate(total=Sum('duree'))['total'] // 60 if Sceance.objects.filter(enseignant_id=user.id, type='TD').exists() else 0,
+                'TP': Sceance.objects.filter(enseignant_id=user.id, type='TP').aggregate(total=Sum('duree'))['total'] // 60 if Sceance.objects.filter(enseignant_id=user.id, type='TP').exists() else 0,
             },
             'assignments': assignments
         })

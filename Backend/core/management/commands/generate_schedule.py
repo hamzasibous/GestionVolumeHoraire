@@ -31,7 +31,7 @@ class Command(BaseCommand):
                 comportes = Comporte.objects.filter(filiere=f, semestre=sem)
                 for cp in comportes:
                     num_sessions = 2 if cp.v_h_hebdo == 4 else 1
-                    eligible_teachers = list(cp.module.enseignants_habilites.all())
+                    eligible_teachers = list(cp.module.users_habilites.all())
                     if not eligible_teachers:
                         eligible_teachers = teachers
                     

@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard'
 import ProgramsManagement from './components/ProgramsManagement'
 import FacultyAssignments from './components/FacultyAssignments'
 import ForecastingSimulation from './components/ForecastingSimulation'
+import SimulatedTimetable from './components/SimulatedTimetable'
 import TeacherConsultation from './components/TeacherConsultation'
 import TeacherTimetable from './components/TeacherTimetable'
 import UserManagement from './components/UserManagement'
@@ -82,6 +83,7 @@ function App() {
                     <Route path="/programs/new-module" element={<CreateModule />} />
                     <Route path="/faculty" element={<FacultyAssignments />} />
                     <Route path="/forecasting" element={<ForecastingSimulation />} />
+                    <Route path="/forecasting/timetable/:simulationId" element={<SimulatedTimetable />} />
                     <Route path="/users" element={<UserManagement />} />
                     <Route path="/vacations" element={<VacationManagement />} />
                     <Route path="/locals" element={<LocalManagement />} />
