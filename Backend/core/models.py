@@ -67,6 +67,7 @@ class Local(models.Model):
     bloc = models.CharField(max_length=100)
     numero = models.CharField(max_length=100)
     capacite = models.IntegerField()
+    is_amphi = models.BooleanField(default=False)
     departement = models.ForeignKey(
         Departement,
         on_delete=models.CASCADE,

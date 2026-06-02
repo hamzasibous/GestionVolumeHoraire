@@ -111,7 +111,8 @@ const UserManagement: React.FC = () => {
     
     const payload: any = { ...formData };
     if (!payload.password) delete payload.password;
-    if (payload.role === 'ADMIN' || !payload.departement) delete payload.departement;
+    // Removed the line that deleted department for Admins, so they can also belong to a department
+    if (!payload.departement) delete payload.departement;
 
     try {
       const res = await fetch(url, {
@@ -306,16 +307,31 @@ const UserManagement: React.FC = () => {
                   <div className="flex items-center gap-2 border-b border-outline-variant pb-2">
                     <span className="font-label-caps text-[10px] font-black uppercase tracking-widest text-primary">02 {t('users.section_role')}</span>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{t('users.role')}</label>
-                    <select 
-                      className="bg-surface-bright border border-outline-variant rounded-xl px-4 py-3 font-body-md text-on-surface focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer shadow-inner" 
-                      value={formData.role} 
-                      onChange={e => setFormData({...formData, role: e.target.value})}
-                    >
-                      <option value="ENSEIGNANT">{t('users.teacher')}</option>
-                      <option value="ADMIN">{t('users.admin')}</option>
-                    </select>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{t('users.role')}</label>
+                      <select 
+                        className="bg-surface-bright border border-outline-variant rounded-xl px-4 py-3 font-body-md text-on-surface focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer shadow-inner" 
+                        value={formData.role} 
+                        onChange={e => setFormData({...formData, role: e.target.value})}
+                      >
+                        <option value="ENSEIGNANT">{t('users.teacher')}</option>
+                        <option value="ADMIN">{t('users.admin')}</option>
+                        <option value="CHEF_DEPARTEMENT">{t('users.department_head')}</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{t('users.department')}</label>
+                      <select 
+                        className="bg-surface-bright border border-outline-variant rounded-xl px-4 py-3 font-body-md text-on-surface focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer shadow-inner" 
+                        value={formData.departement} 
+                        onChange={e => setFormData({...formData, departement: e.target.value})}
+                      >
+                        {departments.map(dept => (
+                          <option key={dept.id} value={dept.id}>{dept.nom}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
 

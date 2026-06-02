@@ -40,7 +40,7 @@ class LocalSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Local
-        fields = ["id", "bloc", "numero", "capacite", "departement", "departement_name", "name"]
+        fields = ["id", "bloc", "numero", "capacite", "is_amphi", "departement", "departement_name", "name"]
 
 
 class LocalViewSet(viewsets.ModelViewSet):
@@ -153,6 +153,7 @@ from rest_framework.generics import CreateAPIView, ListAPIView
 
 
 from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from .ai_service import AIService
 
@@ -241,6 +242,61 @@ class DashboardStatsView(APIView):
             'avg_workload': (total_hours // total_profs) if total_profs > 0 else 0
         })
 
+class MyAssignmentsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from users.models import Utilisateur
+        from .models import Sceance
+        from django.db.models import Sum
+
+        user = request.user
+        # Treat anyone with a department as a teacher for this view
+        if not user.departement:
+            return Response({'error': 'User is not assigned to a department'}, status=403)
+        
+        prof = user
+        
+        # Total assigned hours
+        total_minutes = prof.sceances.aggregate(Sum('duree'))['duree__sum'] or 0
+        total_hours = total_minutes // 60
+        
+        # Group assignments by module and type
+        assignments = []
+        sceances_summary = prof.sceances.values('module__id', 'module__nom', 'type').annotate(total_minutes=Sum('duree'))
+        
+        for item in sceances_summary:
+            mod_id = item['module__id']
+            mod_nom = item['module__nom']
+            s_type = item['type']
+            mod_minutes = item['total_minutes'] or 0
+            
+            # Find a representative session to get location/students (mocked for now as we don't have students field)
+            first_sceance = prof.sceances.filter(module_id=mod_id, type=s_type).first()
+            
+            if mod_minutes > 0:
+                assignments.append({
+                    'id': f"m{mod_id}-{s_type}",
+                    'code': f"MOD{mod_id}",
+                    'name': mod_nom,
+                    'type': s_type,
+                    'hours': mod_minutes // 60,
+                    'students': 'Calculated', # Placeholder
+                    'location': str(first_sceance.local) if first_sceance else 'N/A'
+                })
+
+        return Response({
+            'total_hours': total_hours,
+            'statutory_requirement': 192,
+            'overload': max(0, total_hours - 192),
+            'breakdown': {
+                'CM': prof.sceances.filter(type='CM').aggregate(Sum('duree'))['duree__sum'] // 60 if prof.sceances.filter(type='CM').exists() else 0,
+                'TD': prof.sceances.filter(type='TD').aggregate(Sum('duree'))['duree__sum'] // 60 if prof.sceances.filter(type='TD').exists() else 0,
+                'TP': prof.sceances.filter(type='TP').aggregate(Sum('duree'))['duree__sum'] // 60 if prof.sceances.filter(type='TP').exists() else 0,
+            },
+            'assignments': assignments
+        })
+
 class FacultyAssignmentListView(APIView):
     def get(self, request):
         from users.models import Enseignant
@@ -255,17 +311,22 @@ class FacultyAssignmentListView(APIView):
             total_minutes = prof.sceances.aggregate(Sum('duree'))['duree__sum'] or 0
             workload = total_minutes // 60
             
-            # Group assignments by module
+            # Group assignments by module and type
             assignments = []
-            assigned_modules = prof.modules.all()
-            for mod in assigned_modules:
-                mod_minutes = prof.sceances.filter(module=mod).aggregate(Sum('duree'))['duree__sum'] or 0
+            sceances_summary = prof.sceances.values('module__id', 'module__nom', 'type').annotate(total_minutes=Sum('duree'))
+            
+            for item in sceances_summary:
+                mod_id = item['module__id']
+                mod_nom = item['module__nom']
+                s_type = item['type']
+                mod_minutes = item['total_minutes'] or 0
+                
                 if mod_minutes > 0:
                     assignments.append({
-                        'id': f"m{mod.id}",
-                        'moduleCode': f"MOD{mod.id}",
-                        'moduleName': mod.nom,
-                        'type': 'Cours', # Default
+                        'id': f"m{mod_id}-{s_type}",
+                        'moduleCode': f"MOD{mod_id}",
+                        'moduleName': mod_nom,
+                        'type': s_type,
                         'hours': mod_minutes // 60
                     })
 
@@ -275,8 +336,8 @@ class FacultyAssignmentListView(APIView):
                 'department': prof.departement.nom if prof.departement else 'N/A',
                 'title': 'Professeur',
                 'workload': workload,
-                'maxWorkload': 36, # Our new 18 sessions * 2h limit
-                'isOverloaded': workload > 36,
+                'maxWorkload': 336,
+                'isOverloaded': workload > 336,
                 'assignments': assignments,
                 'initials': "".join([n[0] for n in str(prof).split() if n]).upper()[:2]
             })
@@ -300,21 +361,25 @@ class SceanceViewSet(viewsets.ModelViewSet):
     serializer_class = SceanceSerializer
 
     def get_queryset(self):
-        queryset = Sceance.objects.all()
+        queryset = Sceance.objects.all().select_related('module', 'enseignant', 'local')
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
         filiere_id = self.request.query_params.get('filiere')
         semester = self.request.query_params.get('semester')
-        
+        mine = self.request.query_params.get('mine')
+
+        if mine == 'true' and self.request.user.is_authenticated:
+            queryset = queryset.filter(enseignant=self.request.user)
+
         if start_date and end_date:
             queryset = queryset.filter(date__range=[start_date, end_date])
-            
+
         if filiere_id:
             queryset = queryset.filter(module__filieres__id=filiere_id)
-            
+
         if semester:
             queryset = queryset.filter(module__comporte__semestre=semester, module__comporte__filiere_id=filiere_id)
-            
+
         return queryset
 
     def create(self, request, *args, **kwargs):
@@ -585,7 +650,7 @@ class ConfirmScheduleView(APIView):
                         
                         if not is_blocked:
                             Sceance.objects.create(
-                                type='CM', 
+                                type=gene.get('type', 'CM'), 
                                 duree=120, 
                                 date=curr_date, 
                                 heure_debut=times[slot_idx % 4], 

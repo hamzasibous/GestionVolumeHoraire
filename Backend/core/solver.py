@@ -26,16 +26,18 @@ def run_genetic_algorithm(semester_codes, task_id=None):
         for f in filieres:
             comportes = Comporte.objects.filter(filiere=f, semestre=sem)
             for cp in comportes:
-                num_sessions = 2 if cp.v_h_hebdo == 4 else 1
                 eligible_teachers = list(cp.module.enseignants_habilites.all())
                 if not eligible_teachers: eligible_teachers = teachers
-                
-                for _ in range(num_sessions):
+
+                session_types = ['CM', random.choice(['TD', 'TP'])] if cp.v_h_hebdo == 4 else ['CM']
+
+                for s_type in session_types:
                     requirements.append({
                         'module': cp.module,
                         'filiere': f,
                         'semester': sem,
-                        'eligible_teachers': eligible_teachers
+                        'eligible_teachers': eligible_teachers,
+                        'type': s_type
                     })
 
     if not requirements: return False, "Aucun module trouvé pour ces semestres."
@@ -56,6 +58,9 @@ def run_genetic_algorithm(semester_codes, task_id=None):
     GENERATIONS = 300 
     MUTATION_RATE = 0.2
 
+    amphis = [r for r in locaux if r.is_amphi]
+    classrooms = [r for r in locaux if not r.is_amphi]
+
     def create_individual():
         individual = []
         groups = {}
@@ -72,13 +77,20 @@ def run_genetic_algorithm(semester_codes, task_id=None):
                 if mod_id not in module_teacher_map:
                     module_teacher_map[mod_id] = random.choice(req['eligible_teachers'])
                 
+                # Pick room based on type
+                if req['type'] in ['TD', 'TP']:
+                    room = random.choice(classrooms) if classrooms else random.choice(locaux)
+                else: # CM
+                    room = random.choice(amphis) if amphis else random.choice(locaux)
+
                 individual.append({
                     'module': req['module'],
                     'teacher': module_teacher_map[mod_id],
                     'filiere': req['filiere'],
                     'semester': req['semester'],
                     'slot': chosen_slots[i],
-                    'room': random.choice(locaux)
+                    'room': room,
+                    'type': req['type']
                 })
         return individual
 
@@ -87,6 +99,11 @@ def run_genetic_algorithm(semester_codes, task_id=None):
         teacher_slots, room_slots, filiere_slots, teacher_workload = {}, {}, {}, {}
         for gene in individual:
             t_id, r_id, f_id, sem, slot = gene['teacher'].id, gene['room'].id, gene['filiere'].id, gene['semester'], gene['slot']
+            
+            # Constraint: TP/TD should NOT be in Amphi
+            if gene['type'] in ['TD', 'TP'] and gene['room'].is_amphi:
+                penalty += 10000
+            
             if (t_id, slot) in teacher_slots: penalty += 5000
             teacher_slots[(t_id, slot)] = 1
             if (r_id, slot) in room_slots: penalty += 5000
@@ -115,7 +132,13 @@ def run_genetic_algorithm(semester_codes, task_id=None):
             if random.random() < MUTATION_RATE:
                 idx = random.randint(0, len(child) - 1)
                 child[idx]['slot'] = random.randint(0, len(all_slots) - 1)
-                child[idx]['room'] = random.choice(locaux)
+                
+                # Re-pick room based on type during mutation
+                if child[idx]['type'] in ['TD', 'TP']:
+                    child[idx]['room'] = random.choice(classrooms) if classrooms else random.choice(locaux)
+                else:
+                    child[idx]['room'] = random.choice(amphis) if amphis else random.choice(locaux)
+
             new_population.append(child)
         population = new_population
 
@@ -162,7 +185,8 @@ def run_genetic_algorithm(semester_codes, task_id=None):
             'room_id': gene['room'].id,
             'room_name': str(gene['room']),
             'date': preview_date.strftime('%Y-%m-%d') if preview_date else None,
-            'heure_debut': times[slot_idx % 4]
+            'heure_debut': times[slot_idx % 4],
+            'type': gene.get('type', 'CM')
         })
     
     update_progress(100, "Génération terminée !")

@@ -6,6 +6,7 @@ interface Local {
   bloc: string;
   numero: number;
   capacite: number;
+  is_amphi: boolean;
   departement: number | null;
   departement_name: string;
   name: string;
@@ -26,6 +27,7 @@ const LocalManagement: React.FC = () => {
     bloc: '',
     numero: '',
     capacite: '',
+    is_amphi: false,
     departementId: '',
   });
 
@@ -63,6 +65,7 @@ const LocalManagement: React.FC = () => {
       bloc: formData.bloc,
       numero: parseInt(formData.numero),
       capacite: parseInt(formData.capacite),
+      is_amphi: formData.is_amphi,
       departement: formData.departementId ? parseInt(formData.departementId) : null,
     };
 
@@ -74,7 +77,7 @@ const LocalManagement: React.FC = () => {
       .then(res => res.json())
       .then(() => {
         fetchLocals();
-        setFormData({ bloc: '', numero: '', capacite: '', departementId: '' });
+        setFormData({ bloc: '', numero: '', capacite: '', is_amphi: false, departementId: '' });
       })
       .catch(err => console.error('Error saving local:', err));
   };
@@ -156,6 +159,19 @@ const LocalManagement: React.FC = () => {
               </select>
             </div>
 
+            <div className="flex items-center gap-2 py-2">
+              <input 
+                type="checkbox" 
+                id="is_amphi"
+                className="w-4 h-4 text-primary border-outline rounded focus:ring-primary"
+                checked={formData.is_amphi}
+                onChange={(e) => setFormData({...formData, is_amphi: e.target.checked})}
+              />
+              <label htmlFor="is_amphi" className="font-body-md text-on-surface cursor-pointer">
+                Amphithéâtre
+              </label>
+            </div>
+
             <button 
               type="submit"
               className="w-full bg-primary text-on-primary py-3 rounded-lg font-bold shadow-lg hover:bg-primary/90 transition-all active:scale-95 flex items-center justify-center gap-2 mt-4"
@@ -178,6 +194,7 @@ const LocalManagement: React.FC = () => {
               <thead>
                 <tr className="bg-surface-container-lowest border-b border-outline-variant">
                   <th className="px-6 py-4 font-label-caps text-label-caps text-outline uppercase tracking-wider">{t('locals.table_col_name')}</th>
+                  <th className="px-6 py-4 font-label-caps text-label-caps text-outline uppercase tracking-wider">Type</th>
                   <th className="px-6 py-4 font-label-caps text-label-caps text-outline uppercase tracking-wider">{t('locals.table_col_bloc')}</th>
                   <th className="px-6 py-4 font-label-caps text-label-caps text-outline uppercase tracking-wider">{t('locals.table_col_capacity')}</th>
                   <th className="px-6 py-4 font-label-caps text-label-caps text-outline uppercase tracking-wider">{t('locals.table_col_dept')}</th>
@@ -191,6 +208,11 @@ const LocalManagement: React.FC = () => {
                       <div className="font-bold text-on-surface">
                         {l.name}
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 rounded text-xs font-bold ${l.is_amphi ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'}`}>
+                        {l.is_amphi ? 'Amphi' : 'Salle'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-on-surface">
                       {l.bloc}

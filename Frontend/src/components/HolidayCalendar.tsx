@@ -39,8 +39,15 @@ const HolidayCalendar: React.FC<HolidayCalendarProps> = ({ onDateSelect, onClose
   const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
 
+  const formatLocalDate = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const isHoliday = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatLocalDate(date);
     return vacations.find(v => dateStr >= v.startDate && dateStr <= v.endDate);
   };
 
@@ -93,7 +100,7 @@ const HolidayCalendar: React.FC<HolidayCalendarProps> = ({ onDateSelect, onClose
     for (let i = 1; i <= totalDays; i++) {
       const date = new Date(year, month, i);
       const holiday = isHoliday(date);
-      const isSelected = selectedDate === date.toISOString().split('T')[0];
+      const isSelected = selectedDate === formatLocalDate(date);
       const isToday = new Date().toDateString() === date.toDateString();
 
       days.push(
@@ -101,7 +108,7 @@ const HolidayCalendar: React.FC<HolidayCalendarProps> = ({ onDateSelect, onClose
           key={i}
           type="button"
           disabled={!allowHolidayClick && !!holiday}
-          onClick={() => onDateSelect(date.toISOString().split('T')[0])}
+          onClick={() => onDateSelect(formatLocalDate(date))}
           className={`h-10 relative flex flex-col items-center justify-center rounded-lg transition-all text-xs
             ${holiday ? 'bg-error-container/20 text-error' : 'hover:bg-primary/10 text-on-surface'}
             ${!allowHolidayClick && !!holiday ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}

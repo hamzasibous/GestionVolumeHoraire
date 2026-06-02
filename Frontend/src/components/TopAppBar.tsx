@@ -8,6 +8,7 @@ interface UserProfile {
   prenom: string;
   email: string;
   role: string;
+  photo?: string | null;
   departement_name?: string;
 }
 
@@ -19,35 +20,38 @@ const TopAppBar: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [imgError, setImgError] = useState(false);
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const token = localStorage.getItem('access_token');
-        if (!token) {
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch('http://localhost:8000/api/users/profile/', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setUser(data);
-        } else if (response.status === 401) {
-          // Token might be expired
-          handleLogout();
-        }
-      } catch (error) {
-        console.error('Error fetching profile in TopAppBar:', error);
-      } finally {
+  const fetchProfile = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
         setLoading(false);
+        return;
       }
-    };
+
+      const response = await fetch('http://localhost:8000/api/users/profile/', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data);
+        setImgError(false);
+      } else if (response.status === 401) {
+        handleLogout();
+      }
+    } catch (error) {
+      console.error('Error fetching profile in TopAppBar:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchProfile();
+    window.addEventListener('profileUpdate', fetchProfile);
+    return () => window.removeEventListener('profileUpdate', fetchProfile);
   }, []);
 
   const isActive = (path: string) => {
@@ -80,7 +84,8 @@ const TopAppBar: React.FC = () => {
   ];
 
   const personalLinks = [
-    { path: '/consultation', label: t('common.workload'), icon: 'person', adminOnly: false },
+    { path: '/consultation', label: t('common.workload'), icon: 'person' },
+    { path: '/my-timetable', label: t('common.my_timetable'), icon: 'calendar_today' },
   ];
 
   const getInitials = () => {
@@ -89,6 +94,8 @@ const TopAppBar: React.FC = () => {
     const n = user.nom?.charAt(0) || '';
     return (p + n).toUpperCase() || 'U';
   };
+
+  const isPrivileged = user?.role === 'ADMIN' || user?.role === 'CHEF_DEPARTEMENT';
 
   return (
     <header className="sticky top-0 z-50 w-full bg-slate-900 border-b border-slate-800 shadow-md">
@@ -109,7 +116,7 @@ const TopAppBar: React.FC = () => {
           {/* Nav Links */}
           <nav className="hidden lg:flex items-center gap-1">
             {/* Main Links */}
-            {mainLinks.filter(link => user?.role === 'ADMIN' || !link.adminOnly).map((link) => (
+            {mainLinks.filter(link => isPrivileged || !link.adminOnly).map((link) => (
               <Link
                 key={link.path}
                 to={link.path}
@@ -124,8 +131,8 @@ const TopAppBar: React.FC = () => {
               </Link>
             ))}
 
-            {/* Programs Dropdown (Admin only) */}
-            {user?.role === 'ADMIN' && (
+            {/* Programs Dropdown (Privileged only) */}
+            {isPrivileged && (
               <div className="relative group px-1">
                 <Link
                   to="/programs"
@@ -160,8 +167,8 @@ const TopAppBar: React.FC = () => {
               </div>
             )}
 
-            {/* Management Dropdown (Admin only) */}
-            {user?.role === 'ADMIN' && (
+            {/* Management Dropdown (Privileged only) */}
+            {isPrivileged && (
               <div className="relative group px-1">
                 <button
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm font-medium transition-all ${
@@ -196,7 +203,7 @@ const TopAppBar: React.FC = () => {
             )}
 
             {/* Personal Links */}
-            {personalLinks.filter(link => user?.role === 'ADMIN' || !link.adminOnly).map((link) => (
+            {personalLinks.map((link) => (
               <Link
                 key={link.path}
                 to={link.path}
@@ -225,11 +232,11 @@ const TopAppBar: React.FC = () => {
               </span>
             </div>
             <div className="w-9 h-9 rounded-full bg-slate-800 overflow-hidden border border-slate-700 flex items-center justify-center">
-              {(!imgError && !loading) ? (
+              {(!imgError && !loading && user?.photo) ? (
                 <img
                   alt="Profile"
                   className="w-full h-full object-cover"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuAO0_vv-zPr7AMWByoXAAb8eQ_QmdsQpvYCf9rtSr8Hp1sFQkkfDM0DbmeCHCHNJFkBguBJZ7ZhT3dXs34xXV9sYZAvvyRZEl9yqBou1L9XG_muJk8y4Skl0zsYSmBdtm5F56Zz6YIm22JUUEFIJnf7fz0x36Ek__fN7zbi_gZtfpwXbkJo9RaNr3CGHOtFYKw1pnx6DHni0yuecWgBJM0KKLfhcb_wT2u8PO2EXHnJ1DBD3FzEZQHZ-zpFmCMb8eUUpcCXTewHC4Bf"
+                  src={user.photo.startsWith('http') ? user.photo : `http://localhost:8000${user.photo}`}
                   onError={() => setImgError(true)}
                 />
               ) : (

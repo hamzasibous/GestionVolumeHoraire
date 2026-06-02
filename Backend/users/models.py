@@ -45,6 +45,16 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
     langue = models.CharField(
         max_length=10, choices=Language.choices, default=Language.FRENCH
     )
+    photo = models.ImageField(upload_to="profiles/", null=True, blank=True)
+    
+    # Consolidate teacher fields into base user to allow dual roles (Admin can also teach)
+    departement = models.ForeignKey(
+        "core.Departement", on_delete=models.SET_NULL, null=True, blank=True, related_name="users_list"
+    )
+    modules = models.ManyToManyField(
+        "core.Module", related_name="users_habilites", blank=True
+    )
+    
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 
@@ -54,28 +64,36 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS = ["nom", "prenom"]
 
     def __str__(self):
-        return f"{self.prenom} {self.nom}"
+        # Format with prefix if they have teaching duties
+        if self.role == Role.ADMIN and not self.departement:
+            return f"{self.prenom} {self.nom}"
+        return f"Pr. {self.nom} {self.prenom}"
 
 
+# Keep these as proxies or light wrappers for backward compatibility if needed, 
+# but logic should transition to checking 'role' and fields on Utilisateur.
 class Enseignant(Utilisateur):
-    departement = models.ForeignKey(
-        "core.Departement", on_delete=models.CASCADE, related_name="enseignants_list"
-    )
-    modules = models.ManyToManyField(
-        "core.Module", related_name="enseignants_habilites", blank=True
-    )
+    class Meta:
+        proxy = True
 
     def __str__(self):
         return f"Pr. {self.nom} {self.prenom}"
 
 
 class Administrateur(Utilisateur):
+    class Meta:
+        proxy = True
+
     def save(self, *args, **kwargs):
         self.role = Role.ADMIN
+        self.is_staff = True
         super().save(*args, **kwargs)
 
 
-class ChefDepartement(Enseignant):
+class ChefDepartement(Utilisateur):
+    class Meta:
+        proxy = True
+
     def save(self, *args, **kwargs):
         self.role = Role.CHEF_DEPARTEMENT
         super().save(*args, **kwargs)

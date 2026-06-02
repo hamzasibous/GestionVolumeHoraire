@@ -312,7 +312,7 @@ const Timetable: React.FC = () => {
                     room: s.room_name,
                     teacher: s.teacher_name,
                     teacher_id: s.teacher_id,
-                    type: 'CM',
+                    type: s.type || 'CM',
                     color: 'bg-sky-500/20 border-sky-500 text-sky-700 italic border-dashed border-2',
                     isPreview: true
                   }));
@@ -441,17 +441,6 @@ const Timetable: React.FC = () => {
     }
 
     setCurrentWeekStart(newDate);
-
-    // Auto-detect and update semester context based on date
-    const dateStr = formatDate(newDate);
-    const activeSem = semesterPeriods.find(p => dateStr >= p.start && dateStr <= p.end);
-    
-    if (activeSem && activeSem.semester !== selectedSemester) {
-       // Update URL and state to match the new semester we scrolled into
-       const newParams = new URLSearchParams(location.search);
-       newParams.set('semester', activeSem.semester);
-       navigate(`${location.pathname}?${newParams.toString()}`);
-    }
   };
   const handleSlotClick = (slot: any) => {
     // Find matching module and room IDs
@@ -707,7 +696,19 @@ const Timetable: React.FC = () => {
               <div className="absolute left-0 top-full mt-2 z-[60] w-72 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
                 <HolidayCalendar 
                   onDateSelect={(date) => {
-                    setCurrentWeekStart(getMonday(new Date(date)));
+                    const [year, month, day] = date.split('-').map(Number);
+                    const localDate = new Date(year, month - 1, day);
+                    setCurrentWeekStart(getMonday(localDate));
+                    
+                    // Auto-sync semester so the table isn't empty when jumping across the year
+                    const dateStr = formatDate(localDate);
+                    const activeSem = semesterPeriods.find(p => dateStr >= p.start && dateStr <= p.end);
+                    if (activeSem && activeSem.semester !== selectedSemester) {
+                       const newParams = new URLSearchParams(location.search);
+                       newParams.set('semester', activeSem.semester);
+                       navigate(`${location.pathname}?${newParams.toString()}`);
+                    }
+
                     setShowNavCalendar(false);
                   }}
                   onClose={() => setShowNavCalendar(false)}

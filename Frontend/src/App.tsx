@@ -6,6 +6,7 @@ import ProgramsManagement from './components/ProgramsManagement'
 import FacultyAssignments from './components/FacultyAssignments'
 import ForecastingSimulation from './components/ForecastingSimulation'
 import TeacherConsultation from './components/TeacherConsultation'
+import TeacherTimetable from './components/TeacherTimetable'
 import UserManagement from './components/UserManagement'
 import AddFiliere from './components/AddFiliere'
 import Timetable from './components/Timetable'
@@ -57,7 +58,7 @@ function App() {
 
   if (loading && localStorage.getItem('access_token')) return null;
 
-  const isAdmin = role === 'ADMIN';
+  const isAdmin = role === 'ADMIN' || role === 'CHEF_DEPARTEMENT';
   const isEnseignant = role === 'ENSEIGNANT';
 
   return (
@@ -70,11 +71,11 @@ function App() {
             <Layout>
               <Routes>
                 {/* Admin or Default Dashboard */}
-                <Route path="/" element={!isEnseignant ? <Dashboard /> : <Navigate to="/consultation" />} />
+                <Route path="/" element={isAdmin ? <Dashboard /> : <Navigate to="/consultation" />} />
                 <Route path="/profile" element={<Profile />} />
                 
-                {/* Admin Only Routes - only strictly hide if we KNOW they are a regular teacher */}
-                {!isEnseignant ? (
+                {/* Admin Only Routes */}
+                {isAdmin ? (
                   <>
                     <Route path="/programs" element={<ProgramsManagement />} />
                     <Route path="/programs/new" element={<AddFiliere />} />
@@ -90,9 +91,10 @@ function App() {
 
                 {/* Shared or User Routes */}
                 <Route path="/consultation" element={<TeacherConsultation />} />
+                <Route path="/my-timetable" element={<TeacherTimetable />} />
                 
                 {/* Fallback */}
-                <Route path="*" element={<Navigate to={!isEnseignant ? "/" : "/consultation"} />} />
+                <Route path="*" element={<Navigate to={isAdmin ? "/" : "/consultation"} />} />
               </Routes>
             </Layout>
           </ProtectedRoute>

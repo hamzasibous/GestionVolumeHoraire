@@ -127,7 +127,7 @@ const Dashboard: React.FC = () => {
             <p className="font-body-md text-body-md text-on-surface-variant">{t('dashboard.breakdown_subtitle')}</p>
           </div>
           {/* Visual Chart Area */}
-          <div className="flex-1 flex flex-col justify-center py-lg">
+          <div className="flex-1 flex flex-col justify-center py-4">
             <div className="w-full h-8 rounded-full overflow-hidden flex bg-surface-container shadow-inner mb-md border border-outline-variant/30">
               <div className="bg-primary h-full" style={{ width: `${stats.type_stats.CM}%` }} title={`CM: ${stats.type_stats.CM}%`}></div>
               <div className="bg-secondary-container h-full" style={{ width: `${stats.type_stats.TD}%` }} title={`TD: ${stats.type_stats.TD}%`}></div>
@@ -161,16 +161,16 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Data Table Module (Right) */}
-        <div className="col-span-12 lg:col-span-7 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col shadow-sm">
+        <div className="col-span-12 lg:col-span-7 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col shadow-sm lg:h-[400px]">
           <div className="p-md border-b border-outline-variant flex justify-between items-center bg-surface">
             <div>
               <h3 className="font-h3 text-h3 text-on-surface">{t('dashboard.table_title')}</h3>
               <p className="font-body-md text-body-md text-on-surface-variant">{t('dashboard.table_subtitle')}</p>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-auto flex-1 modern-scrollbar">
             <table className="w-full text-left border-collapse">
-              <thead className="bg-surface-container-lowest border-b border-outline-variant">
+              <thead className="bg-surface-container-lowest border-b border-outline-variant sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">{t('dashboard.table_col_name')}</th>
                   <th className="py-sm px-md font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">{t('dashboard.table_col_level')}</th>

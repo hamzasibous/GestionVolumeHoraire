@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface Assignment {
   id: string;
@@ -74,9 +74,51 @@ const mockAvailableModules = [
 ];
 
 const FacultyAssignments: React.FC = () => {
-  const [selectedFacultyId, setSelectedFacultyId] = useState<string>(mockFaculty[0].id);
+  const [faculty, setFaculty] = useState<FacultyMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedFacultyId, setSelectedFacultyId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('All Departments');
   
-  const selectedFaculty = mockFaculty.find(f => f.id === selectedFacultyId) || mockFaculty[0];
+  useEffect(() => {
+    fetch('http://localhost:8000/api/core/faculty-assignments/')
+      .then(res => res.json())
+      .then(data => {
+        setFaculty(data);
+        if (data.length > 0) {
+          setSelectedFacultyId(data[0].id);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Error fetching faculty assignments:', err);
+        setLoading(false);
+      });
+  }, []);
+
+  const filteredFaculty = faculty.filter(member => {
+    const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDept = departmentFilter === 'All Departments' || member.department === departmentFilter;
+    return matchesSearch && matchesDept;
+  });
+
+  const selectedFaculty = faculty.find(f => f.id === selectedFacultyId) || faculty[0];
+
+  const totalFaculty = faculty.length;
+  const avgWorkload = faculty.length > 0 
+    ? Math.round(faculty.reduce((acc, curr) => acc + curr.workload, 0) / faculty.length) 
+    : 0;
+  const overloadCount = faculty.filter(f => f.isOverloaded).length;
+
+  const departments = Array.from(new Set(faculty.map(f => f.department)));
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <span className="material-symbols-outlined animate-spin text-primary text-4xl">sync</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-lg">
@@ -106,7 +148,7 @@ const FacultyAssignments: React.FC = () => {
           </div>
           <div>
             <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-1">Total Faculty</h3>
-            <p className="font-h1 text-h1 text-on-surface">42</p>
+            <p className="font-h1 text-h1 text-on-surface">{totalFaculty}</p>
           </div>
         </div>
         <div className="bg-surface-container-lowest p-md border border-outline-variant rounded-lg shadow-sm flex items-start gap-4">
@@ -115,7 +157,7 @@ const FacultyAssignments: React.FC = () => {
           </div>
           <div>
             <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-1 text-xs">Moyenne Générale</h3>
-            <p className="font-h1 text-h1 text-on-surface">192 <span className="font-body-md text-body-md text-on-surface-variant font-normal">hrs/year</span></p>
+            <p className="font-h1 text-h1 text-on-surface">{avgWorkload} <span className="font-body-md text-body-md text-on-surface-variant font-normal">hrs/year</span></p>
           </div>
         </div>
         <div className="bg-surface-container-lowest p-md border border-outline-variant rounded-lg shadow-sm flex items-start gap-4">
@@ -124,7 +166,7 @@ const FacultyAssignments: React.FC = () => {
           </div>
           <div>
             <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-1">Workload Alerts</h3>
-            <p className="font-h1 text-h1 text-error">3 <span className="font-body-md text-body-md text-on-surface-variant font-normal">Over capacity</span></p>
+            <p className="font-h1 text-h1 text-error">{overloadCount} <span className="font-body-md text-body-md text-on-surface-variant font-normal">Over capacity</span></p>
           </div>
         </div>
       </div>
@@ -137,19 +179,30 @@ const FacultyAssignments: React.FC = () => {
           <div className="p-4 border-b border-outline-variant bg-surface-container-lowest">
             <div className="relative w-full mb-3">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
-              <input className="w-full pl-10 pr-4 py-2 bg-surface-bright border border-outline-variant rounded focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md transition-colors" placeholder="Search faculty..." type="text" />
+              <input 
+                className="w-full pl-10 pr-4 py-2 bg-surface-bright border border-outline-variant rounded focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md transition-colors" 
+                placeholder="Search faculty..." 
+                type="text" 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
             <div className="flex gap-2">
-              <select className="w-full px-3 py-1.5 bg-surface-bright border border-outline-variant rounded font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+              <select 
+                className="w-full px-3 py-1.5 bg-surface-bright border border-outline-variant rounded font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+              >
                 <option>All Departments</option>
-                <option>Computer Science</option>
-                <option>Mathematics</option>
+                {departments.map(dept => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
               </select>
             </div>
           </div>
           {/* Faculty List */}
           <div className="flex-1 overflow-y-auto">
-            {mockFaculty.map((member) => (
+            {filteredFaculty.map((member) => (
               <div 
                 key={member.id}
                 onClick={() => setSelectedFacultyId(member.id)}
@@ -195,99 +248,91 @@ const FacultyAssignments: React.FC = () => {
         </div>
 
         {/* Right Pane: Assignment Canvas */}
-        <div className="xl:col-span-8 flex flex-col bg-surface border border-outline-variant rounded-lg shadow-sm overflow-hidden">
-          {/* Canvas Header */}
-          <div className="p-6 border-b border-outline-variant bg-surface-bright flex flex-col sm:flex-row items-center justify-between shrink-0 gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-surface-variant overflow-hidden shrink-0 flex items-center justify-center border border-outline-variant">
-                {selectedFaculty.avatar ? (
-                  <img alt={selectedFaculty.name} className="w-full h-full object-cover" src={selectedFaculty.avatar} />
-                ) : (
-                  <span className="font-h2 text-h2 text-on-surface-variant uppercase tracking-wider">{selectedFaculty.initials}</span>
-                )}
-              </div>
-              <div>
-                <h3 className="font-h2 text-h2 text-on-surface tracking-tight">{selectedFaculty.name}</h3>
-                <div className="flex flex-wrap items-center gap-4 font-body-md text-sm text-on-surface-variant">
-                  <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">school</span> {selectedFaculty.department}</span>
-                  <span className={`flex items-center gap-1 ${selectedFaculty.isOverloaded ? 'text-error' : 'text-primary'}`}>
-                    <span className="material-symbols-outlined text-[16px]">{selectedFaculty.isOverloaded ? 'trending_up' : 'check_circle'}</span> 
-                    {selectedFaculty.workload} hrs {selectedFaculty.isOverloaded ? '(Overload)' : '(Normal)'}
-                  </span>
+        {selectedFaculty && (
+          <div className="xl:col-span-8 flex flex-col bg-surface border border-outline-variant rounded-lg shadow-sm overflow-hidden">
+            {/* Canvas Header */}
+            <div className="p-6 border-b border-outline-variant bg-surface-bright flex flex-col sm:flex-row items-center justify-between shrink-0 gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-surface-variant overflow-hidden shrink-0 flex items-center justify-center border border-outline-variant">
+                  {selectedFaculty.avatar ? (
+                    <img alt={selectedFaculty.name} className="w-full h-full object-cover" src={selectedFaculty.avatar} />
+                  ) : (
+                    <span className="font-h2 text-h2 text-on-surface-variant uppercase tracking-wider">{selectedFaculty.initials}</span>
+                  )}
                 </div>
-              </div>
-            </div>
-          </div>
-          {/* Canvas Body */}
-          <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-surface-container-lowest">
-            {/* Current Assignments Table */}
-            <div className="flex-1 border-r border-outline-variant flex flex-col min-w-0">
-              <div className="p-4 border-b border-outline-variant bg-surface flex items-center justify-between shrink-0">
-                <h4 className="font-h3 text-[16px] font-semibold text-on-surface tracking-tight uppercase tracking-wider text-xs">Assigned Modules</h4>
-                <span className="px-2 py-1 bg-surface-container-high rounded text-xs font-semibold text-on-surface-variant">{selectedFaculty.assignments.length} Modules</span>
-              </div>
-              <div className="flex-1 overflow-auto">
-                <table className="w-full text-left border-collapse min-w-[400px]">
-                  <thead className="sticky top-0 bg-surface z-10 shadow-sm border-b border-outline-variant">
-                    <tr>
-                      <th className="p-base px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Module</th>
-                      <th className="p-base px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider w-20">Type</th>
-                      <th className="p-base px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right w-24">Hours</th>
-                      <th className="p-base px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider w-16"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="font-table-data text-table-data text-on-surface divide-y divide-surface-variant">
-                    {selectedFaculty.assignments.map((assignment) => (
-                      <tr key={assignment.id} className="hover:bg-surface-container transition-colors h-[48px]">
-                        <td className="p-base px-4 font-medium">{assignment.moduleCode} - {assignment.moduleName}</td>
-                        <td className="p-base px-4 text-on-surface-variant">{assignment.type}</td>
-                        <td className="p-base px-4 text-right">{assignment.hours}</td>
-                        <td className="p-base px-4 text-right">
-                          <button className="text-outline hover:text-error transition-colors p-1" title="Unassign">
-                            <span className="material-symbols-outlined text-[18px]">close</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="border-t-2 border-outline-variant bg-surface-bright font-semibold sticky bottom-0">
-                    <tr>
-                      <td className="p-base px-4 text-right font-label-caps text-on-surface-variant uppercase tracking-wider" colSpan={2}>Total Assigned</td>
-                      <td className={`p-base px-4 text-right ${selectedFaculty.isOverloaded ? 'text-error' : 'text-primary'}`}>{selectedFaculty.workload}</td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-            {/* Available Modules List */}
-            <div className="w-full md:w-[340px] flex flex-col bg-surface shrink-0">
-              <div className="p-4 border-b border-outline-variant bg-surface flex flex-col gap-3 shrink-0">
-                <h4 className="font-h3 text-[16px] font-semibold text-on-surface tracking-tight uppercase tracking-wider text-xs">Available Modules</h4>
-                <div className="relative w-full">
-                  <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
-                  <input className="w-full pl-8 pr-3 py-1.5 text-sm bg-surface-bright border border-outline-variant rounded focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-body-md transition-colors" placeholder="Filter modules..." type="text" />
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-surface-container-lowest">
-                {mockAvailableModules.map((module, index) => (
-                  <div key={index} className="border border-outline-variant rounded p-3 hover:border-primary hover:shadow-sm transition-all group bg-surface">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="min-w-0">
-                        <p className="font-table-data font-semibold text-on-surface leading-tight truncate">{module.code} - {module.name}</p>
-                        <p className="font-body-md text-xs text-on-surface-variant">{module.type} • {module.level}</p>
-                      </div>
-                      <span className="px-2 py-0.5 bg-primary-container text-on-primary-container rounded text-xs font-semibold shrink-0">{module.hours} hrs</span>
-                    </div>
-                    <button className="w-full py-1.5 border border-outline text-on-surface rounded text-sm font-medium hover:bg-primary hover:text-on-primary hover:border-primary transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 focus:opacity-100">
-                      <span className="material-symbols-outlined text-[16px]">add</span> Assign
-                    </button>
+                <div>
+                  <h3 className="font-h2 text-h2 text-on-surface tracking-tight">{selectedFaculty.name}</h3>
+                  <div className="flex flex-wrap items-center gap-4 font-body-md text-sm text-on-surface-variant">
+                    <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">school</span> {selectedFaculty.department}</span>
+                    <span className={`flex items-center gap-1 ${selectedFaculty.isOverloaded ? 'text-error' : 'text-primary'}`}>
+                      <span className="material-symbols-outlined text-[16px]">{selectedFaculty.isOverloaded ? 'trending_up' : 'check_circle'}</span> 
+                      {selectedFaculty.workload} hrs {selectedFaculty.isOverloaded ? '(Overload)' : '(Normal)'}
+                    </span>
                   </div>
-                ))}
+                </div>
+              </div>
+            </div>
+            {/* Canvas Body */}
+            <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-surface-container-lowest">
+              {/* Current Assignments Table */}
+              <div className="flex-1 border-r border-outline-variant flex flex-col min-w-0">
+                <div className="p-4 border-b border-outline-variant bg-surface flex items-center justify-between shrink-0">
+                  <h4 className="font-h3 text-[16px] font-semibold text-on-surface tracking-tight uppercase tracking-wider text-xs">Assigned Modules</h4>
+                  <span className="px-2 py-1 bg-surface-container-high rounded text-xs font-semibold text-on-surface-variant">{selectedFaculty.assignments.length} Modules</span>
+                </div>
+                <div className="flex-1 overflow-auto">
+                  <table className="w-full text-left border-collapse min-w-[400px]">
+                    <thead className="sticky top-0 bg-surface z-10 shadow-sm border-b border-outline-variant">
+                      <tr>
+                        <th className="p-base px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Module</th>
+                        <th className="p-base px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider w-20">Type</th>
+                        <th className="p-base px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right w-24">Hours</th>
+                        <th className="p-base px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider w-16"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-table-data text-table-data text-on-surface divide-y divide-surface-variant">
+                      {selectedFaculty.assignments.map((assignment) => (
+                        <tr key={assignment.id} className="hover:bg-surface-container transition-colors h-[48px]">
+                          <td className="p-base px-4 font-medium">{assignment.moduleCode} - {assignment.moduleName}</td>
+                          <td className="p-base px-4 text-on-surface-variant">{assignment.type}</td>
+                          <td className="p-base px-4 text-right">{assignment.hours}</td>
+                          <td className="p-base px-4 text-right">
+                            <button className="text-outline hover:text-error transition-colors p-1" title="Unassign">
+                              <span className="material-symbols-outlined text-[18px]">close</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="border-t-2 border-outline-variant bg-surface-bright font-semibold sticky bottom-0">
+                      <tr>
+                        <td className="p-base px-4 text-right font-label-caps text-on-surface-variant uppercase tracking-wider" colSpan={2}>Total Assigned</td>
+                        <td className={`p-base px-4 text-right ${selectedFaculty.isOverloaded ? 'text-error' : 'text-primary'}`}>{selectedFaculty.workload}</td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+              {/* Available Modules List - Filter functionality could be added here later */}
+              <div className="w-full md:w-[340px] flex flex-col bg-surface shrink-0">
+                <div className="p-4 border-b border-outline-variant bg-surface flex flex-col gap-3 shrink-0">
+                  <h4 className="font-h3 text-[16px] font-semibold text-on-surface tracking-tight uppercase tracking-wider text-xs">Available Modules</h4>
+                  <div className="relative w-full">
+                    <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
+                    <input className="w-full pl-8 pr-3 py-1.5 text-sm bg-surface-bright border border-outline-variant rounded focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-body-md transition-colors" placeholder="Filter modules..." type="text" />
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-surface-container-lowest">
+                  {/* For now keeping this list empty or we can fetch modules from /api/core/module/ */}
+                  <div className="p-4 text-center text-on-surface-variant text-sm italic">
+                    Search to find modules to assign
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -33,6 +33,7 @@
     "register": "Enregistrer",
     "n_a": "N/A",
     "timetable": "Emploi du temps",
+    "my_timetable": "Mon Emploi du Temps",
     "back": "Retour",
     "continue": "Continuer",
     "publish": "Publier",
@@ -168,6 +169,7 @@
     "password_hint": "Laissez vide pour conserver le mot de passe actuel.",
     "teacher": "Enseignant",
     "admin": "Administrateur",
+    "department_head": "Chef de Département",
     "confirm_delete": "Êtes-vous sûr de vouloir supprimer cet utilisateur ?",
     "confirm_role_toggle": "Définir {{name}} comme {{role}} ?",
     "register_confirm": "Confirmer l'Enregistrement"

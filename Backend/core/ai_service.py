@@ -16,7 +16,7 @@ class AIService:
 
     def extract_vacations_from_image(self, image_file):
         if not self.model:
-            return {"error": "Google API Key not configured"}
+            return {"error": "Google API Key not configured or model not initialized"}
 
         try:
             img = Image.open(image_file)

@@ -9,6 +9,7 @@ interface UserProfile {
   tel: string;
   role: string;
   langue: string;
+  photo: string | null;
   departement_name?: string;
 }
 
@@ -18,6 +19,7 @@ const Profile: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const fetchProfile = async () => {
     setLoading(true);
@@ -75,6 +77,64 @@ const Profile: React.FC = () => {
     }
   };
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('photo', file);
+
+    try {
+      const response = await fetch('http://localhost:8000/api/users/profile/', {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: formData
+      });
+
+      if (response.ok) {
+        const updatedUser = await response.json();
+        setUser(updatedUser);
+        // Trigger top bar update
+        window.dispatchEvent(new Event('profileUpdate'));
+      }
+    } catch (err) {
+      console.error('Photo upload failed:', err);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!user) return;
+    
+    setIsUploading(true);
+    // In Django Rest Framework, to clear a file field, we can send an empty string or null depending on config
+    // We will use a standard PATCH with photo: null if supported, or handle specially
+    try {
+      const response = await fetch('http://localhost:8000/api/users/profile/', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: JSON.stringify({ photo: null })
+      });
+
+      if (response.ok) {
+        const updatedUser = await response.json();
+        setUser(updatedUser);
+        window.dispatchEvent(new Event('profileUpdate'));
+      }
+    } catch (err) {
+      console.error('Photo removal failed:', err);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   if (loading) return (
     <div className="flex flex-col items-center justify-center p-20 gap-4">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -101,6 +161,8 @@ const Profile: React.FC = () => {
     </div>
   );
 
+  const initials = `${user.prenom?.charAt(0) || ''}${user.nom?.charAt(0) || ''}`.toUpperCase();
+
   return (
     <div className="p-gutter max-w-7xl mx-auto w-full animate-in fade-in duration-500">
       {/* Hero Header Section */}
@@ -114,17 +176,39 @@ const Profile: React.FC = () => {
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
         </div>
         <div className="relative px-gutter flex flex-col md:flex-row items-end gap-6">
-          <div className="w-32 h-32 rounded-lg border-4 border-surface overflow-hidden bg-slate-200 shadow-sm shrink-0 flex items-center justify-center">
-            <img 
-              alt="Avatar Principal" 
-              className="w-full h-full object-cover" 
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEvDasyccbzreZr32R4u6oi0JAK-1FoanFH3ze8vM8jLMOhM8jE6nykmJiPLrSXSzZ9vzRfKSzs63DR4n6fzkN5PKRoTo-w2z1u-5Qg-WQM6cmzNKf40BoBPMu_z19YwatgZrcJZqg57YmYOW1z4SUCb2hpT9SgGD1qHcrpGXdOom4z6JZXBJNVt-fzVszeFvq3WfHnekXi2yWG6x8BBD41SaS25E1i6nroTcKjEzNhQlRlaB2gcebsbkOtzu4CCUbnxmoAiPX83g" 
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                target.parentElement!.innerHTML = `<span class="text-4xl font-bold text-sky-600">${user.prenom.charAt(0)}${user.nom.charAt(0)}</span>`;
-              }}
-            />
+          <div className="group relative w-32 h-32 rounded-lg border-4 border-surface overflow-hidden bg-slate-200 shadow-sm shrink-0 flex items-center justify-center">
+            {user.photo ? (
+              <img 
+                alt="Avatar Principal" 
+                className="w-full h-full object-cover" 
+                src={user.photo.startsWith('http') ? user.photo : `http://localhost:8000${user.photo}`}
+              />
+            ) : (
+              <span className="text-4xl font-bold text-primary">{initials}</span>
+            )}
+            
+            {/* Photo Edit Overlay */}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+               <label className="cursor-pointer bg-white/20 hover:bg-white/40 p-1.5 rounded-full transition-colors" title="Change photo">
+                 <span className="material-symbols-outlined text-white text-[20px]">edit</span>
+                 <input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} />
+               </label>
+               {user.photo && (
+                 <button 
+                   onClick={handleRemovePhoto}
+                   className="bg-white/20 hover:bg-white/40 p-1.5 rounded-full transition-colors" 
+                   title="Remove photo"
+                 >
+                   <span className="material-symbols-outlined text-white text-[20px]">delete</span>
+                 </button>
+               )}
+            </div>
+            
+            {isUploading && (
+              <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-white border-t-transparent animate-spin rounded-full"></div>
+              </div>
+            )}
           </div>
           <div className="pb-2">
             <h2 className="font-h1 text-h1 text-on-surface">{user.prenom} {user.nom}</h2>
