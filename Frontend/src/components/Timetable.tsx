@@ -290,6 +290,25 @@ const Timetable: React.FC = () => {
     setCurrentWeekStart(newDate);
   };
 
+  const [currentTaskId, setCurrentTaskId] = useState<number | null>(null);
+
+  const handleCancelGeneration = async () => {
+    if (!currentTaskId) return;
+    try {
+      const response = await fetch('http://localhost:8000/api/core/generate-schedule/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel', task_id: currentTaskId })
+      });
+      if (response.ok) {
+        setIsGenerating(false);
+        setCurrentTaskId(null);
+      }
+    } catch (error) {
+      console.error("Cancel error:", error);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!selectedSemester) { alert("Veuillez d'abord sélectionner un semestre."); return; }
     setIsGenerating(true); setGenerationProgress(0); setGenerationMessage("Démarrage de l'IA...");
@@ -304,13 +323,14 @@ const Timetable: React.FC = () => {
       });
       if (response.ok) {
         const { task_id } = await response.json();
+        setCurrentTaskId(task_id);
         const pollInterval = setInterval(async () => {
           const statusRes = await fetch(`http://localhost:8000/api/core/task-status/${task_id}/`);
           if (statusRes.ok) {
             const task = await statusRes.json();
             setGenerationProgress(task.progress); setGenerationMessage(task.message);
             if (task.status === 'COMPLETED') {
-              clearInterval(pollInterval); setPendingTaskId(task.id);
+              clearInterval(pollInterval); setPendingTaskId(task.id); setCurrentTaskId(null);
               const mappedPreview: TimetableSlot[] = (task.result_data || [])
                 .filter((s: any) => s.filiere_id.toString() === filiereId && s.semester === selectedSemester)
                 .map((s: any) => ({
@@ -322,7 +342,9 @@ const Timetable: React.FC = () => {
                 }));
               setPreviewSlots(mappedPreview); setIsGenerating(false);
             } else if (task.status === 'FAILED') {
-              clearInterval(pollInterval); setIsGenerating(false); alert(`Erreur: ${task.message}`);
+              clearInterval(pollInterval); setIsGenerating(false); setCurrentTaskId(null); alert(`Erreur: ${task.message}`);
+            } else if (task.status === 'CANCELLED') {
+              clearInterval(pollInterval); setIsGenerating(false); setCurrentTaskId(null);
             }
           }
         }, 1000);
@@ -447,6 +469,14 @@ const Timetable: React.FC = () => {
               </div>
               
               <p className="text-[10px] text-slate-400 italic">Veuillez ne pas fermer cette fenêtre. L'IA résout les conflits...</p>
+
+              <button 
+                onClick={handleCancelGeneration}
+                className="mt-4 px-6 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-xs font-black uppercase tracking-widest transition-colors flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+                Annuler la génération
+              </button>
             </div>
           </div>
         </div>

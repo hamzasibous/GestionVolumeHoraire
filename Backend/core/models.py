@@ -2,7 +2,7 @@ from django.db import models
 from users.models import Enseignant
 
 class ScheduleTask(models.Model):
-    status = models.CharField(max_length=20, default='PENDING') # PENDING, RUNNING, COMPLETED, FAILED
+    status = models.CharField(max_length=20, default='PENDING') # PENDING, RUNNING, COMPLETED, FAILED, CANCELLED
     progress = models.IntegerField(default=0) # 0 to 100
     message = models.TextField(blank=True, null=True)
     result_data = models.JSONField(blank=True, null=True) # Stores the master week schedule

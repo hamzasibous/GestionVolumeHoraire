@@ -566,6 +566,22 @@ class GenerateScheduleView(APIView):
         return Response({"error": "Method not allowed"}, status=405)
 
     def post(self, request):
+        action = request.data.get('action')
+        if action == 'cancel':
+            task_id = request.data.get('task_id')
+            if not task_id:
+                return Response({"error": "Task ID required"}, status=400)
+            try:
+                task = ScheduleTask.objects.get(id=task_id)
+                if task.status == 'RUNNING':
+                    task.status = 'CANCELLED'
+                    task.message = "Annulation demandée..."
+                    task.save()
+                    return Response({"message": "Génération annulée"})
+                return Response({"error": "Tâche non active"}, status=400)
+            except ScheduleTask.DoesNotExist:
+                return Response({"error": "Tâche non trouvée"}, status=404)
+
         semesters_str = request.data.get('semesters', '')
         if not semesters_str:
             return Response({"error": "No semesters provided"}, status=status.HTTP_400_BAD_REQUEST)
@@ -575,8 +591,17 @@ class GenerateScheduleView(APIView):
         
         def bg_solver():
             try:
-                success, results = run_genetic_algorithm(semester_codes, task_id=task.id)
-                if success:
+                def cancel_check():
+                    task.refresh_from_db()
+                    return task.status == 'CANCELLED'
+
+                success, results = run_genetic_algorithm(semester_codes, task_id=task.id, cancel_check=cancel_check)
+                
+                # Re-check status
+                task.refresh_from_db()
+                if task.status == 'CANCELLED':
+                    task.message = "Génération annulée par l'utilisateur."
+                elif success:
                     task.status = 'COMPLETED'
                     task.result_data = results
                     task.message = "Génération terminée avec succès. Veuillez confirmer l'aperçu."
@@ -584,8 +609,12 @@ class GenerateScheduleView(APIView):
                     task.status = 'FAILED'
                     task.message = results
             except Exception as e:
-                task.status = 'FAILED'
-                task.message = str(e)
+                if str(e) == "CANCELLATION_REQUESTED":
+                    task.status = 'CANCELLED'
+                    task.message = "Génération annulée par l'utilisateur."
+                else:
+                    task.status = 'FAILED'
+                    task.message = str(e)
             task.save()
 
         thread = threading.Thread(target=bg_solver)
@@ -606,9 +635,9 @@ class ConfirmScheduleView(APIView):
             periods = {p.semester: p for p in SemesterPeriod.objects.filter(semester__in=semester_codes)}
 
             from datetime import timedelta
-            days_list = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi']
+            days_list = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
             times = ['08:30', '10:45', '14:30', '16:45']
-            days_map = {'Lundi': 0, 'Mardi': 1, 'Mercredi': 2, 'Jeudi': 3, 'Vendredi': 4}
+            days_map = {'Lundi': 0, 'Mardi': 1, 'Mercredi': 2, 'Jeudi': 3, 'Vendredi': 4, 'Samedi': 5}
 
             semester_groups = {}
             for gene in schedule:

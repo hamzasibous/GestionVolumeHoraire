@@ -18,7 +18,7 @@ class MockObject:
         # Filiere naming: Filière 1, Filière 2...
         return getattr(self, 'nom', getattr(self, 'name', 'Mock'))
 
-def run_simulation_timetable(sim_params, progress_callback=None):
+def run_simulation_timetable(sim_params, progress_callback=None, cancel_check=None, semester_period='autumn'):
     """
     Runs a master-week simulation using the GENETIC ALGORITHM.
     Properly integrates all new resources (profs, locals, filieres, courses).
@@ -45,20 +45,26 @@ def run_simulation_timetable(sim_params, progress_callback=None):
     virtual_comportes = []
     
     # A. Existing Filieres & Modules
-    # We include all semesters for a full departmental view
-    real_comportes = Comporte.objects.all()
+    if semester_period == 'autumn':
+        target_semesters = ['S1', 'S3', 'S5', 'M1', 'M3']
+        active_indices = [1, 3, 5]
+    else: # spring
+        target_semesters = ['S2', 'S4', 'S6', 'M2', 'M4']
+        active_indices = [2, 4, 6]
+
+    real_comportes = Comporte.objects.filter(semestre__in=target_semesters)
     for cp in real_comportes:
         # Crucial: Allow NEW profs to take existing classes too
         cp.eligible_teachers = list(cp.module.users_habilites.all()) + sim_teachers
         if not cp.eligible_teachers: cp.eligible_teachers = all_teachers
         virtual_comportes.append(cp)
         
-    # B. New Simulated Filieres (6 semesters each)
+    # B. New Simulated Filieres
     for i in range(sim_params.get('nb_filieres_ajoutees', 0)):
-        f = MockObject(id=10000+i, nom=f"Filière {i+1}", niveaux="Licence_Sim")
+        f = MockObject(id=10000+i, nom=f"Filière {i+1}", levels="Licence")
         
-        # 6 semesters: S1, S2, S3, S4, S5, S6
-        for s_idx in range(1, 7):
+        # Only active semesters for the chosen period
+        for s_idx in active_indices:
             semester_name = f"S{s_idx}"
             
             # 5 modules with 4h (CM + TD/TP)
@@ -81,27 +87,31 @@ def run_simulation_timetable(sim_params, progress_callback=None):
 
     # C. Additional Individual Courses
     for i in range(sim_params.get('nb_nouveaux_cours', 0)):
-        # Assign these to the first filiere or a generic one
-        target_f = actual_filieres[0] if actual_filieres else (sim_filieres[0] if 'sim_filieres' in locals() else None)
+        target_f = actual_filieres[0] if actual_filieres else None
         if target_f:
+            # Match semester to period
+            sem = 'S1' if semester_period == 'autumn' else 'S2'
             m = MockObject(id=50000+i, nom=f"Cours Supp {i+1}")
             cp = MockObject(
-                filiere=target_f, module=m, semestre='S1', v_h_hebdo=2,
+                filiere=target_f, module=m, semestre=sem, v_h_hebdo=2,
                 eligible_teachers=all_teachers
             )
             virtual_comportes.append(cp)
             
     # 3. RUN THE GENETIC ALGORITHM
-    # Pass everything to the unified solver
     success, result_data = run_genetic_algorithm(
-        semester_codes=['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'M1', 'M2', 'M3', 'M4'], 
+        semester_codes=target_semesters, 
         custom_data={
-            'filieres': actual_filieres + [c.filiere for c in virtual_comportes if hasattr(c.filiere, 'description') and c.filiere.description == "Simulation"], # simplified
+            'filieres': actual_filieres + [c.filiere for c in virtual_comportes if hasattr(c.filiere, 'levels')],
             'locaux': all_locaux,
             'teachers': all_teachers,
             'comportes': virtual_comportes
         },
-        progress_callback=progress_callback
+        progress_callback=progress_callback,
+        cancel_check=cancel_check
     )
     
-    return result_data if success else []
+    if not success:
+        raise Exception(result_data) 
+        
+    return result_data

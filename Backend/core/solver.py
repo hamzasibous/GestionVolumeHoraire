@@ -3,15 +3,20 @@ import copy
 from datetime import timedelta
 from .models import Filiere, Module, Comporte, Local, Enseignant, Sceance, SemesterPeriod, Vacation, ScheduleTask
 
-def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progress_callback=None):
+def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progress_callback=None, cancel_check=None):
     def update_progress(p, msg=None):
         if progress_callback:
             progress_callback(p, msg)
         elif task_id:
             ScheduleTask.objects.filter(id=task_id).update(progress=p, message=msg or "Optimisation en cours...")
 
+    def check_cancelled():
+        if cancel_check and cancel_check():
+            raise Exception("CANCELLATION_REQUESTED")
+
     # 1. Initialization
     update_progress(5, "Initialisation des données...")
+    check_cancelled()
     
     if custom_data:
         filieres = custom_data.get('filieres')
@@ -25,18 +30,20 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
         teachers = list(Enseignant.objects.all())
         comportes_list = None
     
-    days_list = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi']
+    days_list = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
     times = ['08:30', '10:45', '14:30', '16:45']
     all_slots = [(d, t) for d in days_list for t in times]
     total_slots = len(all_slots)
 
     # 2. Gather session requirements
     requirements = []
+    mod_eligible_teachers = {}
     
     if comportes_list is not None:
         # Use provided requirements (Simulation mode)
         for cp in comportes_list:
             eligible_teachers = cp.eligible_teachers if hasattr(cp, 'eligible_teachers') else teachers
+            mod_eligible_teachers[cp.module.id] = eligible_teachers
             session_types = ['CM', random.choice(['TD', 'TP'])] if cp.v_h_hebdo >= 4 else ['CM']
             for s_type in session_types:
                 requirements.append({
@@ -50,11 +57,13 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
         # DB mode
         for sem in semester_codes:
             update_progress(10, f"Chargement des besoins pour {sem}...")
+            check_cancelled()
             for f in filieres:
                 comportes = Comporte.objects.filter(filiere=f, semestre=sem)
                 for cp in comportes:
                     eligible_teachers = list(cp.module.users_habilites.all())
                     if not eligible_teachers: eligible_teachers = teachers
+                    mod_eligible_teachers[cp.module.id] = eligible_teachers
 
                     session_types = ['CM', random.choice(['TD', 'TP'])] if cp.v_h_hebdo == 4 else ['CM']
 
@@ -74,11 +83,17 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
     total_prof_capacity = len(teachers) * 18 # 36h = 18 sessions
     total_room_capacity = len(locaux) * total_slots
 
+    print(f"DEBUG: Req={total_req_sessions}, ProfCap={total_prof_capacity}, RoomCap={total_room_capacity}")
+
     if total_req_sessions > total_prof_capacity:
-        return False, f"Pénurie d'enseignants : Vous avez {total_req_sessions} séances à caser, mais vos professeurs n'ont une capacité que de {total_prof_capacity} séances (limite de 30h/semaine). Veuillez ajouter des vacataires ou augmenter la limite."
+        msg = f"Pénurie d'enseignants : Vous avez {total_req_sessions} séances à caser, mais vos professeurs n'ont une capacité que de {total_prof_capacity} séances (limite de 30h/semaine). Veuillez ajouter des vacataires ou augmenter la limite."
+        print(f"DEBUG ERROR: {msg}")
+        return False, msg
 
     if total_req_sessions > total_room_capacity:
-        return False, f"Pénurie de locaux : Vous avez {total_req_sessions} séances, mais vos {len(locaux)} locaux ne peuvent accueillir que {total_room_capacity} créneaux par semaine."
+        msg = f"Pénurie de locaux : Vous avez {total_req_sessions} séances, mais vos {len(locaux)} locaux ne peuvent accueillir que {total_room_capacity} créneaux par semaine."
+        print(f"DEBUG ERROR: {msg}")
+        return False, msg
 
     # 3. GA Parameters
     POPULATION_SIZE = 80
@@ -139,11 +154,21 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
             filiere_slots[(f_id, sem, slot)] = 1
             teacher_workload[t_id] = teacher_workload.get(t_id, 0) + 1
             if teacher_workload[t_id] > 18: penalty += 1000
+
+        # Balancing Penalty: Encourage equitable distribution of hours
+        if teachers:
+            avg_load = len(individual) / len(teachers)
+            for t in teachers:
+                load = teacher_workload.get(t.id, 0)
+                # Penalize squared difference from average
+                penalty += (load - avg_load) ** 2 * 50
+
         return 1 / (1 + penalty)
 
     # 4. Evolution
     population = [create_individual() for _ in range(POPULATION_SIZE)]
     for gen in range(GENERATIONS):
+        check_cancelled()
         population = sorted(population, key=calculate_fitness, reverse=True)
         if calculate_fitness(population[0]) == 1.0: break
         
@@ -156,8 +181,19 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
             p1, p2 = random.sample(population[:20], 2)
             split = random.randint(0, len(p1) - 1)
             child = copy.deepcopy(p1[:split]) + copy.deepcopy(p2[split:])
+            
             if random.random() < MUTATION_RATE:
                 idx = random.randint(0, len(child) - 1)
+                
+                # Teacher Mutation: Swap teacher for the entire module in this individual
+                if random.random() < 0.3:
+                    target_mod_id = child[idx]['module'].id
+                    if target_mod_id in mod_eligible_teachers:
+                        new_teacher = random.choice(mod_eligible_teachers[target_mod_id])
+                        for gene in child:
+                            if gene['module'].id == target_mod_id:
+                                gene['teacher'] = new_teacher
+
                 child[idx]['slot'] = random.randint(0, len(all_slots) - 1)
                 
                 # Re-pick room based on type during mutation
@@ -171,12 +207,13 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
 
     # 5. Prepare Results for Return
     update_progress(90, "Préparation de l'aperçu...")
+    check_cancelled()
     best_schedule = population[0]
     
     # Calculate first week dates for each semester
     periods = {p.semester: p for p in SemesterPeriod.objects.filter(semester__in=semester_codes)}
     
-    days_map = {'Lundi': 0, 'Mardi': 1, 'Mercredi': 2, 'Jeudi': 3, 'Vendredi': 4}
+    days_map = {'Lundi': 0, 'Mardi': 1, 'Mercredi': 2, 'Jeudi': 3, 'Vendredi': 4, 'Samedi': 5}
 
     # Map objects to IDs for serialization
     serializable_schedule = []

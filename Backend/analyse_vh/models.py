@@ -11,6 +11,7 @@ class StrategieTraitement(models.TextChoices):
 class Simulation(models.Model):
     nomScenario = models.CharField(max_length=100)
     anneeCible = models.IntegerField()
+    periode = models.CharField(max_length=10, default='autumn') # autumn, spring
     estValide = models.BooleanField(default=False)
     
     # Paramètres de calcul (Toggles)
@@ -44,7 +45,7 @@ class Simulation(models.Model):
     # Suivi de progression
     progress = models.IntegerField(default=0)
     message = models.CharField(max_length=255, default="Prêt")
-    status = models.CharField(max_length=20, default='PENDING') # PENDING, RUNNING, COMPLETED, FAILED
+    status = models.CharField(max_length=20, default='PENDING') # PENDING, RUNNING, COMPLETED, FAILED, CANCELLED
     
     created_at = models.DateTimeField(auto_now_add=True, null=True)
 

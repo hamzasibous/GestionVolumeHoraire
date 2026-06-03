@@ -30,6 +30,16 @@ class SimulationViewSet(viewsets.ModelViewSet):
         thread.start()
         return Response(SimulationSerializer(simulation).data)
 
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        simulation = self.get_object()
+        if simulation.status == 'RUNNING':
+            simulation.status = 'CANCELLED'
+            simulation.message = "Annulation demandée..."
+            simulation.save()
+            return Response({"message": "Simulation annulée"}, status=status.HTTP_200_OK)
+        return Response({"error": "Simulation non active"}, status=status.HTTP_400_BAD_REQUEST)
+
     def _run_simulation_thread(self, sim_id):
         from .models import Simulation
         sim = Simulation.objects.get(id=sim_id)
@@ -38,13 +48,20 @@ class SimulationViewSet(viewsets.ModelViewSet):
         
         try:
             self._run_simulation_logic(sim)
-            sim.status = 'COMPLETED'
-            sim.message = "Simulation terminée avec succès !"
-            sim.progress = 100
-            sim.save()
+            # Re-check status because it might have been cancelled during logic
+            sim.refresh_from_db()
+            if sim.status != 'CANCELLED':
+                sim.status = 'COMPLETED'
+                sim.message = "Simulation terminée avec succès !"
+                sim.progress = 100
+                sim.save()
         except Exception as e:
-            sim.status = 'FAILED'
-            sim.message = f"Erreur: {str(e)}"
+            if str(e) == "CANCELLATION_REQUESTED":
+                sim.status = 'CANCELLED'
+                sim.message = "Simulation annulée par l'utilisateur."
+            else:
+                sim.status = 'FAILED'
+                sim.message = f"Erreur: {str(e)}"
             sim.save()
 
     def _run_simulation_logic(self, sim):
@@ -101,11 +118,15 @@ class SimulationViewSet(viewsets.ModelViewSet):
         def progress_callback(p, msg):
             Simulation.objects.filter(id=sim.id).update(progress=p, message=msg)
 
+        def cancel_check():
+            sim.refresh_from_db()
+            return sim.status == 'CANCELLED'
+
         sim_results = run_simulation_timetable({
             'nb_filieres_ajoutees': sim.nb_filieres_ajoutees,
             'nb_profs_ajoutes': sim.nb_profs_ajoutes,
             'nb_locaux_ajoutes': sim.nb_locaux_ajoutes
-        }, progress_callback=progress_callback)
+        }, progress_callback=progress_callback, cancel_check=cancel_check, semester_period=sim.periode)
         
         # Final save for the result data
         sim.refresh_from_db()

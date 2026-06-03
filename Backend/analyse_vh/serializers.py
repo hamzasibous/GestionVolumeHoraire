@@ -5,7 +5,7 @@ class SimulationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Simulation
         fields = [
-            'id', 'nomScenario', 'anneeCible', 'estValide', 
+            'id', 'nomScenario', 'anneeCible', 'periode', 'estValide', 
             'utiliser_donnees_actuelles', 'utiliser_moyenne_departement',
             'nb_filieres_ajoutees', 'nb_nouveaux_cours', 'nb_profs_ajoutes', 
             'nb_locaux_ajoutes', 'croissance_etudiante_pct', 'strategie_traitement',

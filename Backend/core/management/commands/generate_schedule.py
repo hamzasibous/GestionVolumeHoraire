@@ -19,8 +19,8 @@ class Command(BaseCommand):
         locaux = list(Local.objects.all())
         teachers = list(Enseignant.objects.all())
         
-        # Define slots (5 days, 4 slots/day)
-        days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi']
+        # Define slots (6 days, 4 slots/day)
+        days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
         times = ['08:30', '10:45', '14:30', '16:45']
         all_slots = [(d, t) for d in days for t in times]
 
@@ -148,9 +148,9 @@ class Command(BaseCommand):
                 p = periods[code]
                 Sceance.objects.filter(module__comporte__semestre=code, date__range=[p.date_debut, p.date_fin]).delete()
 
-        days_map = {'Lundi': 0, 'Mardi': 1, 'Mercredi': 2, 'Jeudi': 3, 'Vendredi': 4}
+        days_map = {'Lundi': 0, 'Mardi': 1, 'Mercredi': 2, 'Jeudi': 3, 'Vendredi': 4, 'Samedi': 5}
         times = ['08:30', '10:45', '14:30', '16:45']
-        days_list = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi']
+        days_list = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
 
         semester_groups = {}
         for gene in schedule:

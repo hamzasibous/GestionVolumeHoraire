@@ -35,6 +35,7 @@ const ForecastingSimulation: React.FC = () => {
   const [params, setParams] = useState({
     nomScenario: 'Prévision ' + (new Date().getFullYear() + 1),
     anneeCible: new Date().getFullYear() + 1,
+    periode: 'autumn',
     nb_filieres_ajoutees: 1,
     nb_nouveaux_cours: 5,
     nb_profs_ajoutes: 2,
@@ -65,6 +66,7 @@ const ForecastingSimulation: React.FC = () => {
               setParams({
                 nomScenario: latest.nomScenario,
                 anneeCible: latest.anneeCible,
+                periode: latest.periode || 'autumn',
                 nb_filieres_ajoutees: latest.nb_filieres_ajoutees,
                 nb_nouveaux_cours: latest.nb_nouveaux_cours,
                 nb_profs_ajoutes: latest.nb_profs_ajoutes,
@@ -84,7 +86,27 @@ const ForecastingSimulation: React.FC = () => {
     fetchLatest();
   }, []);
 
+  const [currentSimId, setCurrentSimId] = useState<number | null>(null);
+
+  const handleCancel = async () => {
+    if (!currentSimId) return;
+    
+    try {
+      const response = await fetch(`http://localhost:8000/api/analyse/simulations/${currentSimId}/cancel/`, {
+        method: 'POST',
+      });
+      if (response.ok) {
+        if (pollInterval.current) clearInterval(pollInterval.current);
+        setLoading(false);
+        setCurrentSimId(null);
+      }
+    } catch (error) {
+      console.error('Error cancelling simulation:', error);
+    }
+  };
+
   const startPolling = (simId: number) => {
+    setCurrentSimId(simId);
     if (pollInterval.current) clearInterval(pollInterval.current);
     
     pollInterval.current = setInterval(async () => {
@@ -99,10 +121,16 @@ const ForecastingSimulation: React.FC = () => {
             if (pollInterval.current) clearInterval(pollInterval.current);
             setResult(data);
             setLoading(false);
+            setCurrentSimId(null);
           } else if (data.status === 'FAILED') {
             if (pollInterval.current) clearInterval(pollInterval.current);
             alert(`Erreur de simulation: ${data.message}`);
             setLoading(false);
+            setCurrentSimId(null);
+          } else if (data.status === 'CANCELLED') {
+            if (pollInterval.current) clearInterval(pollInterval.current);
+            setLoading(false);
+            setCurrentSimId(null);
           }
         }
       } catch (error) {
@@ -134,6 +162,7 @@ const ForecastingSimulation: React.FC = () => {
     setParams({
       nomScenario: 'Prévision ' + (new Date().getFullYear() + 1),
       anneeCible: new Date().getFullYear() + 1,
+      periode: 'autumn',
       nb_filieres_ajoutees: 0,
       nb_nouveaux_cours: 0,
       nb_profs_ajoutes: 0,
@@ -180,6 +209,14 @@ const ForecastingSimulation: React.FC = () => {
                 </div>
               </div>
               <p className="text-[10px] text-slate-400 italic">L'algorithme génétique teste des milliers de combinaisons pour valider votre scénario...</p>
+              
+              <button 
+                onClick={handleCancel}
+                className="mt-4 px-6 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-xs font-black uppercase tracking-widest transition-colors flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+                Annuler la simulation
+              </button>
             </div>
           </div>
         </div>
@@ -269,6 +306,18 @@ const ForecastingSimulation: React.FC = () => {
                 value={params.nb_locaux_ajoutes}
                 onChange={(e) => setParams({...params, nb_locaux_ajoutes: parseInt(e.target.value)})}
               />
+            </div>
+
+            <div className="flex flex-col gap-xs">
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Période de Simulation</label>
+              <select 
+                className="w-full bg-surface-bright border border-outline-variant rounded px-3 py-2 outline-none focus:border-primary shadow-inner cursor-pointer" 
+                value={params.periode}
+                onChange={(e) => setParams({...params, periode: e.target.value})}
+              >
+                <option value="autumn">Semestres Impairs (S1, S3, S5, M1, M3)</option>
+                <option value="spring">Semestres Pairs (S2, S4, S6, M2, M4)</option>
+              </select>
             </div>
 
             <div className="flex flex-col gap-xs">
