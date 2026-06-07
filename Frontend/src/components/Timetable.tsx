@@ -120,6 +120,9 @@ const Timetable: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [modalAvailableProfs, setModalAvailableProfs] = useState<any[]>([]);
+  const [modalAvailableRooms, setModalAvailableRooms] = useState<any[]>([]);
+  const [isModalLoading, setIsModalLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     module: '',
@@ -256,6 +259,36 @@ const Timetable: React.FC = () => {
     };
     fetchMetadata();
   }, [filiereId, selectedSemester]);
+
+  useEffect(() => {
+    if (!isModalOpen || !formData.startDate || !formData.customTime) return;
+
+    const fetchAvailable = async () => {
+      const [startTime, endTime] = formData.customTime.split(' - ');
+      const [sh, sm] = startTime.split(':').map(Number);
+      const [eh, em] = endTime.split(':').map(Number);
+      const duration = (eh * 60 + em) - (sh * 60 + sm);
+
+      setIsModalLoading(true);
+      try {
+        const isNumericId = editingSessionId && /^\d+$/.test(editingSessionId.toString());
+        const url = `http://localhost:8000/api/core/sceance/get_available_resources/?date=${formData.startDate}&heure_debut=${startTime}&duree=${duration}&filiere_id=${filiereId}&semester=${selectedSemester}&module_id=${formData.module}${isNumericId ? `&exclude_id=${editingSessionId}` : ''}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setModalAvailableProfs(data.available_profs);
+          setModalAvailableRooms(data.available_rooms);
+        }
+      } catch (err) {
+        console.error("Error fetching available resources:", err);
+      } finally {
+        setIsModalLoading(false);
+      }
+    };
+
+    const debounce = setTimeout(fetchAvailable, 300);
+    return () => clearTimeout(debounce);
+  }, [isModalOpen, formData.startDate, formData.customTime, formData.module, filiereId, editingSessionId]);
 
   useEffect(() => {
     fetchSlots();
@@ -475,6 +508,7 @@ const Timetable: React.FC = () => {
     const daysMap: {[key: string]: number} = {'Lundi': 1, 'Mardi': 2, 'Mercredi': 3, 'Jeudi': 4, 'Vendredi': 5, 'Samedi': 6};
     
     try {
+      let firstSession = true;
       for (const session of extractedSessions) {
         if (!session.module_id || !session.room_id) continue;
 
@@ -493,7 +527,10 @@ const Timetable: React.FC = () => {
           module: session.module_id,
           enseignant: session.teacher_id,
           local: session.room_id,
-          number_of_sessions: 12
+          number_of_sessions: 12,
+          replace_existing: firstSession, // Only delete on the very first API call
+          filiere: uploadFiliereId,
+          semester: uploadSemester
         };
 
         const response = await fetch('http://localhost:8000/api/core/sceance/', {
@@ -505,6 +542,7 @@ const Timetable: React.FC = () => {
         if (!response.ok) {
           console.error("Failed to save session:", session);
         }
+        firstSession = false; // Disable for subsequent sessions
       }
       alert("Emploi du temps importé avec succès !");
       setIsUploadModalOpen(false);
@@ -974,29 +1012,62 @@ const Timetable: React.FC = () => {
                  </div>
                  <div className="space-y-2">
                     <label className="block text-[10px] font-black uppercase tracking-widest opacity-60">Salle</label>
-                    <select 
-                      value={formData.room} 
-                      onChange={(e) => setFormData({...formData, room: e.target.value})} 
+                    <select
+                      value={formData.room}
+                      onChange={(e) => setFormData({...formData, room: e.target.value})}
                       className="w-full bg-white border border-outline-variant rounded-xl px-4 py-3 text-sm font-bold"
                     >
-                      {locaux.length === 0 && <option value="">Choisir une salle...</option>}
-                      {locaux.map(l => (<option key={l.id} value={l.id}>{l.name}</option>))}
+                      <option value="">{isModalLoading ? 'Chargement des salles...' : 'Choisir une salle...'}</option>
+                      {/* Merge current room into available rooms list if not present */}
+                      {(() => {
+                        const currentRoom = locaux.find(l => l.id.toString() === formData.room);
+                        const list = [...modalAvailableRooms];
+                        if (currentRoom && !list.find(r => r.id === currentRoom.id)) {
+                          list.push({ id: currentRoom.id, name: currentRoom.name });
+                        }
+                        return list.map(r => (<option key={r.id} value={r.id}>{r.name}</option>));
+                      })()}
                     </select>
-                 </div>
-               </div>
+                    </div>
+                    </div>
 
-               <div className="grid grid-cols-2 gap-6">
-                 <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
                     <label className="block text-[10px] font-black uppercase tracking-widest opacity-60">Enseignant</label>
-                    <select 
-                      value={formData.teacher} 
-                      onChange={(e) => setFormData({...formData, teacher: e.target.value})} 
+                    <select
+                      value={formData.teacher}
+                      onChange={(e) => setFormData({...formData, teacher: e.target.value})}
                       className="w-full bg-white border border-outline-variant rounded-xl px-4 py-3 text-sm font-bold"
                     >
-                      <option value="">Non assigné</option>
-                      {teachers.map(t => (<option key={t.id} value={t.id}>{t.prenom} {t.nom}</option>))}
+                      <option value="">{isModalLoading ? 'Chargement des enseignants...' : 'Non assigné'}</option>
+                      {/* Categorized and sorted teacher list */}
+                      {(() => {
+                        const currentProf = teachers.find(t => t.id.toString() === formData.teacher);
+                        const list = [...modalAvailableProfs];
+                        if (currentProf && !list.find(p => p.id === currentProf.id)) {
+                          list.push({ id: currentProf.id, name: `${currentProf.prenom} ${currentProf.nom}`, violates_rule: false });
+                        }
+                        
+                        const recommended = list.filter(p => !p.violates_rule);
+                        const others = list.filter(p => p.violates_rule);
+                        
+                        return (
+                          <>
+                            {recommended.length > 0 && (
+                              <optgroup label="Recommandés (Libre + Nouveau module)">
+                                {recommended.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                              </optgroup>
+                            )}
+                            {others.length > 0 && (
+                              <optgroup label="Déjà assigné à un autre module dans cette filière">
+                                {others.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                              </optgroup>
+                            )}
+                          </>
+                        );
+                      })()}
                     </select>
-                 </div>
+                    </div>
                  <div className="space-y-2">
                     <label className="block text-[10px] font-black uppercase tracking-widest opacity-60">Type</label>
                     <select 

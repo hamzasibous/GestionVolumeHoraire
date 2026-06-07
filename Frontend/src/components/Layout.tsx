@@ -35,13 +35,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           });
           if (meRes.ok) setCurrentUser(await meRes.ok ? await meRes.json() : null);
 
-          // Fetch all users and filter for ENSEIGNANT
+          // Fetch all users and filter for ENSEIGNANT and REAL profiles
           const usersRes = await fetch('http://localhost:8000/api/users/management/', {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (usersRes.ok) {
             const allUsers = await usersRes.json();
-            setProfs(allUsers.filter((u: any) => u.role === 'ENSEIGNANT' || u.role === 'CHEF_DEPARTEMENT'));
+            setProfs(allUsers.filter((u: any) => 
+              (u.role === 'ENSEIGNANT' || u.role === 'CHEF_DEPARTEMENT') && 
+              !u.email.toLowerCase().includes('admin') &&
+              !u.nom.toLowerCase().includes('assign')
+            ));
           }
         } catch (error) {
           console.error('Error fetching help data:', error);

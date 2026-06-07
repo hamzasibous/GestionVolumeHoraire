@@ -343,12 +343,11 @@ class ExtractTimetableView(APIView):
         if isinstance(results, dict) and "error" in results:
             return Response(results, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # Match with database
         from .models import Module, Local, Sceance, SemesterPeriod
         from users.models import Enseignant
         from datetime import datetime, time, timedelta
+        import numpy as np
 
-        # Get semester period for availability context
         period = SemesterPeriod.objects.filter(semester=semester).first()
         if not period:
             return Response({"error": f"Period for semester {semester} not found"}, status=400)
@@ -357,85 +356,60 @@ class ExtractTimetableView(APIView):
         assigned_module_ids = Sceance.objects.filter(module__comporte__filiere=filiere, module__comporte__semestre=semester).values_list('module_id', flat=True).distinct()
         unassigned_modules = [m for m in available_modules if m.id not in assigned_module_ids]
         
-        all_profs = list(Enseignant.objects.all())
+        # CRITICAL FIX: Only include REAL active professors
+        all_profs = list(Enseignant.objects.filter(
+            is_active=True, 
+            role__in=['ENSEIGNANT', 'CHEF_DEPARTEMENT']
+        ).exclude(email__icontains='admin').exclude(nom__icontains='assign'))
+        
         all_rooms = list(Local.objects.all())
-        
         days_map = {'Lundi': 0, 'Mardi': 1, 'Mercredi': 2, 'Jeudi': 3, 'Vendredi': 4, 'Samedi': 5}
+
+        # 1. Pass 1: Robust Module Matching (NO CREATION)
+        # We strictly use available_modules for this semester
+        initial_sessions = []
         
-        enhanced_results = []
+        # Helper to find best module match
+        def find_best_module(extracted_name):
+            if not extracted_name: return None
+            extracted_name = extracted_name.lower()
+            # 1. Exact or partial match
+            match = next((m for m in available_modules if extracted_name in m.nom.lower() or m.nom.lower() in extracted_name), None)
+            return match
+
         for session in results:
-            day_name = session.get('day', '').strip()
-            time_str = session.get('time', '').strip()
-            duration = session.get('duration', 120)
+            mod_name = session.get('module_name')
+            matched_module = find_best_module(mod_name)
             
-            available_profs_for_slot = []
-            available_rooms_for_slot = []
-
-            start_time = None
-            if time_str and day_name in days_map:
-                try:
-                    start_time = datetime.strptime(time_str, "%H:%M").time()
-                except: pass
-
-            if start_time and day_name in days_map:
-                # Django week_day: Sunday=1, Monday=2, ..., Saturday=7
-                # days_map: Lundi=0 -> Monday=2
-                django_week_day = days_map[day_name] + 2
-                
-                # Filter ALL sessions in the system during this semester period on the same day of week
-                sessions_on_day = Sceance.objects.filter(
-                    date__range=[period.date_debut, period.date_fin],
-                    date__week_day=django_week_day
-                ).select_related('enseignant', 'local')
-
-                start_dt = datetime.combine(datetime.today(), start_time)
-                end_dt = start_dt + timedelta(minutes=duration)
-
-                occupied_prof_ids = set()
-                occupied_room_ids = set()
-
-                for s in sessions_on_day:
-                    if not s.heure_debut: continue
-                    s_start_dt = datetime.combine(datetime.today(), s.heure_debut)
-                    s_end_dt = s_start_dt + timedelta(minutes=s.duree)
-                    
-                    # Check for time overlap
-                    if (start_dt < s_end_dt) and (s_start_dt < end_dt):
-                        if s.enseignant_id: occupied_prof_ids.add(s.enseignant_id)
-                        if s.local_id: occupied_room_ids.add(s.local_id)
-                
-                available_profs_for_slot = [{"id": p.id, "name": str(p)} for p in all_profs if p.id not in occupied_prof_ids]
-                available_rooms_for_slot = [{"id": r.id, "name": str(r)} for r in all_rooms if r.id not in occupied_room_ids]
-            else:
-                # If time or day is missing, we can't determine availability
-                available_profs_for_slot = [{"id": p.id, "name": str(p)} for p in all_profs]
-                available_rooms_for_slot = [{"id": r.id, "name": str(r)} for r in all_rooms]
-
-            # 1. Match Module
-            matched_module = None
-            if session.get('module_name'):
-                name = session['module_name'].lower()
-                matched_module = next((m for m in available_modules if name in m.nom.lower() or m.nom.lower() in name), None)
-            
+            # If no name match, pick an unassigned one from the DB for this semester
             if not matched_module and unassigned_modules:
                 matched_module = unassigned_modules.pop(0)
-            
-            # 2. Match Teacher
+            # If still no match (all assigned), just pick the first available one (reuse)
+            if not matched_module and available_modules:
+                matched_module = available_modules[0]
+
             matched_teacher = None
             if session.get('teacher_name'):
                 name = session['teacher_name'].lower()
                 matched_teacher = next((t for t in all_profs if name in f"{t.prenom} {t.nom}".lower() or f"{t.prenom} {t.nom}".lower() in name), None)
-            
-            # 3. Match Room
-            matched_room = None
-            if session.get('room_name'):
-                name = session['room_name'].lower()
-                matched_room = next((r for r in all_rooms if name in str(r).lower() or str(r).lower() in name), None)
 
-            enhanced_results.append({
-                "day": day_name,
-                "time": time_str,
-                "duration": duration,
+            matched_room = None
+            room_name = session.get('room_name')
+            if room_name:
+                name = room_name.lower()
+                matched_room = next((r for r in all_rooms if name in str(r).lower() or str(r).lower() in name), None)
+                if not matched_room:
+                    # Keep auto-creation for Rooms as requested previously
+                    parts = room_name.split('.')
+                    bloc = parts[0] if len(parts) > 1 else "EXT"
+                    numero = parts[1] if len(parts) > 1 else room_name
+                    matched_room = Local.objects.create(bloc=bloc, numero=numero, capacite=40, is_amphi=('amphi' in room_name.lower()), departement=filiere.departement)
+                    all_rooms.append(matched_room)
+
+            initial_sessions.append({
+                "day": session.get('day'),
+                "time": session.get('time'),
+                "duration": session.get('duration', 120),
                 "type": session.get('type', 'CM'),
                 "module_id": matched_module.id if matched_module else None,
                 "module_name": matched_module.nom if matched_module else session.get('module_name'),
@@ -443,18 +417,135 @@ class ExtractTimetableView(APIView):
                 "teacher_name": str(matched_teacher) if matched_teacher else session.get('teacher_name'),
                 "room_id": matched_room.id if matched_room else None,
                 "room_name": str(matched_room) if matched_room else session.get('room_name'),
-                "available_profs": available_profs_for_slot,
-                "available_rooms": available_rooms_for_slot,
-                "needs_review": not (matched_module and matched_teacher and matched_room)
             })
 
+        # 2. Pass 2: Hungarian-style Proactive Assignment with Overlap & Fairness
+        final_sessions = []
+        teacher_busy_slots = {} # slot_key -> set(teacher_ids)
+        room_busy_slots = {}    # slot_key -> set(room_ids)
+        teacher_module_assignments = {} # teacher_id -> set(module_ids)
+        
+        # TRACKER: teacher_id -> set(module_ids) for THIS filiere AND semester
+        # Initialize from database to respect existing assignments
+        teacher_module_assignments = {}
+        db_assignments = Sceance.objects.filter(
+            module__comporte__filiere=filiere,
+            module__comporte__semestre=semester
+        ).values_list('enseignant_id', 'module_id')
+        
+        for t_id, m_id in db_assignments:
+            if t_id:
+                if t_id not in teacher_module_assignments: teacher_module_assignments[t_id] = set()
+                teacher_module_assignments[t_id].add(m_id)
+
+        # Global workloads
+        teacher_workloads = {t.id: Sceance.objects.filter(enseignant_id=t.id).count() * 2 for t in all_profs}
+
+        for session in initial_sessions:
+            day_name_raw = (session.get('day') or '').strip().capitalize()
+            time_str_raw = (session.get('time') or '').strip().replace('h', ':')
+            mod_id = session.get('module_id')
+            duration = session.get('duration', 120)
+            
+            # Use normalized day name
+            day_name = day_name_raw if day_name_raw in days_map else None
+            
+            if not day_name or not time_str_raw:
+                final_sessions.append(session)
+                continue
+            
+            slot_key = f"{day_name}-{time_str_raw}"
+            if slot_key not in teacher_busy_slots: teacher_busy_slots[slot_key] = set()
+            if slot_key not in room_busy_slots: room_busy_slots[slot_key] = set()
+
+            django_week_day = days_map[day_name] + 2
+            
+            # Robust time parsing
+            try:
+                if ':' not in time_str_raw:
+                    time_str_raw = f"{time_str_raw.zfill(2)}:00"
+                start_time = datetime.strptime(time_str_raw, "%H:%M").time()
+            except:
+                final_sessions.append(session)
+                continue
+            
+            # DURATION-AWARE OVERLAP CHECK
+            sessions_on_day = Sceance.objects.filter(date__week_day=django_week_day).select_related('enseignant', 'local')
+            start_dt = datetime.combine(datetime.today(), start_time)
+            end_dt = start_dt + timedelta(minutes=duration)
+            
+            occupied_prof_ids = set()
+            occupied_room_ids = set()
+            for s in sessions_on_day:
+                if not s.heure_debut: continue
+                s_start_dt = datetime.combine(datetime.today(), s.heure_debut)
+                s_end_dt = s_start_dt + timedelta(minutes=s.duree)
+                if (start_dt < s_end_dt) and (s_start_dt < end_dt):
+                    if s.enseignant_id: occupied_prof_ids.add(s.enseignant_id)
+                    if s.local_id: occupied_room_ids.add(s.local_id)
+            
+            total_busy_profs = occupied_prof_ids | teacher_busy_slots[slot_key]
+            total_busy_rooms = occupied_room_ids | room_busy_slots[slot_key]
+
+            # 1. Proactive Teacher Assignment (Force even if string exists but ID doesn't)
+            if not session['teacher_id']:
+                available_profs = []
+                for p in all_profs:
+                    # Is free?
+                    if p.id in total_busy_profs: continue
+                    
+                    # Not teaching another module in this filiere AND semester?
+                    assigned_mods = teacher_module_assignments.get(p.id, set())
+                    if not assigned_mods or mod_id in assigned_mods:
+                        available_profs.append(p)
+
+                if available_profs:
+                    # Sort by current workload (fairness)
+                    available_profs.sort(key=lambda p: teacher_workloads.get(p.id, 0))
+                    best_p = available_profs[0]
+                    session['teacher_id'] = best_p.id
+                    session['teacher_name'] = str(best_p)
+                else:
+                    print(f"DEBUG: No available professors found for slot {slot_key}")
+            
+            # Update trackers
+            if session['teacher_id']:
+                teacher_busy_slots[slot_key].add(session['teacher_id'])
+                if mod_id:
+                    if session['teacher_id'] not in teacher_module_assignments: teacher_module_assignments[session['teacher_id']] = set()
+                    teacher_module_assignments[session['teacher_id']].add(mod_id)
+                teacher_workloads[session['teacher_id']] = teacher_workloads.get(session['teacher_id'], 0) + 2
+
+            # 2. Proactive Room Assignment
+            if not session['room_id']:
+                available_rooms = [r for r in all_rooms if r.id not in total_busy_rooms]
+                if available_rooms:
+                    best_r = next((r for r in available_rooms if (session['type'] == 'CM' and r.is_amphi) or (session['type'] != 'CM' and not r.is_amphi)), available_rooms[0])
+                    session['room_id'] = best_r.id
+                    session['room_name'] = str(best_r)
+            
+            if session['room_id']: 
+                room_busy_slots[slot_key].add(session['room_id'])
+
+            # Metadata for frontend - ALWAYS INCLUDE the currently assigned ID in the lists
+            # so the dropdown can display it as selected.
+            available_profs_for_slot = [{"id": p.id, "name": str(p)} for p in all_profs if p.id not in total_busy_profs or p.id == session['teacher_id']]
+            available_rooms_for_slot = [{"id": r.id, "name": str(r)} for r in all_rooms if r.id not in total_busy_rooms or r.id == session['room_id']]
+            
+            session['available_profs'] = available_profs_for_slot
+            session['available_rooms'] = available_rooms_for_slot
+            session['needs_review'] = not (session['teacher_id'] and session['room_id'])
+            final_sessions.append(session)
+
         return Response({
-            "sessions": enhanced_results,
+            "sessions": final_sessions,
             "all_profs": [{"id": p.id, "name": str(p)} for p in all_profs],
             "all_rooms": [{"id": r.id, "name": str(r)} for r in all_rooms],
             "available_modules": [{"id": m.id, "name": m.nom} for m in available_modules]
         }, status=status.HTTP_200_OK)
 
+
+from rest_framework.permissions import AllowAny
 
 class FiliereCreateView(CreateAPIView):
     queryset = Filiere.objects.all()
@@ -463,6 +554,8 @@ class FiliereCreateView(CreateAPIView):
 class FiliereDetailView(RetrieveUpdateDestroyAPIView):
     queryset = Filiere.objects.all()
     serializer_class = FiliereSerializer
+    permission_classes = [AllowAny]
+    authentication_classes = []
 
 
 class DepartmentCreateView(CreateAPIView):
@@ -477,6 +570,8 @@ class ModuleCreateView(CreateAPIView):
 class ModuleDetailView(RetrieveUpdateDestroyAPIView):
     queryset = Module.objects.all()
     serializer_class = ModuleSerializer
+    permission_classes = [AllowAny]
+    authentication_classes = []
 
 
 class ComporteCreateView(CreateAPIView):
@@ -670,9 +765,21 @@ class SceanceViewSet(viewsets.ModelViewSet):
         return queryset
 
     def create(self, request, *args, **kwargs):
+        from .models import Sceance, SemesterPeriod, Comporte
+        from datetime import datetime, timedelta
+        
         module_id = request.data.get('module')
-        filiere_id = request.query_params.get('filiere') # Or from elsewhere
+        filiere_id = request.query_params.get('filiere') or request.data.get('filiere')
+        semester = request.data.get('semester')
         initial_date_str = request.data.get('date')
+
+        # LOGIC: If replace_existing is True, remove ALL sessions for this filiere/semester first
+        if request.data.get('replace_existing'):
+            if filiere_id and semester:
+                Sceance.objects.filter(
+                    module__comporte__filiere_id=filiere_id,
+                    module__comporte__semestre=semester
+                ).delete()
         
         # Validation: Ensure session date matches module semester period
         if module_id and initial_date_str:
@@ -798,6 +905,90 @@ class SceanceViewSet(viewsets.ModelViewSet):
                     return Response({"error": f"Conflit de salle détecté avec une autre séance à {current_date} {heure_debut}"}, status=status.HTTP_400_BAD_REQUEST)
 
         return super().update(request, *args, **kwargs)
+
+    @action(detail=False, methods=['get'])
+    def get_available_resources(self, request):
+        date_str = request.query_params.get('date')
+        heure_debut_str = request.query_params.get('heure_debut')
+        duree_val = request.query_params.get('duree', 120)
+        filiere_id = request.query_params.get('filiere_id')
+        semester = request.query_params.get('semester')
+        module_id = request.query_params.get('module_id')
+        exclude_id = request.query_params.get('exclude_id')
+
+        if not date_str or not heure_debut_str:
+            return Response({"available_profs": [], "available_rooms": []})
+
+        try:
+            from datetime import datetime, timedelta
+            from users.models import Enseignant
+            from .models import Local, Sceance
+
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+            start_time = datetime.strptime(heure_debut_str, '%H:%M').time()
+            duree = int(duree_val)
+            start_dt = datetime.combine(date_obj, start_time)
+            end_dt = start_dt + timedelta(minutes=duree)
+
+            # 1. Find busy resources in this specific time window
+            busy_sessions = Sceance.objects.filter(date=date_obj)
+            if exclude_id and str(exclude_id).isdigit():
+                busy_sessions = busy_sessions.exclude(id=exclude_id)
+            
+            occupied_prof_ids = set()
+            occupied_room_ids = set()
+            
+            for s in busy_sessions:
+                if not s.heure_debut: continue
+                s_start = datetime.combine(s.date, s.heure_debut)
+                s_end = s_start + timedelta(minutes=s.duree)
+                if (start_dt < s_end) and (s_start < end_dt):
+                    if s.enseignant_id: occupied_prof_ids.add(s.enseignant_id)
+                    if s.local_id: occupied_room_ids.add(s.local_id)
+
+            # 2. Get all real professors (filtered)
+            all_profs = Enseignant.objects.filter(
+                is_active=True, 
+                role__in=['ENSEIGNANT', 'CHEF_DEPARTEMENT']
+            ).exclude(email__icontains='admin').exclude(nom__icontains='assign')
+            
+            print(f"DEBUG: Found {all_profs.count()} total potential professors after role filters.")
+
+            # 3. Filter available professors
+            available_profs = []
+            for p in all_profs:
+                # HARD CONSTRAINT: Slot conflict (double booking)
+                if p.id in occupied_prof_ids:
+                    print(f"DEBUG: Prof {p.id} ({p.nom}) excluded due to slot conflict.")
+                    continue
+                
+                # SOFT CONSTRAINT: One module per filiere per semester (for display/sorting)
+                violates_filiere_rule = False
+                if filiere_id and semester and module_id:
+                    violates_filiere_rule = Sceance.objects.filter(
+                        module__comporte__filiere_id=filiere_id,
+                        module__comporte__semestre=semester,
+                        enseignant_id=p.id
+                    ).exclude(module_id=module_id).exists()
+                
+                available_profs.append({
+                    "id": p.id,
+                    "name": str(p),
+                    "violates_rule": violates_filiere_rule
+                })
+
+            print(f"DEBUG: Returning {len(available_profs)} available professors.")
+
+            # 4. Get available rooms
+            available_rooms = Local.objects.exclude(id__in=occupied_room_ids)
+
+            return Response({
+                "available_profs": available_profs,
+                "available_rooms": [{"id": r.id, "name": str(r)} for r in available_rooms]
+            })
+        except Exception as e:
+            print(f"Error in get_available_resources: {str(e)}")
+            return Response({"available_profs": [], "available_rooms": []})
 
     @action(detail=False, methods=['get'])
     def check_availability(self, request):
