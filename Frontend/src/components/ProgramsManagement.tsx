@@ -100,6 +100,11 @@ const ProgramsManagement: React.FC = () => {
   const selectedFiliere = filieres.find(f => f.id === selectedFiliereId) || filieres[0];
   const selectedModule = selectedFiliere?.modules.find(m => m.id === selectedModuleId) || selectedFiliere?.modules[0];
 
+  const handleExportAll = () => {
+    const url = 'http://localhost:8000/api/core/filiere/export-all-timetables-zip/';
+    window.open(url, '_blank');
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-full">{t('common.loading')}</div>;
   }
@@ -124,6 +129,10 @@ const ProgramsManagement: React.FC = () => {
           <p className="font-body-md text-body-md text-on-surface-variant mt-2">{t('programs.description')}</p>
         </div>
         <div className="flex gap-3">
+          <button onClick={handleExportAll} className="bg-rose-500 hover:bg-rose-600 text-white px-6 py-2 rounded-lg font-body-md text-body-md flex items-center gap-2 transition-colors shadow-sm uppercase tracking-wider font-bold">
+            <span className="material-symbols-outlined text-[20px]">folder_zip</span>
+            Tout Exporter (ZIP)
+          </button>
           <Link to="/programs/new-module" className="border border-outline text-on-surface hover:bg-surface-container-high px-6 py-2 rounded-lg font-body-md text-body-md flex items-center gap-2 transition-colors shadow-sm uppercase tracking-wider font-bold">
             <span className="material-symbols-outlined text-[20px]">add</span>
             {t('programs.create_module')}

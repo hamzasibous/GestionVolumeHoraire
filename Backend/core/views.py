@@ -5,9 +5,157 @@ from .models import Comporte, Departement, Filiere, Module, Sceance, Vacation, L
 from rest_framework import serializers, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from users.models import Enseignant
 import threading
+import zipfile
+import io
 from .solver import run_genetic_algorithm
+from django.http import HttpResponse
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import landscape, A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import cm
+from datetime import datetime, time, timedelta
+
+def generate_timetable_pdf(filiere, semester):
+    buffer = io.BytesIO()
+    p = canvas.Canvas(buffer, pagesize=landscape(A4))
+    width, height = landscape(A4)
+
+    # --- Header ---
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(1*cm, height - 1*cm, "UNIVERSITE MOULAY ISMAIL")
+    p.drawString(1*cm, height - 1.4*cm, "FACULTE DES SCIENCES")
+    p.drawString(1*cm, height - 1.8*cm, "MEKNES")
+
+    # --- Academic Year Calculation ---
+    period = SemesterPeriod.objects.filter(semester=semester).first()
+    academic_year = "2025-26"
+    if period:
+        start_year = period.date_debut.year
+        start_month = period.date_debut.month
+        if start_month >= 8: # Start of autumn semester
+            academic_year = f"{start_year}-{(start_year + 1) % 100:02d}"
+        else: # Spring semester
+            academic_year = f"{start_year - 1}-{start_year % 100:02d}"
+
+    p.drawRightString(width - 1*cm, height - 1*cm, f"Année universitaire :{academic_year}")
+    p.drawRightString(width - 1*cm, height - 1.4*cm, f"Filière : {filiere.nom}")
+    p.drawRightString(width - 1*cm, height - 1.8*cm, f"Semestre {semester}")
+    p.drawRightString(width - 1*cm, height - 2.2*cm, "Section : A")
+
+    p.setFont("Helvetica-Bold", 14)
+    p.drawCentredString(width/2, height - 3*cm, "EMPLOI DU TEMPS")
+    p.setFont("Helvetica-Bold", 12)
+    p.drawCentredString(width/2, height - 3.6*cm, "SEMESTRE DE PRINTEMPS" if semester in ['S2', 'S4', 'S6', 'M2', 'M4'] else "SEMESTRE D'AUTOMNE")
+
+    # --- Grid Setup ---
+    margin_left = 2*cm
+    margin_top = 5*cm
+    grid_width = width - 3*cm
+    grid_height = height - 7*cm
+    row_height = grid_height / 6
+    col_width_day = 2.5*cm
+    col_width_time = (grid_width - col_width_day) / 11
+
+    days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+    times = ["8.30", "9.30", "10.30", "11.30", "12.30", "13.30", "14.30", "15.30", "16.30", "17.30", "18.30", "19.30"]
+
+    p.setFont("Helvetica", 10)
+    for i, t_label in enumerate(times):
+        x = margin_left + col_width_day + i * col_width_time
+        p.drawCentredString(x, height - margin_top + 0.5*cm, t_label)
+        p.setDash(1, 2)
+        p.line(x, height - margin_top, x, height - margin_top - grid_height)
+        p.setDash()
+
+    for i in range(7):
+        y = height - margin_top - i * row_height
+        p.line(margin_left, y, margin_left + grid_width, y)
+        if i < 6:
+            p.setFont("Helvetica-Bold", 10)
+            p.drawString(margin_left + 0.2*cm, y - row_height/2, days[i])
+
+    p.line(margin_left, height - margin_top, margin_left, height - margin_top - grid_height)
+    p.line(margin_left + col_width_day, height - margin_top, margin_left + col_width_day, height - margin_top - grid_height)
+    p.line(margin_left + grid_width, height - margin_top, margin_left + grid_width, height - margin_top - grid_height)
+
+    # --- Fill Data ---
+    sceances = Sceance.objects.filter(module__comporte__semestre=semester, module__comporte__filiere=filiere).select_related('module', 'local', 'enseignant')
+    processed_slots = set()
+    for s in sceances:
+        if not s.heure_debut: continue
+        day_idx = s.date.weekday()
+        if day_idx > 5: continue
+        slot_key = (day_idx, s.heure_debut.hour, s.heure_debut.minute, s.module_id, s.local_id)
+        if slot_key in processed_slots: continue
+        processed_slots.add(slot_key)
+        start_minutes = s.heure_debut.hour * 60 + s.heure_debut.minute
+        base_minutes = 8 * 60 + 30
+        offset_minutes = start_minutes - base_minutes
+        x_start = margin_left + col_width_day + (offset_minutes / 60) * col_width_time
+        x_end = x_start + (s.duree / 60) * col_width_time
+        y_top = height - margin_top - day_idx * row_height
+        y_bottom = y_top - row_height
+        y_mid = y_bottom + (y_top - y_bottom) / 2
+        p.setStrokeColor(colors.black)
+        p.setLineWidth(1)
+        p.line(x_start + 5, y_mid, x_end - 5, y_mid)
+        p.line(x_start + 5, y_mid, x_start + 10, y_mid + 3)
+        p.line(x_start + 5, y_mid, x_start + 10, y_mid - 3)
+        p.line(x_end - 5, y_mid, x_end - 10, y_mid + 3)
+        p.line(x_end - 5, y_mid, x_end - 10, y_mid - 3)
+        p.setFont("Helvetica-Bold", 7)
+        mod_room_text = f"{s.module.nom} : {s.local}"
+        if len(mod_room_text) > 40: mod_room_text = mod_room_text[:37] + "..."
+        p.drawCentredString((x_start + x_end) / 2, y_mid + 6, mod_room_text)
+        if s.enseignant:
+            p.setFont("Helvetica-Oblique", 6)
+            prof_text = f"Pr. {s.enseignant.nom} {s.enseignant.prenom}"
+            p.drawCentredString((x_start + x_end) / 2, y_mid - 10, prof_text)
+
+    p.setFont("Helvetica", 8)
+    p.drawRightString(width - 1*cm, 1*cm, datetime.now().strftime("%d/%m/%Y"))
+    p.showPage()
+    p.save()
+    pdf_data = buffer.getvalue()
+    buffer.close()
+    return pdf_data
+
+class ExportTimetablePDFView(APIView):
+    def get(self, request):
+        filiere_id = request.query_params.get('filiere')
+        semester = request.query_params.get('semester')
+        if not filiere_id or not semester:
+            return Response({"error": "Filiere and semester are required"}, status=400)
+        try:
+            filiere = Filiere.objects.get(id=filiere_id)
+        except Filiere.DoesNotExist:
+            return Response({"error": "Filiere not found"}, status=404)
+        pdf_content = generate_timetable_pdf(filiere, semester)
+        response = HttpResponse(pdf_content, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="emploi_du_temps_{filiere.nom}_{semester}.pdf"'
+        return response
+
+class ExportAllTimetablesZIPView(APIView):
+    def get(self, request):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, 'w') as zip_file:
+            filieres = Filiere.objects.all()
+            for filiere in filieres:
+                semesters = Comporte.objects.filter(filiere=filiere).values_list('semestre', flat=True).distinct()
+                for semester in semesters:
+                    pdf_content = generate_timetable_pdf(filiere, semester)
+                    clean_f_name = "".join([c for c in filiere.nom if c.isalnum() or c in (' ', '_', '-')]).strip()
+                    zip_path = f"{clean_f_name}/{semester}.pdf"
+                    zip_file.writestr(zip_path, pdf_content)
+        buffer.seek(0)
+        response = HttpResponse(buffer.getvalue(), content_type='application/zip')
+        response['Content-Disposition'] = 'attachment; filename="tous_les_emplois_du_temps.zip"'
+        return response
 
 
 class FiliereSerializer(serializers.ModelSerializer):
@@ -152,7 +300,6 @@ class FiliereDetailSerializer(serializers.ModelSerializer):
 from rest_framework.generics import CreateAPIView, ListAPIView
 
 
-from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from .ai_service import AIService

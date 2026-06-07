@@ -379,10 +379,23 @@ const Timetable: React.FC = () => {
   };
 
   const handleCellClick = (day: string, config: TimeConfig, date: string) => {
-    setEditingSessionId(null); setTimeFilter(timeToMinutes(config.start) < 780 ? 'Morning' : 'Afternoon');
+    setEditingSessionId(null); 
+    setTimeFilter(timeToMinutes(config.start) < 780 ? 'Morning' : 'Afternoon');
     setSelectedCell({ day, time: config.start, endTime: config.end, date });
-    setFormData({ module: '', room: '', teacher: '', type: 'CM', customTime: `${config.start} - ${config.end}`, number_of_sessions: 1, startDate: date });
-    setAvailabilityError(null); setIsModalOpen(true); setShowCalendar(false);
+    
+    // Auto-select first available module and room if they exist
+    setFormData({ 
+      module: modules.length > 0 ? modules[0].id.toString() : '', 
+      room: locaux.length > 0 ? locaux[0].id.toString() : '', 
+      teacher: '', 
+      type: 'CM', 
+      customTime: `${config.start} - ${config.end}`, 
+      number_of_sessions: 1, 
+      startDate: date 
+    });
+    setAvailabilityError(null); 
+    setIsModalOpen(true); 
+    setShowCalendar(false);
   };
 
   const handleValidate = () => {
@@ -398,6 +411,15 @@ const Timetable: React.FC = () => {
   };
 
   const getTimeOptions = () => timeFilter === 'Morning' ? ['08:30 - 10:30', '10:45 - 12:45', '08:30 - 12:45'] : ['14:30 - 16:30', '16:45 - 18:45', '14:30 - 18:45'];
+
+  const handleExportPDF = () => {
+    if (!filiereId || !selectedSemester) {
+      alert("Veuillez sélectionner une filière et un semestre.");
+      return;
+    }
+    const url = `http://localhost:8000/api/core/filiere/export-pdf-timetable/?filiere=${filiereId}&semester=${selectedSemester}`;
+    window.open(url, '_blank');
+  };
 
   return (
     <div className="flex flex-col h-full relative animate-in fade-in duration-500">
@@ -430,6 +452,10 @@ const Timetable: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-md">
+          <button onClick={handleExportPDF} className="bg-slate-800 text-rose-400 border border-slate-700 px-6 py-2 rounded-lg font-bold hover:bg-slate-700 transition-all uppercase text-[10px] tracking-widest flex items-center gap-2">
+            <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+            Exporter PDF
+          </button>
           <button onClick={() => setIsListView(!isListView)} className={`px-6 py-2 rounded-lg font-bold transition-all uppercase text-[10px] tracking-widest flex items-center gap-2 border ${isListView ? 'bg-primary text-on-primary border-primary' : 'bg-surface-container-lowest text-primary border-outline-variant hover:bg-primary/5'}`}>
             <span className="material-symbols-outlined text-sm">{isListView ? 'grid_view' : 'list_alt'}</span>
             {isListView ? 'Vue Grille' : 'Vue Programme'}
@@ -621,8 +647,54 @@ const Timetable: React.FC = () => {
               </div>
 
                <div className="grid grid-cols-2 gap-6">
-                 <div className="space-y-2"><label className="block text-[10px] font-black uppercase tracking-widest opacity-60">Module</label><select value={formData.module} onChange={(e) => setFormData({...formData, module: e.target.value})} className="w-full bg-white border border-outline-variant rounded-xl px-4 py-3 text-sm font-bold">{modules.map(m => (<option key={m.id} value={m.id}>{m.nom}</option>))}</select></div>
-                 <div className="space-y-2"><label className="block text-[10px] font-black uppercase tracking-widest opacity-60">Salle</label><select value={formData.room} onChange={(e) => setFormData({...formData, room: e.target.value})} className="w-full bg-white border border-outline-variant rounded-xl px-4 py-3 text-sm font-bold">{locaux.map(l => (<option key={l.id} value={l.id}>{l.name}</option>))}</select></div>
+                 <div className="space-y-2">
+                    <label className="block text-[10px] font-black uppercase tracking-widest opacity-60">Module</label>
+                    <select 
+                      value={formData.module} 
+                      onChange={(e) => setFormData({...formData, module: e.target.value})} 
+                      className="w-full bg-white border border-outline-variant rounded-xl px-4 py-3 text-sm font-bold"
+                    >
+                      {modules.length === 0 && <option value="">Choisir un module...</option>}
+                      {modules.map(m => (<option key={m.id} value={m.id}>{m.nom}</option>))}
+                    </select>
+                 </div>
+                 <div className="space-y-2">
+                    <label className="block text-[10px] font-black uppercase tracking-widest opacity-60">Salle</label>
+                    <select 
+                      value={formData.room} 
+                      onChange={(e) => setFormData({...formData, room: e.target.value})} 
+                      className="w-full bg-white border border-outline-variant rounded-xl px-4 py-3 text-sm font-bold"
+                    >
+                      {locaux.length === 0 && <option value="">Choisir une salle...</option>}
+                      {locaux.map(l => (<option key={l.id} value={l.id}>{l.name}</option>))}
+                    </select>
+                 </div>
+               </div>
+
+               <div className="grid grid-cols-2 gap-6">
+                 <div className="space-y-2">
+                    <label className="block text-[10px] font-black uppercase tracking-widest opacity-60">Enseignant</label>
+                    <select 
+                      value={formData.teacher} 
+                      onChange={(e) => setFormData({...formData, teacher: e.target.value})} 
+                      className="w-full bg-white border border-outline-variant rounded-xl px-4 py-3 text-sm font-bold"
+                    >
+                      <option value="">Non assigné</option>
+                      {teachers.map(t => (<option key={t.id} value={t.id}>{t.prenom} {t.nom}</option>))}
+                    </select>
+                 </div>
+                 <div className="space-y-2">
+                    <label className="block text-[10px] font-black uppercase tracking-widest opacity-60">Type</label>
+                    <select 
+                      value={formData.type} 
+                      onChange={(e) => setFormData({...formData, type: e.target.value})} 
+                      className="w-full bg-white border border-outline-variant rounded-xl px-4 py-3 text-sm font-bold"
+                    >
+                      <option value="CM">Cours Magistral (CM)</option>
+                      <option value="TD">Travaux Dirigés (TD)</option>
+                      <option value="TP">Travaux Pratiques (TP)</option>
+                    </select>
+                 </div>
                </div>
                <div className="pt-6 border-t border-outline-variant flex justify-between gap-4"><button onClick={() => setIsModalOpen(false)} className="flex-1 bg-surface-container-high py-3 rounded-xl font-black text-[10px] uppercase">Annuler</button><button onClick={handleValidate} className="flex-1 bg-slate-900 text-white py-3 rounded-xl font-black uppercase text-[10px]">Valider</button></div>
             </div>

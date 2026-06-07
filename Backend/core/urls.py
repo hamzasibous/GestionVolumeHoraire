@@ -25,6 +25,8 @@ from core.views import (
     SceanceViewSet,
     VacationViewSet,
     ExtractVacationsView,
+    ExportTimetablePDFView,
+    ExportAllTimetablesZIPView,
 )
 
 router = DefaultRouter()
@@ -34,6 +36,8 @@ router.register(r'local', LocalViewSet, basename='local')
 
 urlpatterns = [
     path("vacations/extract/", ExtractVacationsView.as_view(), name="vacation-extract"),
+    path("filiere/export-pdf-timetable/", ExportTimetablePDFView.as_view(), name="export-pdf-timetable"),
+    path("filiere/export-all-timetables-zip/", ExportAllTimetablesZIPView.as_view(), name="export-all-timetables-zip"),
     path("", include(router.urls)),
     path("filiere/", FiliereListView.as_view(), name="filiere-list"),
     path("filiere/details/", FiliereDetailListView.as_view(), name="filiere-details"),

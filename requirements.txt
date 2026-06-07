@@ -6,3 +6,5 @@ psycopg2-binary
 django-cors-headers
 google-generativeai
 Pillow
+reportlab
+charset-normalizer
