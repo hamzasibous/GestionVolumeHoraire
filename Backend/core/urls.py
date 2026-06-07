@@ -10,6 +10,8 @@ from core.views import (
     DepartmentCreateView,
     FiliereCreateView,
     ModuleCreateView,
+    FiliereDetailView,
+    ModuleDetailView,
     FiliereListView,
     FiliereDetailListView,
     DashboardStatsView,
@@ -25,6 +27,7 @@ from core.views import (
     SceanceViewSet,
     VacationViewSet,
     ExtractVacationsView,
+    ExtractTimetableView,
     ExportTimetablePDFView,
     ExportAllTimetablesZIPView,
 )
@@ -36,6 +39,7 @@ router.register(r'local', LocalViewSet, basename='local')
 
 urlpatterns = [
     path("vacations/extract/", ExtractVacationsView.as_view(), name="vacation-extract"),
+    path("timetable/extract/", ExtractTimetableView.as_view(), name="timetable-extract"),
     path("filiere/export-pdf-timetable/", ExportTimetablePDFView.as_view(), name="export-pdf-timetable"),
     path("filiere/export-all-timetables-zip/", ExportAllTimetablesZIPView.as_view(), name="export-all-timetables-zip"),
     path("", include(router.urls)),
@@ -50,6 +54,9 @@ urlpatterns = [
     path("departement/", DepartmentListView.as_view(), name="departement-list"),
     path("module/", ModuleListView.as_view(), name="module-list"),
     path("local/", LocalListView.as_view(), name="local-list"),
+
+    path("filiere/<int:pk>/", FiliereDetailView.as_view(), name="filiere-detail"),
+    path("module/<int:pk>/", ModuleDetailView.as_view(), name="module-detail"),
 
     path("filiere/create-filiere/", FiliereCreateView.as_view(), name="create_filiere"),
     path(

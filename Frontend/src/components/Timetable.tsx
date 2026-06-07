@@ -87,6 +87,15 @@ const Timetable: React.FC = () => {
   const [currentWeekStart, setCurrentWeekStart] = useState(getMonday(new Date()));
   const [slots, setSlots] = useState<TimetableSlot[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [uploadSeason, setUploadSeason] = useState<'Automne' | 'Printemps'>('Automne');
+  const [uploadSemester, setUploadSemester] = useState<string>('');
+  const [uploadFiliereId, setUploadFiliereId] = useState<string>('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStep, setUploadStep] = useState<'upload' | 'review'>('upload');
+  const [extractedSessions, setExtractedSessions] = useState<any[]>([]);
+  const [reviewMetadata, setReviewMetadata] = useState<{all_profs: any[], all_rooms: any[], available_modules: any[]}>({all_profs: [], all_rooms: [], available_modules: []});
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [timeFilter, setTimeFilter] = useState<'Morning' | 'Afternoon'>('Morning');
   const [showCalendar, setShowCalendar] = useState(false);
@@ -421,6 +430,94 @@ const Timetable: React.FC = () => {
     window.open(url, '_blank');
   };
 
+  const handleStartImport = async () => {
+    if (!selectedFile || !uploadFiliereId || !uploadSemester) return;
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('filiere_id', uploadFiliereId);
+    formData.append('semester', uploadSemester);
+
+    try {
+      const response = await fetch('http://localhost:8000/api/core/timetable/extract/', {
+        method: 'POST',
+        body: formData,
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setExtractedSessions(data.sessions);
+        setReviewMetadata({
+          all_profs: data.all_profs,
+          all_rooms: data.all_rooms,
+          available_modules: data.available_modules
+        });
+        setUploadStep('review');
+      } else {
+        alert("Erreur lors de l'extraction");
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Impossible de contacter le serveur.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSaveExtracted = async () => {
+    // For each session, we find the first valid date in the semester period and create 12 sessions
+    const period = semesterPeriods.find(p => p.semester === uploadSemester);
+    if (!period) {
+      alert("Période du semestre non trouvée. Veuillez d'abord configurer les dates du semestre.");
+      return;
+    }
+
+    setIsUploading(true);
+    const daysMap: {[key: string]: number} = {'Lundi': 1, 'Mardi': 2, 'Mercredi': 3, 'Jeudi': 4, 'Vendredi': 5, 'Samedi': 6};
+    
+    try {
+      for (const session of extractedSessions) {
+        if (!session.module_id || !session.room_id) continue;
+
+        // Find the first occurrence of the day in the period
+        let startDate = new Date(period.start);
+        const targetDay = daysMap[session.day];
+        while (startDate.getDay() !== targetDay) {
+          startDate.setDate(startDate.getDate() + 1);
+        }
+
+        const payload = {
+          type: session.type,
+          duree: session.duration,
+          date: formatDate(startDate),
+          heure_debut: session.time,
+          module: session.module_id,
+          enseignant: session.teacher_id,
+          local: session.room_id,
+          number_of_sessions: 12
+        };
+
+        const response = await fetch('http://localhost:8000/api/core/sceance/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          console.error("Failed to save session:", session);
+        }
+      }
+      alert("Emploi du temps importé avec succès !");
+      setIsUploadModalOpen(false);
+      setUploadStep('upload');
+      setSelectedFile(null);
+      fetchSlots();
+    } catch (error) {
+      console.error("Save extracted error:", error);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full relative animate-in fade-in duration-500">
       <header className="flex justify-between items-center h-16 px-gutter bg-slate-900 border-b border-slate-800 sticky top-0 z-40 shadow-lg">
@@ -452,6 +549,10 @@ const Timetable: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-md">
+          <button onClick={() => setIsUploadModalOpen(true)} className="bg-slate-800 text-emerald-400 border border-slate-700 px-6 py-2 rounded-lg font-bold hover:bg-slate-700 transition-all uppercase text-[10px] tracking-widest flex items-center gap-2">
+            <span className="material-symbols-outlined text-sm">upload_file</span>
+            Importer Emploi
+          </button>
           <button onClick={handleExportPDF} className="bg-slate-800 text-rose-400 border border-slate-700 px-6 py-2 rounded-lg font-bold hover:bg-slate-700 transition-all uppercase text-[10px] tracking-widest flex items-center gap-2">
             <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
             Exporter PDF
@@ -598,6 +699,219 @@ const Timetable: React.FC = () => {
           </div>
         )}
       </section>
+
+      {isUploadModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className={`bg-white w-full ${uploadStep === 'review' ? 'max-w-6xl' : 'max-w-xl'} rounded-2xl shadow-2xl border border-slate-200 overflow-hidden transition-all duration-300`}>
+            <div className="bg-slate-900 p-6 flex items-center justify-between">
+              <div className="flex items-center gap-3 text-white">
+                <div className="p-2 bg-emerald-500/20 rounded-lg"><span className="material-symbols-outlined text-emerald-400">{uploadStep === 'review' ? 'visibility' : 'upload_file'}</span></div>
+                <h3 className="text-lg font-black uppercase tracking-tight">{uploadStep === 'review' ? 'Vérification de l\'importation' : 'Importer un emploi du temps'}</h3>
+              </div>
+              <button onClick={() => { setIsUploadModalOpen(false); setUploadStep('upload'); setSelectedFile(null); }} className="text-slate-400 hover:text-white transition-colors">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            
+            <div className="p-8 space-y-6">
+              {uploadStep === 'upload' ? (
+                <>
+                  {/* Season Selection */}
+                  <div className="space-y-3">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Saison</label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <button 
+                        onClick={() => { setUploadSeason('Automne'); setUploadSemester(''); }}
+                        className={`p-4 rounded-xl border-2 transition-all text-left ${uploadSeason === 'Automne' ? 'border-sky-500 bg-sky-50' : 'border-slate-100 hover:border-slate-200'}`}
+                      >
+                        <div className="font-black text-sm uppercase tracking-tight mb-1">Automne</div>
+                        <div className="text-[10px] text-slate-500 font-medium">Semestres Impairs</div>
+                      </button>
+                      <button 
+                        onClick={() => { setUploadSeason('Printemps'); setUploadSemester(''); }}
+                        className={`p-4 rounded-xl border-2 transition-all text-left ${uploadSeason === 'Printemps' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100 hover:border-slate-200'}`}
+                      >
+                        <div className="font-black text-sm uppercase tracking-tight mb-1">Printemps</div>
+                        <div className="text-[10px] text-slate-500 font-medium">Semestres Pairs</div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Filière Selection */}
+                  <div className="space-y-3">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Filière</label>
+                    <select 
+                      value={uploadFiliereId}
+                      onChange={(e) => { setUploadFiliereId(e.target.value); setUploadSemester(''); }}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none transition-all"
+                    >
+                      <option value="">Sélectionner une filière...</option>
+                      {filieres.map(f => (
+                        <option key={f.id} value={f.id}>{f.nom}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Semester Selection */}
+                  {uploadFiliereId && (
+                    <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Semestre</label>
+                      <select 
+                        value={uploadSemester}
+                        onChange={(e) => setUploadSemester(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none transition-all"
+                      >
+                        <option value="">Sélectionner un semestre...</option>
+                        {(() => {
+                          const filiere = filieres.find(f => f.id.toString() === uploadFiliereId);
+                          const isMaster = filiere?.niveaux?.startsWith('Master');
+                          
+                          if (uploadSeason === 'Automne') {
+                            return isMaster ? ['M1', 'M3'] : ['S1', 'S3', 'S5'];
+                          } else {
+                            return isMaster ? ['M2', 'M4'] : ['S2', 'S4', 'S6'];
+                          }
+                        })().map(sem => (
+                          <option key={sem} value={sem}>{sem}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* File Upload Area */}
+                  <div className="space-y-3">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Fichier de l'emploi</label>
+                    <div 
+                      className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center gap-3 transition-all cursor-pointer ${selectedFile ? 'border-emerald-500 bg-emerald-50/30' : 'border-slate-200 hover:border-sky-400 hover:bg-sky-50/30'}`}
+                      onClick={() => document.getElementById('fileInput')?.click()}
+                    >
+                      <input 
+                        type="file" 
+                        id="fileInput" 
+                        className="hidden" 
+                        accept=".pdf,.png,.jpg,.jpeg"
+                        onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                      />
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${selectedFile ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                        <span className="material-symbols-outlined text-3xl">{selectedFile ? 'check_circle' : 'cloud_upload'}</span>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-sm font-bold text-slate-900">{selectedFile ? selectedFile.name : 'Cliquez pour uploader'}</div>
+                        <p className="text-[10px] text-slate-500 font-medium mt-1">PDF, PNG ou JPG supportés</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="pt-6 border-t border-slate-100 flex gap-4">
+                    <button 
+                      onClick={() => { setIsUploadModalOpen(false); setSelectedFile(null); }}
+                      className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors"
+                    >
+                      Annuler
+                    </button>
+                    <button 
+                      onClick={handleStartImport}
+                      disabled={!selectedFile || !uploadFiliereId || !uploadSemester || isUploading}
+                      className={`flex-1 bg-slate-900 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg ${(!selectedFile || !uploadFiliereId || !uploadSemester || isUploading) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800'}`}
+                    >
+                      {isUploading ? 'Analyse en cours...' : 'Lancer l\'importation'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="max-h-[500px] overflow-y-auto border border-slate-100 rounded-xl">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
+                          <th className="px-4 py-3 font-black text-[10px] uppercase tracking-widest text-slate-400">Jour / Heure</th>
+                          <th className="px-4 py-3 font-black text-[10px] uppercase tracking-widest text-slate-400">Module</th>
+                          <th className="px-4 py-3 font-black text-[10px] uppercase tracking-widest text-slate-400">Enseignant</th>
+                          <th className="px-4 py-3 font-black text-[10px] uppercase tracking-widest text-slate-400">Salle</th>
+                          <th className="px-4 py-3 font-black text-[10px] uppercase tracking-widest text-slate-400">Type</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {extractedSessions.map((session, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-4">
+                              <div className="font-bold text-xs">{session.day}</div>
+                              <div className="text-primary font-black text-[10px]">{session.time}</div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <select 
+                                value={session.module_id || ''}
+                                onChange={(e) => {
+                                  const newSessions = [...extractedSessions];
+                                  newSessions[idx].module_id = e.target.value;
+                                  setExtractedSessions(newSessions);
+                                }}
+                                className={`w-full bg-white border ${!session.module_id ? 'border-rose-300 bg-rose-50' : 'border-slate-200'} rounded-lg px-2 py-1.5 text-xs font-bold`}
+                              >
+                                <option value="">Choisir...</option>
+                                {reviewMetadata.available_modules.map(m => (<option key={m.id} value={m.id}>{m.name}</option>))}
+                              </select>
+                            </td>
+                            <td className="px-4 py-4">
+                              <select 
+                                value={session.teacher_id || ''}
+                                onChange={(e) => {
+                                  const newSessions = [...extractedSessions];
+                                  newSessions[idx].teacher_id = e.target.value;
+                                  setExtractedSessions(newSessions);
+                                }}
+                                className={`w-full bg-white border ${!session.teacher_id ? 'border-rose-300 bg-rose-50' : 'border-slate-200'} rounded-lg px-2 py-1.5 text-xs font-bold`}
+                              >
+                                <option value="">Choisir un enseignant disponible...</option>
+                                {session.available_profs?.map((p: any) => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                              </select>
+                            </td>
+                            <td className="px-4 py-4">
+                              <select 
+                                value={session.room_id || ''}
+                                onChange={(e) => {
+                                  const newSessions = [...extractedSessions];
+                                  newSessions[idx].room_id = e.target.value;
+                                  setExtractedSessions(newSessions);
+                                }}
+                                className={`w-full bg-white border ${!session.room_id ? 'border-rose-300 bg-rose-50' : 'border-slate-200'} rounded-lg px-2 py-1.5 text-xs font-bold`}
+                              >
+                                <option value="">Choisir une salle disponible...</option>
+                                {session.available_rooms?.map((r: any) => (<option key={r.id} value={r.id}>{r.name}</option>))}
+                              </select>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="px-2 py-1 bg-slate-100 rounded text-[10px] font-black uppercase">{session.type}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="pt-6 border-t border-slate-100 flex gap-4">
+                    <button 
+                      onClick={() => setUploadStep('upload')}
+                      className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors"
+                    >
+                      Retour
+                    </button>
+                    <button 
+                      onClick={handleSaveExtracted}
+                      disabled={isUploading || extractedSessions.some(s => !s.module_id || !s.room_id)}
+                      className={`flex-1 bg-emerald-600 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg ${isUploading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-700'}`}
+                    >
+                      {isUploading ? 'Enregistrement...' : 'Confirmer l\'importation'}
+                    </button>
+                  </div>
+                  <p className="text-center text-[10px] text-slate-400 italic">L'importation créera 12 séances hebdomadaires pour chaque ligne validée.</p>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {isModalOpen && selectedCell && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-start justify-center p-4 overflow-y-auto animate-in fade-in duration-200">

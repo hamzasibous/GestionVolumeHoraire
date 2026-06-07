@@ -297,7 +297,7 @@ class FiliereDetailSerializer(serializers.ModelSerializer):
 
 
 # In your views.py
-from rest_framework.generics import CreateAPIView, ListAPIView
+from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveUpdateDestroyAPIView
 
 
 from rest_framework.permissions import IsAuthenticated
@@ -321,7 +321,146 @@ class ExtractVacationsView(APIView):
         return Response(results, status=status.HTTP_200_OK)
 
 
+class ExtractTimetableView(APIView):
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, *args, **kwargs):
+        file_obj = request.data.get('file')
+        filiere_id = request.data.get('filiere_id')
+        semester = request.data.get('semester')
+
+        if not file_obj or not filiere_id or not semester:
+            return Response({"error": "Missing file, filiere_id, or semester"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            filiere = Filiere.objects.get(id=filiere_id)
+        except Filiere.DoesNotExist:
+            return Response({"error": "Filiere not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        ai_service = AIService()
+        results = ai_service.extract_timetable_from_image(file_obj)
+        
+        if isinstance(results, dict) and "error" in results:
+            return Response(results, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Match with database
+        from .models import Module, Local, Sceance, SemesterPeriod
+        from users.models import Enseignant
+        from datetime import datetime, time, timedelta
+
+        # Get semester period for availability context
+        period = SemesterPeriod.objects.filter(semester=semester).first()
+        if not period:
+            return Response({"error": f"Period for semester {semester} not found"}, status=400)
+
+        available_modules = list(Module.objects.filter(comporte__filiere=filiere, comporte__semestre=semester))
+        assigned_module_ids = Sceance.objects.filter(module__comporte__filiere=filiere, module__comporte__semestre=semester).values_list('module_id', flat=True).distinct()
+        unassigned_modules = [m for m in available_modules if m.id not in assigned_module_ids]
+        
+        all_profs = list(Enseignant.objects.all())
+        all_rooms = list(Local.objects.all())
+        
+        days_map = {'Lundi': 0, 'Mardi': 1, 'Mercredi': 2, 'Jeudi': 3, 'Vendredi': 4, 'Samedi': 5}
+        
+        enhanced_results = []
+        for session in results:
+            day_name = session.get('day', '').strip()
+            time_str = session.get('time', '').strip()
+            duration = session.get('duration', 120)
+            
+            available_profs_for_slot = []
+            available_rooms_for_slot = []
+
+            start_time = None
+            if time_str and day_name in days_map:
+                try:
+                    start_time = datetime.strptime(time_str, "%H:%M").time()
+                except: pass
+
+            if start_time and day_name in days_map:
+                # Django week_day: Sunday=1, Monday=2, ..., Saturday=7
+                # days_map: Lundi=0 -> Monday=2
+                django_week_day = days_map[day_name] + 2
+                
+                # Filter ALL sessions in the system during this semester period on the same day of week
+                sessions_on_day = Sceance.objects.filter(
+                    date__range=[period.date_debut, period.date_fin],
+                    date__week_day=django_week_day
+                ).select_related('enseignant', 'local')
+
+                start_dt = datetime.combine(datetime.today(), start_time)
+                end_dt = start_dt + timedelta(minutes=duration)
+
+                occupied_prof_ids = set()
+                occupied_room_ids = set()
+
+                for s in sessions_on_day:
+                    if not s.heure_debut: continue
+                    s_start_dt = datetime.combine(datetime.today(), s.heure_debut)
+                    s_end_dt = s_start_dt + timedelta(minutes=s.duree)
+                    
+                    # Check for time overlap
+                    if (start_dt < s_end_dt) and (s_start_dt < end_dt):
+                        if s.enseignant_id: occupied_prof_ids.add(s.enseignant_id)
+                        if s.local_id: occupied_room_ids.add(s.local_id)
+                
+                available_profs_for_slot = [{"id": p.id, "name": str(p)} for p in all_profs if p.id not in occupied_prof_ids]
+                available_rooms_for_slot = [{"id": r.id, "name": str(r)} for r in all_rooms if r.id not in occupied_room_ids]
+            else:
+                # If time or day is missing, we can't determine availability
+                available_profs_for_slot = [{"id": p.id, "name": str(p)} for p in all_profs]
+                available_rooms_for_slot = [{"id": r.id, "name": str(r)} for r in all_rooms]
+
+            # 1. Match Module
+            matched_module = None
+            if session.get('module_name'):
+                name = session['module_name'].lower()
+                matched_module = next((m for m in available_modules if name in m.nom.lower() or m.nom.lower() in name), None)
+            
+            if not matched_module and unassigned_modules:
+                matched_module = unassigned_modules.pop(0)
+            
+            # 2. Match Teacher
+            matched_teacher = None
+            if session.get('teacher_name'):
+                name = session['teacher_name'].lower()
+                matched_teacher = next((t for t in all_profs if name in f"{t.prenom} {t.nom}".lower() or f"{t.prenom} {t.nom}".lower() in name), None)
+            
+            # 3. Match Room
+            matched_room = None
+            if session.get('room_name'):
+                name = session['room_name'].lower()
+                matched_room = next((r for r in all_rooms if name in str(r).lower() or str(r).lower() in name), None)
+
+            enhanced_results.append({
+                "day": day_name,
+                "time": time_str,
+                "duration": duration,
+                "type": session.get('type', 'CM'),
+                "module_id": matched_module.id if matched_module else None,
+                "module_name": matched_module.nom if matched_module else session.get('module_name'),
+                "teacher_id": matched_teacher.id if matched_teacher else None,
+                "teacher_name": str(matched_teacher) if matched_teacher else session.get('teacher_name'),
+                "room_id": matched_room.id if matched_room else None,
+                "room_name": str(matched_room) if matched_room else session.get('room_name'),
+                "available_profs": available_profs_for_slot,
+                "available_rooms": available_rooms_for_slot,
+                "needs_review": not (matched_module and matched_teacher and matched_room)
+            })
+
+        return Response({
+            "sessions": enhanced_results,
+            "all_profs": [{"id": p.id, "name": str(p)} for p in all_profs],
+            "all_rooms": [{"id": r.id, "name": str(r)} for r in all_rooms],
+            "available_modules": [{"id": m.id, "name": m.nom} for m in available_modules]
+        }, status=status.HTTP_200_OK)
+
+
 class FiliereCreateView(CreateAPIView):
+    queryset = Filiere.objects.all()
+    serializer_class = FiliereSerializer
+
+class FiliereDetailView(RetrieveUpdateDestroyAPIView):
     queryset = Filiere.objects.all()
     serializer_class = FiliereSerializer
 
@@ -332,6 +471,10 @@ class DepartmentCreateView(CreateAPIView):
 
 
 class ModuleCreateView(CreateAPIView):
+    queryset = Module.objects.all()
+    serializer_class = ModuleSerializer
+
+class ModuleDetailView(RetrieveUpdateDestroyAPIView):
     queryset = Module.objects.all()
     serializer_class = ModuleSerializer
 
