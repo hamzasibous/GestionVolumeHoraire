@@ -520,7 +520,7 @@ const Timetable: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full relative animate-in fade-in duration-500">
-      <header className="flex justify-between items-center h-16 px-gutter bg-slate-900 border-b border-slate-800 sticky top-0 z-40 shadow-lg">
+      <header className="flex justify-between items-center h-20 px-gutter bg-slate-900 border-b border-slate-800 sticky top-0 z-40 shadow-lg">
         <div className="flex items-center gap-md">
           <h1 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
              <span className="material-symbols-outlined text-sky-400">calendar_view_week</span>

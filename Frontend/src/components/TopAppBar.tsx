@@ -19,6 +19,7 @@ const TopAppBar: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [imgError, setImgError] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchProfile = async () => {
     try {
@@ -38,6 +39,7 @@ const TopAppBar: React.FC = () => {
         const data = await response.json();
         setUser(data);
         setImgError(false);
+        updateUnreadCount(data.id);
       } else if (response.status === 401) {
         handleLogout();
       }
@@ -48,11 +50,24 @@ const TopAppBar: React.FC = () => {
     }
   };
 
+  const updateUnreadCount = (userId: number) => {
+    const saved = JSON.parse(localStorage.getItem('notifications') || '[]');
+    const count = saved.filter((n: any) => n.recipientId === userId && !n.read).length;
+    setUnreadCount(count);
+  };
+
   useEffect(() => {
     fetchProfile();
+    const handleUpdate = () => {
+      if (user) updateUnreadCount(user.id);
+    };
     window.addEventListener('profileUpdate', fetchProfile);
-    return () => window.removeEventListener('profileUpdate', fetchProfile);
-  }, []);
+    window.addEventListener('notificationsUpdate', handleUpdate);
+    return () => {
+      window.removeEventListener('profileUpdate', fetchProfile);
+      window.removeEventListener('notificationsUpdate', handleUpdate);
+    };
+  }, [user?.id]);
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
@@ -99,30 +114,30 @@ const TopAppBar: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-50 w-full bg-slate-900 border-b border-slate-800 shadow-md">
-      <div className="max-w-[1440px] mx-auto px-8 h-16 flex items-center justify-between">
+      <div className="max-w-[1440px] mx-auto px-8 h-20 flex items-center justify-between">
         {/* Left: Brand & Main Navigation */}
         <div className="flex items-center gap-12">
           {/* Logo Section */}
           <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div className="w-8 h-8 rounded bg-sky-500 flex items-center justify-center">
-              <span className="material-symbols-outlined text-white text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>account_balance</span>
+            <div className="w-14 h-14 flex items-center justify-center">
+              <img src="/assets/logo.png" alt="Smartime Logo" className="w-full h-full object-contain" />
             </div>
             <div className="flex flex-col -space-y-1">
-              <h1 className="text-lg font-black tracking-tight text-white uppercase">GVH Portal</h1>
-              <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Management System</span>
+              <h1 className="text-xl font-black tracking-tight text-white uppercase">Smartime</h1>
+              <span className="text-[11px] font-medium text-slate-400 uppercase tracking-widest">Management System</span>
             </div>
           </Link>
 
           {/* Nav Links */}
-          <nav className="hidden lg:flex items-center gap-1">
+          <nav className="hidden lg:flex items-center gap-1 h-full">
             {/* Main Links */}
             {mainLinks.filter(link => isPrivileged || !link.adminOnly).map((link) => (
               <Link
                 key={link.path}
                 to={link.path}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm font-medium transition-all ${
+                className={`flex items-center gap-2 px-4 h-full font-inter text-sm font-medium transition-all ${
                   isActive(link.path)
-                    ? 'text-white bg-slate-800/50 border-b-2 border-orange-500 rounded-b-none'
+                    ? 'text-white bg-slate-800/50 border-b-4 border-orange-500'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                 }`}
               >
@@ -133,10 +148,10 @@ const TopAppBar: React.FC = () => {
 
             {/* Programs Dropdown (Privileged only) */}
             {isPrivileged && (
-              <div className="relative group px-1">
+              <div className="relative group px-1 h-full">
                 <Link
                   to="/programs"
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm font-medium transition-all ${
+                  className={`flex items-center gap-2 px-4 h-full font-inter text-sm font-medium transition-all ${
                     isActive('/programs') || programLinks.some(link => isActive(link.path))
                       ? 'text-white bg-slate-800/50'
                       : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
@@ -148,7 +163,7 @@ const TopAppBar: React.FC = () => {
                 </Link>
                 
                 {/* Dropdown Menu */}
-                <div className="absolute left-0 top-full mt-1 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-30 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                <div className="absolute left-0 top-full w-64 bg-slate-800 border border-slate-700 rounded-b-lg shadow-xl z-30 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                   {programLinks.map((link) => (
                     <Link
                       key={link.path}
@@ -169,9 +184,9 @@ const TopAppBar: React.FC = () => {
 
             {/* Management Dropdown (Privileged only) */}
             {isPrivileged && (
-              <div className="relative group px-1">
+              <div className="relative group px-1 h-full">
                 <button
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm font-medium transition-all ${
+                  className={`flex items-center gap-2 px-4 h-full font-inter text-sm font-medium transition-all ${
                     managementLinks.some(link => isActive(link.path))
                       ? 'text-white bg-slate-800/50'
                       : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
@@ -183,7 +198,7 @@ const TopAppBar: React.FC = () => {
                 </button>
                 
                 {/* Dropdown Menu */}
-                <div className="absolute left-0 top-full mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-30 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                <div className="absolute left-0 top-full w-48 bg-slate-800 border border-slate-700 rounded-b-lg shadow-xl z-30 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                   {managementLinks.map((link) => (
                     <Link
                       key={link.path}
@@ -207,9 +222,9 @@ const TopAppBar: React.FC = () => {
               <Link
                 key={link.path}
                 to={link.path}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm font-medium transition-all ${
+                className={`flex items-center gap-2 px-4 h-full font-inter text-sm font-medium transition-all ${
                   isActive(link.path)
-                    ? 'text-white bg-slate-800/50 border-b-2 border-orange-500 rounded-b-none'
+                    ? 'text-white bg-slate-800/50 border-b-4 border-orange-500'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                 }`}
               >
@@ -222,7 +237,7 @@ const TopAppBar: React.FC = () => {
 
         {/* Right: Profile with Hover Dropdown */}
         <div className="relative group h-full flex items-center">
-          <button className="flex items-center gap-3 pl-4 border-l border-slate-700 hover:opacity-80 transition-opacity focus:outline-none h-10">
+          <button className="flex items-center gap-3 pl-4 border-l border-slate-700 hover:opacity-80 transition-opacity focus:outline-none h-full">
             <div className="flex flex-col items-end hidden sm:block text-right">
               <span className="text-sm font-medium text-white leading-none">
                 {loading ? '...' : (user ? `${user.prenom} ${user.nom}` : t('common.unassigned'))}
@@ -231,7 +246,7 @@ const TopAppBar: React.FC = () => {
                 {loading ? '...' : (user?.departement_name || user?.role || 'Guest')}
               </span>
             </div>
-            <div className="w-9 h-9 rounded-full bg-slate-800 overflow-hidden border border-slate-700 flex items-center justify-center">
+            <div className="w-11 h-11 rounded-full bg-slate-800 overflow-hidden border border-slate-700 flex items-center justify-center">
               {(!imgError && !loading && user?.photo) ? (
                 <img
                   alt="Profile"
@@ -260,10 +275,18 @@ const TopAppBar: React.FC = () => {
             
             <div className="border-t border-slate-700/50 my-1"></div>
             
-            <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors text-left">
+            <Link
+              to="/notifications"
+              className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors relative"
+            >
               <span className="material-symbols-outlined text-lg">notifications</span>
               Notifications
-            </button>
+              {unreadCount > 0 && (
+                <span className="absolute left-7 top-2 w-4 h-4 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-800 animate-pulse">
+                  {unreadCount}
+                </span>
+              )}
+            </Link>
             
             <Link
               to="/settings"

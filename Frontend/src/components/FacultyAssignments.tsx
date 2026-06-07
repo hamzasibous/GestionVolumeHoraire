@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface Assignment {
   id: string;
@@ -74,12 +75,17 @@ const mockAvailableModules = [
 ];
 
 const FacultyAssignments: React.FC = () => {
+  const { t } = useTranslation();
   const [faculty, setFaculty] = useState<FacultyMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFacultyId, setSelectedFacultyId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('All Departments');
   
+  useEffect(() => {
+    setDepartmentFilter(t('faculty_assignments.all_departments'));
+  }, [t]);
+
   useEffect(() => {
     fetch('http://localhost:8000/api/core/faculty-assignments/')
       .then(res => res.json())
@@ -98,7 +104,7 @@ const FacultyAssignments: React.FC = () => {
 
   const filteredFaculty = faculty.filter(member => {
     const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDept = departmentFilter === 'All Departments' || member.department === departmentFilter;
+    const matchesDept = departmentFilter === t('faculty_assignments.all_departments') || member.department === departmentFilter;
     return matchesSearch && matchesDept;
   });
 
@@ -125,17 +131,17 @@ const FacultyAssignments: React.FC = () => {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4">
         <div>
-          <h2 className="font-h1 text-h1 text-on-surface tracking-tight">Faculty Assignments</h2>
-          <p className="font-body-md text-body-md text-on-surface-variant mt-1">Manage teaching workloads and ensure equitable distribution across the department.</p>
+          <h2 className="font-h1 text-h1 text-on-surface tracking-tight">{t('faculty_assignments.title')}</h2>
+          <p className="font-body-md text-body-md text-on-surface-variant mt-1">{t('faculty_assignments.subtitle')}</p>
         </div>
         <div className="flex gap-3">
           <button className="px-4 py-2 border border-outline text-on-surface rounded hover:bg-surface-container transition-colors font-body-md text-body-md font-medium flex items-center gap-2 uppercase tracking-wider">
             <span className="material-symbols-outlined text-[18px]">download</span>
-            Export
+            {t('faculty_assignments.export')}
           </button>
           <button className="px-4 py-2 bg-primary text-on-primary rounded hover:bg-on-primary-fixed-variant transition-colors font-body-md text-body-md font-medium flex items-center gap-2 shadow-sm uppercase tracking-wider">
             <span className="material-symbols-outlined text-[18px]">publish</span>
-            Publish Assignments
+            {t('faculty_assignments.publish')}
           </button>
         </div>
       </div>
@@ -147,7 +153,7 @@ const FacultyAssignments: React.FC = () => {
             <span className="material-symbols-outlined text-on-primary-fixed text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>group</span>
           </div>
           <div>
-            <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-1">Total Faculty</h3>
+            <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-1">{t('faculty_assignments.total_faculty')}</h3>
             <p className="font-h1 text-h1 text-on-surface">{totalFaculty}</p>
           </div>
         </div>
@@ -156,8 +162,8 @@ const FacultyAssignments: React.FC = () => {
             <span className="material-symbols-outlined text-on-secondary-fixed text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>balance</span>
           </div>
           <div>
-            <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-1 text-xs">Moyenne Générale</h3>
-            <p className="font-h1 text-h1 text-on-surface">{avgWorkload} <span className="font-body-md text-body-md text-on-surface-variant font-normal">hrs/year</span></p>
+            <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-1 text-xs">{t('faculty_assignments.avg_workload')}</h3>
+            <p className="font-h1 text-h1 text-on-surface">{avgWorkload} <span className="font-body-md text-body-md text-on-surface-variant font-normal">{t('faculty_assignments.hours_per_year')}</span></p>
           </div>
         </div>
         <div className="bg-surface-container-lowest p-md border border-outline-variant rounded-lg shadow-sm flex items-start gap-4">
@@ -165,8 +171,8 @@ const FacultyAssignments: React.FC = () => {
             <span className="material-symbols-outlined text-on-error-container text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
           </div>
           <div>
-            <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-1">Workload Alerts</h3>
-            <p className="font-h1 text-h1 text-error">{overloadCount} <span className="font-body-md text-body-md text-on-surface-variant font-normal">Over capacity</span></p>
+            <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-1">{t('faculty_assignments.workload_alerts')}</h3>
+            <p className="font-h1 text-h1 text-error">{overloadCount} <span className="font-body-md text-body-md text-on-surface-variant font-normal">{t('faculty_assignments.over_capacity')}</span></p>
           </div>
         </div>
       </div>
@@ -181,7 +187,7 @@ const FacultyAssignments: React.FC = () => {
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
               <input 
                 className="w-full pl-10 pr-4 py-2 bg-surface-bright border border-outline-variant rounded focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md transition-colors" 
-                placeholder="Search faculty..." 
+                placeholder={t('faculty_assignments.search_placeholder')} 
                 type="text" 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -193,7 +199,7 @@ const FacultyAssignments: React.FC = () => {
                 value={departmentFilter}
                 onChange={(e) => setDepartmentFilter(e.target.value)}
               >
-                <option>All Departments</option>
+                <option value={t('faculty_assignments.all_departments')}>{t('faculty_assignments.all_departments')}</option>
                 {departments.map(dept => (
                   <option key={dept} value={dept}>{dept}</option>
                 ))}
@@ -222,7 +228,7 @@ const FacultyAssignments: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <h4 className="font-h3 text-h3 text-on-surface truncate tracking-tight">{member.name}</h4>
-                      {member.isOverloaded && <span className="material-symbols-outlined text-error text-[18px]" title="Over capacity">error</span>}
+                      {member.isOverloaded && <span className="material-symbols-outlined text-error text-[18px]" title={t('faculty_assignments.over_capacity')}>error</span>}
                     </div>
                     <p className="font-body-md text-[13px] text-on-surface-variant truncate">{member.department} • {member.title}</p>
                   </div>
@@ -230,9 +236,9 @@ const FacultyAssignments: React.FC = () => {
                 {/* Workload Meter */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Workload</span>
+                    <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">{t('faculty_assignments.workload_label')}</span>
                     <span className={`font-table-data text-table-data font-semibold ${member.isOverloaded ? 'text-error' : 'text-on-surface'}`}>
-                      {member.workload} / {member.maxWorkload} hrs
+                      {member.workload} / {member.maxWorkload} {t('faculty_assignments.hours_per_year').split('/')[0]}
                     </span>
                   </div>
                   <div className="w-full h-2 bg-surface-container rounded-full overflow-hidden">
@@ -266,7 +272,7 @@ const FacultyAssignments: React.FC = () => {
                     <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">school</span> {selectedFaculty.department}</span>
                     <span className={`flex items-center gap-1 ${selectedFaculty.isOverloaded ? 'text-error' : 'text-primary'}`}>
                       <span className="material-symbols-outlined text-[16px]">{selectedFaculty.isOverloaded ? 'trending_up' : 'check_circle'}</span> 
-                      {selectedFaculty.workload} hrs {selectedFaculty.isOverloaded ? '(Overload)' : '(Normal)'}
+                      {selectedFaculty.workload} {t('faculty_assignments.hours_per_year').split('/')[0]} {selectedFaculty.isOverloaded ? `(${t('faculty_assignments.over_capacity')})` : `(${t('faculty_assignments.normal_capacity')})`}
                     </span>
                   </div>
                 </div>
@@ -277,16 +283,16 @@ const FacultyAssignments: React.FC = () => {
               {/* Current Assignments Table */}
               <div className="flex-1 border-r border-outline-variant flex flex-col min-w-0">
                 <div className="p-4 border-b border-outline-variant bg-surface flex items-center justify-between shrink-0">
-                  <h4 className="font-h3 text-[16px] font-semibold text-on-surface tracking-tight uppercase tracking-wider text-xs">Assigned Modules</h4>
-                  <span className="px-2 py-1 bg-surface-container-high rounded text-xs font-semibold text-on-surface-variant">{selectedFaculty.assignments.length} Modules</span>
+                  <h4 className="font-h3 text-[16px] font-semibold text-on-surface tracking-tight uppercase tracking-wider text-xs">{t('faculty_assignments.assigned_modules')}</h4>
+                  <span className="px-2 py-1 bg-surface-container-high rounded text-xs font-semibold text-on-surface-variant">{selectedFaculty.assignments.length} {t('common.programs').split(' ')[0]}</span>
                 </div>
                 <div className="flex-1 overflow-auto">
                   <table className="w-full text-left border-collapse min-w-[400px]">
                     <thead className="sticky top-0 bg-surface z-10 shadow-sm border-b border-outline-variant">
                       <tr>
-                        <th className="p-base px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Module</th>
-                        <th className="p-base px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider w-20">Type</th>
-                        <th className="p-base px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right w-24">Hours</th>
+                        <th className="p-base px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">{t('faculty_assignments.table_module')}</th>
+                        <th className="p-base px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider w-20">{t('faculty_assignments.table_type')}</th>
+                        <th className="p-base px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right w-24">{t('faculty_assignments.table_hours')}</th>
                         <th className="p-base px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider w-16"></th>
                       </tr>
                     </thead>
@@ -297,7 +303,7 @@ const FacultyAssignments: React.FC = () => {
                           <td className="p-base px-4 text-on-surface-variant">{assignment.type}</td>
                           <td className="p-base px-4 text-right">{assignment.hours}</td>
                           <td className="p-base px-4 text-right">
-                            <button className="text-outline hover:text-error transition-colors p-1" title="Unassign">
+                            <button className="text-outline hover:text-error transition-colors p-1" title={t('faculty_assignments.unassign')}>
                               <span className="material-symbols-outlined text-[18px]">close</span>
                             </button>
                           </td>
@@ -306,7 +312,7 @@ const FacultyAssignments: React.FC = () => {
                     </tbody>
                     <tfoot className="border-t-2 border-outline-variant bg-surface-bright font-semibold sticky bottom-0">
                       <tr>
-                        <td className="p-base px-4 text-right font-label-caps text-on-surface-variant uppercase tracking-wider" colSpan={2}>Total Assigned</td>
+                        <td className="p-base px-4 text-right font-label-caps text-on-surface-variant uppercase tracking-wider" colSpan={2}>{t('faculty_assignments.total_assigned')}</td>
                         <td className={`p-base px-4 text-right ${selectedFaculty.isOverloaded ? 'text-error' : 'text-primary'}`}>{selectedFaculty.workload}</td>
                         <td></td>
                       </tr>
@@ -317,16 +323,16 @@ const FacultyAssignments: React.FC = () => {
               {/* Available Modules List - Filter functionality could be added here later */}
               <div className="w-full md:w-[340px] flex flex-col bg-surface shrink-0">
                 <div className="p-4 border-b border-outline-variant bg-surface flex flex-col gap-3 shrink-0">
-                  <h4 className="font-h3 text-[16px] font-semibold text-on-surface tracking-tight uppercase tracking-wider text-xs">Available Modules</h4>
+                  <h4 className="font-h3 text-[16px] font-semibold text-on-surface tracking-tight uppercase tracking-wider text-xs">{t('faculty_assignments.available_modules')}</h4>
                   <div className="relative w-full">
                     <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
-                    <input className="w-full pl-8 pr-3 py-1.5 text-sm bg-surface-bright border border-outline-variant rounded focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-body-md transition-colors" placeholder="Filter modules..." type="text" />
+                    <input className="w-full pl-8 pr-3 py-1.5 text-sm bg-surface-bright border border-outline-variant rounded focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-body-md transition-colors" placeholder={t('faculty_assignments.filter_modules')} type="text" />
                   </div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-surface-container-lowest">
                   {/* For now keeping this list empty or we can fetch modules from /api/core/module/ */}
                   <div className="p-4 text-center text-on-surface-variant text-sm italic">
-                    Search to find modules to assign
+                    {t('faculty_assignments.search_modules_hint')}
                   </div>
                 </div>
               </div>

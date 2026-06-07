@@ -267,5 +267,29 @@
     "table_col_capacity": "Capacité",
     "table_col_dept": "Département",
     "no_entries": "Aucun local enregistré pour le moment."
+  },
+  "faculty_assignments": {
+    "title": "Affectations du Corps Professoral",
+    "subtitle": "Gérer les charges d'enseignement et assurer une répartition équitable au sein du département.",
+    "export": "Exporter",
+    "publish": "Publier les Affectations",
+    "total_faculty": "Total Enseignants",
+    "avg_workload": "Charge Moyenne",
+    "workload_alerts": "Alertes de Charge",
+    "search_placeholder": "Rechercher un enseignant...",
+    "all_departments": "Tous les Départements",
+    "workload_label": "Charge de Travail",
+    "over_capacity": "Surcharge",
+    "normal_capacity": "Normale",
+    "assigned_modules": "Modules Assignés",
+    "available_modules": "Modules Disponibles",
+    "table_module": "Module",
+    "table_type": "Type",
+    "table_hours": "Heures",
+    "total_assigned": "Total Assigné",
+    "filter_modules": "Filtrer les modules...",
+    "search_modules_hint": "Rechercher pour trouver des modules à assigner",
+    "unassign": "Désassigner",
+    "hours_per_year": "h/an"
   }
 }

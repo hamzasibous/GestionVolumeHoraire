@@ -267,5 +267,29 @@
     "table_col_capacity": "Capacity",
     "table_col_dept": "Department",
     "no_entries": "No classrooms recorded yet."
+  },
+  "faculty_assignments": {
+    "title": "Faculty Assignments",
+    "subtitle": "Manage teaching workloads and ensure equitable distribution across the department.",
+    "export": "Export",
+    "publish": "Publish Assignments",
+    "total_faculty": "Total Faculty",
+    "avg_workload": "Avg Workload",
+    "workload_alerts": "Workload Alerts",
+    "search_placeholder": "Search faculty...",
+    "all_departments": "All Departments",
+    "workload_label": "Workload",
+    "over_capacity": "Over capacity",
+    "normal_capacity": "Normal",
+    "assigned_modules": "Assigned Modules",
+    "available_modules": "Available Modules",
+    "table_module": "Module",
+    "table_type": "Type",
+    "table_hours": "Hours",
+    "total_assigned": "Total Assigned",
+    "filter_modules": "Filter modules...",
+    "search_modules_hint": "Search to find modules to assign",
+    "unassign": "Unassign",
+    "hours_per_year": "hrs/year"
   }
 }

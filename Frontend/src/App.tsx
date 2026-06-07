@@ -17,6 +17,7 @@ import LocalManagement from './components/LocalManagement'
 import Login from './components/Login'
 import ProtectedRoute from './components/ProtectedRoute'
 import Profile from './components/Profile'
+import Notifications from './components/Notifications'
 
 function App() {
   const [role, setRole] = useState<string | null>(null);
@@ -92,6 +93,8 @@ function App() {
                 ) : null}
 
                 {/* Shared or User Routes */}
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/notifications" element={<Notifications />} />
                 <Route path="/consultation" element={<TeacherConsultation />} />
                 <Route path="/my-timetable" element={<TeacherTimetable />} />
                 
