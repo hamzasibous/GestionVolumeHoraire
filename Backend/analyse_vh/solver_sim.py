@@ -26,7 +26,12 @@ def run_simulation_timetable(sim_params, progress_callback=None, cancel_check=No
     # 1. Load and Mock Resources
     actual_filieres = list(Filiere.objects.all())
     actual_locaux = list(Local.objects.all())
-    actual_teachers = list(Enseignant.objects.all())
+    
+    # CRITICAL FIX: Only include REAL active professors
+    actual_teachers = list(Enseignant.objects.filter(
+        is_active=True, 
+        role__in=['ENSEIGNANT', 'CHEF_DEPARTEMENT']
+    ).exclude(email__icontains='admin').exclude(nom__icontains='assign'))
     
     sim_teachers = []
     for i in range(sim_params.get('nb_profs_ajoutes', 0)):

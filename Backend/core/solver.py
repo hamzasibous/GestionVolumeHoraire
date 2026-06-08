@@ -27,7 +27,11 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
     else:
         filieres = list(Filiere.objects.all())
         locaux = list(Local.objects.all())
-        teachers = list(Enseignant.objects.all())
+        # Filter REAL active professors
+        teachers = list(Enseignant.objects.filter(
+            is_active=True, 
+            role__in=['ENSEIGNANT', 'CHEF_DEPARTEMENT']
+        ).exclude(email__icontains='admin').exclude(nom__icontains='assign'))
         comportes_list = None
     
     days_list = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
@@ -139,29 +143,44 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
     def calculate_fitness(individual):
         penalty = 0
         teacher_slots, room_slots, filiere_slots, teacher_workload = {}, {}, {}, {}
+        
+        # Tracker for "One module per prof per filiere per semester"
+        # (teacher_id, filiere_id, semester) -> module_id
+        teacher_module_map = {}
+
         for gene in individual:
             t_id, r_id, f_id, sem, slot = gene['teacher'].id, gene['room'].id, gene['filiere'].id, gene['semester'], gene['slot']
-            
-            # Constraint: TP/TD should NOT be in Amphi
+            mod_id = gene['module'].id
+
+            # 1. Constraint: One module per prof per program per semester
+            assigned_mod = teacher_module_map.get((t_id, f_id, sem))
+            if assigned_mod and assigned_mod != mod_id:
+                penalty += 10000
+            teacher_module_map[(t_id, f_id, sem)] = mod_id
+
+            # 2. Constraint: TP/TD should NOT be in Amphi
             if gene['type'] in ['TD', 'TP'] and gene['room'].is_amphi:
                 penalty += 10000
             
+            # 3. Slot Conflicts
             if (t_id, slot) in teacher_slots: penalty += 5000
             teacher_slots[(t_id, slot)] = 1
             if (r_id, slot) in room_slots: penalty += 5000
             room_slots[(r_id, slot)] = 1
             if (f_id, sem, slot) in filiere_slots: penalty += 5000
             filiere_slots[(f_id, sem, slot)] = 1
+            
+            # 4. Workload tracking
             teacher_workload[t_id] = teacher_workload.get(t_id, 0) + 1
-            if teacher_workload[t_id] > 18: penalty += 1000
+            if teacher_workload[t_id] > 18: penalty += 2000 # 36h limit
 
         # Balancing Penalty: Encourage equitable distribution of hours
         if teachers:
             avg_load = len(individual) / len(teachers)
             for t in teachers:
                 load = teacher_workload.get(t.id, 0)
-                # Penalize squared difference from average
-                penalty += (load - avg_load) ** 2 * 50
+                # Penalize squared difference from average (Aggressive fairness)
+                penalty += int((load - avg_load) ** 2 * 100)
 
         return 1 / (1 + penalty)
 
