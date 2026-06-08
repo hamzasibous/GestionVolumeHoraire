@@ -22,6 +22,7 @@ const LocalManagement: React.FC = () => {
   const [locals, setLocals] = useState<Local[]>([]);
   const [departments, setDepartments] = useState<Departement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingLocalId, setEditingLocalId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     bloc: '',
@@ -36,7 +37,7 @@ const LocalManagement: React.FC = () => {
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
-          setLocals(data.reverse());
+          setLocals(data); // Removed reverse() if not needed, or keep it if order matters
         }
       })
       .catch(err => console.error('Error fetching locals:', err));
@@ -63,14 +64,20 @@ const LocalManagement: React.FC = () => {
     
     const payload = {
       bloc: formData.bloc,
-      numero: parseInt(formData.numero),
+      numero: formData.numero, // Backend might expect string for numero based on models
       capacite: parseInt(formData.capacite),
       is_amphi: formData.is_amphi,
       departement: formData.departementId ? parseInt(formData.departementId) : null,
     };
 
-    fetch('http://localhost:8000/api/core/local/', {
-      method: 'POST',
+    const url = editingLocalId 
+      ? `http://localhost:8000/api/core/local/${editingLocalId}/`
+      : 'http://localhost:8000/api/core/local/';
+    
+    const method = editingLocalId ? 'PATCH' : 'POST';
+
+    fetch(url, {
+      method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
@@ -78,8 +85,20 @@ const LocalManagement: React.FC = () => {
       .then(() => {
         fetchLocals();
         setFormData({ bloc: '', numero: '', capacite: '', is_amphi: false, departementId: '' });
+        setEditingLocalId(null);
       })
       .catch(err => console.error('Error saving local:', err));
+  };
+
+  const handleEdit = (local: Local) => {
+    setEditingLocalId(local.id);
+    setFormData({
+      bloc: local.bloc,
+      numero: local.numero.toString(),
+      capacite: local.capacite.toString(),
+      is_amphi: local.is_amphi,
+      departementId: local.departement?.toString() || '',
+    });
   };
 
   const handleDelete = (id: string) => {
@@ -107,10 +126,23 @@ const LocalManagement: React.FC = () => {
         <div className="col-span-12 lg:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm h-fit">
           <div className="flex items-center gap-2 mb-6 border-b border-outline-variant pb-4">
             <span className="material-symbols-outlined text-primary">meeting_room</span>
-            <h3 className="font-h3 text-h3 text-on-surface">{t('locals.new_entry')}</h3>
+            <h3 className="font-h3 text-h3 text-on-surface">{editingLocalId ? 'Modifier Local' : t('locals.new_entry')}</h3>
           </div>
           
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <label className="font-label-caps text-[11px] text-on-surface-variant uppercase tracking-widest font-bold">Type de Local</label>
+              <select 
+                required
+                className="w-full px-4 py-2.5 bg-surface-bright border border-outline-variant rounded-lg font-body-md focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
+                value={formData.is_amphi ? 'amphi' : 'block'}
+                onChange={(e) => setFormData({...formData, is_amphi: e.target.value === 'amphi'})}
+              >
+                <option value="block">Salle / Block</option>
+                <option value="amphi">Amphithéâtre</option>
+              </select>
+            </div>
+
             <div className="flex flex-col gap-2">
               <label className="font-label-caps text-[11px] text-on-surface-variant uppercase tracking-widest font-bold">{t('locals.field_bloc')}</label>
               <input 
@@ -127,7 +159,7 @@ const LocalManagement: React.FC = () => {
               <label className="font-label-caps text-[11px] text-on-surface-variant uppercase tracking-widest font-bold">{t('locals.field_numero')}</label>
               <input 
                 required
-                type="number"
+                type="text"
                 placeholder={t('locals.placeholder_numero')}
                 className="w-full px-4 py-2.5 bg-surface-bright border border-outline-variant rounded-lg font-body-md focus:ring-2 focus:ring-primary/20 outline-none"
                 value={formData.numero}
@@ -159,26 +191,27 @@ const LocalManagement: React.FC = () => {
               </select>
             </div>
 
-            <div className="flex items-center gap-2 py-2">
-              <input 
-                type="checkbox" 
-                id="is_amphi"
-                className="w-4 h-4 text-primary border-outline rounded focus:ring-primary"
-                checked={formData.is_amphi}
-                onChange={(e) => setFormData({...formData, is_amphi: e.target.checked})}
-              />
-              <label htmlFor="is_amphi" className="font-body-md text-on-surface cursor-pointer">
-                Amphithéâtre
-              </label>
+            <div className="flex gap-3 pt-4">
+              {editingLocalId && (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setEditingLocalId(null);
+                    setFormData({ bloc: '', numero: '', capacite: '', is_amphi: false, departementId: '' });
+                  }}
+                  className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-lg font-bold hover:bg-slate-200 transition-all active:scale-95"
+                >
+                  Annuler
+                </button>
+              )}
+              <button 
+                type="submit"
+                className={`flex-1 bg-primary text-on-primary py-3 rounded-lg font-bold shadow-lg hover:bg-primary/90 transition-all active:scale-95 flex items-center justify-center gap-2`}
+              >
+                <span className="material-symbols-outlined text-[20px]">{editingLocalId ? 'edit' : 'save'}</span>
+                {editingLocalId ? 'Enregistrer les modifications' : t('locals.save_btn')}
+              </button>
             </div>
-
-            <button 
-              type="submit"
-              className="w-full bg-primary text-on-primary py-3 rounded-lg font-bold shadow-lg hover:bg-primary/90 transition-all active:scale-95 flex items-center justify-center gap-2 mt-4"
-            >
-              <span className="material-symbols-outlined text-[20px]">save</span>
-              {t('locals.save_btn')}
-            </button>
           </form>
         </div>
 
@@ -230,7 +263,10 @@ const LocalManagement: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <button className="p-1.5 text-outline hover:text-primary transition-colors">
+                        <button 
+                          className="p-1.5 text-outline hover:text-primary transition-colors"
+                          onClick={() => handleEdit(l)}
+                        >
                           <span className="material-symbols-outlined text-[20px]">edit</span>
                         </button>
                         <button 

@@ -25,21 +25,29 @@ interface MyWorkloadData {
 const TeacherConsultation: React.FC = () => {
   const [data, setData] = useState<MyWorkloadData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [forecast, setForecast] = useState<any>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
-    fetch('http://localhost:8000/api/core/my-assignments/', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-      .then(res => res.json())
-      .then(fetchedData => {
-        setData(fetchedData);
+    
+    // Fetch Current Data
+    const fetchCurrent = fetch('http://localhost:8000/api/core/my-assignments/', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).then(res => res.json());
+
+    // Fetch Forecast Data
+    const fetchForecast = fetch('http://localhost:8000/api/analyse/simulations/get_personal_forecast/', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).then(res => res.json());
+
+    Promise.all([fetchCurrent, fetchForecast])
+      .then(([currentData, forecastData]) => {
+        setData(currentData);
+        setForecast(forecastData);
         setLoading(false);
       })
       .catch(err => {
-        console.error('Error fetching personal assignments:', err);
+        console.error('Error fetching data:', err);
         setLoading(false);
       });
   }, []);
@@ -178,30 +186,36 @@ const TeacherConsultation: React.FC = () => {
         <div className="flex flex-col gap-sm">
           <div className="flex items-center justify-between border-b border-outline-variant pb-xs mb-2">
             <h2 className="font-h2 text-h2 text-on-surface tracking-tight">Charge Prévisionnelle</h2>
-            <span className="font-label-caps text-label-caps text-secondary-container bg-secondary-container/10 px-2 py-1 rounded uppercase tracking-widest text-[10px] font-bold">Next Year 2027-2028</span>
+            <span className="font-label-caps text-label-caps text-secondary-container bg-secondary-container/10 px-2 py-1 rounded uppercase tracking-widest text-[10px] font-bold">
+              {forecast?.target_year ? `Next Year ${forecast.target_year}-${forecast.target_year + 1}` : 'Prochaine Année'}
+            </span>
           </div>
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm h-full flex flex-col relative overflow-hidden group hover:shadow-lg transition-all">
             <div className="absolute inset-0 bg-gradient-to-br from-surface-container-lowest via-surface-container-lowest to-surface-container-low z-0 opacity-50 group-hover:opacity-100 transition-opacity"></div>
             <div className="relative z-10 flex flex-col h-full">
-              <p className="font-body-md text-on-surface-variant mb-md leading-relaxed italic">Based on preliminary department allocations, your forecasted load is slightly reduced to accommodate research leave.</p>
+              <p className="font-body-md text-on-surface-variant mb-md leading-relaxed italic">
+                {forecast?.scenario ? `D'après le scénario "${forecast.scenario}", votre charge a été redistribuée par l'IA.` : "Aucune simulation n'est disponible pour le moment."}
+              </p>
               <div className="grid grid-cols-2 gap-sm mb-auto">
                 <div className="p-sm bg-surface-bright border border-outline-variant rounded-lg shadow-inner">
                   <div className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest text-[10px] font-bold">Forecasted Total</div>
-                  <div className="font-h2 text-h2 text-on-surface mt-1 font-bold">0 <span className="text-sm font-normal opacity-60">hrs</span></div>
+                  <div className="font-h2 text-h2 text-on-surface mt-1 font-bold">{forecast?.forecasted_hours || 0} <span className="text-sm font-normal opacity-60">hrs</span></div>
                 </div>
                 <div className="p-sm bg-surface-bright border border-outline-variant rounded-lg shadow-inner">
                   <div className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest text-[10px] font-bold">Status</div>
-                  <div className="font-h3 text-[14px] text-secondary mt-1 flex items-center gap-1 uppercase tracking-tight font-bold">
-                    <span className="material-symbols-outlined text-[16px]">pending_actions</span>
-                    Pending Validation
+                  <div className={`font-h3 text-[14px] ${forecast?.completed ? 'text-primary' : 'text-secondary'} mt-1 flex items-center gap-1 uppercase tracking-tight font-bold`}>
+                    <span className="material-symbols-outlined text-[16px]">{forecast?.completed ? 'check_circle' : 'pending_actions'}</span>
+                    {forecast?.completed ? 'Simulation Générée' : 'En attente'}
                   </div>
                 </div>
               </div>
               <div className="mt-md pt-md border-t border-outline-variant flex justify-between items-center">
-                <span className="font-table-data text-table-data text-on-surface-variant opacity-60 text-xs">Last updated: {new Date().toLocaleDateString()}</span>
-                <button className="text-primary font-h3 text-[14px] hover:underline flex items-center gap-1 uppercase tracking-widest text-[10px] font-bold">
-                  View Details <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-                </button>
+                <span className="font-table-data text-table-data text-on-surface-variant opacity-60 text-xs">Last calculated: {new Date().toLocaleDateString()}</span>
+                {forecast?.forecasted_hours > 0 && (
+                  <button className="text-primary font-h3 text-[14px] hover:underline flex items-center gap-1 uppercase tracking-widest text-[10px] font-bold">
+                    View Details <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>

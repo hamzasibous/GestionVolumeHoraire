@@ -13,6 +13,43 @@ class SimulationViewSet(viewsets.ModelViewSet):
     queryset = Simulation.objects.all().order_by('-created_at')
     serializer_class = SimulationSerializer
 
+    @action(detail=False, methods=['get'])
+    def get_personal_forecast(self, request):
+        # 1. Get current user's teacher record
+        teacher_id = request.user.id
+        
+        # 2. Find latest completed simulation
+        latest_sim = Simulation.objects.filter(status='COMPLETED').order_by('-created_at').first()
+        
+        if not latest_sim:
+            return Response({
+                "forecasted_hours": 0, 
+                "completed": False,
+                "message": "Aucune simulation disponible."
+            })
+
+        if not latest_sim.result_data:
+            return Response({
+                "forecasted_hours": 0, 
+                "completed": False,
+                "message": "Simulation incomplète."
+            })
+
+        # 3. Calculate hours from result_data
+        # result_data is a list of sessions for ONE master week
+        personal_sessions = [s for s in latest_sim.result_data if s.get('teacher_id') == teacher_id]
+        
+        # Calculation: (Number of 2h sessions) * 2h * 14 weeks = Total Semester Volume
+        forecasted_hours = len(personal_sessions) * 2 * 14
+
+        return Response({
+            "forecasted_hours": forecasted_hours,
+            "target_year": latest_sim.anneeCible,
+            "scenario": latest_sim.nomScenario,
+            "completed": True,
+            "session_count": len(personal_sessions)
+        })
+
     def perform_create(self, serializer):
         instance = serializer.save()
         # Start simulation in a background thread
@@ -42,6 +79,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
 
     def _run_simulation_thread(self, sim_id):
         from .models import Simulation
+        from django import db
         sim = Simulation.objects.get(id=sim_id)
         sim.status = 'RUNNING'
         sim.save()
@@ -56,6 +94,8 @@ class SimulationViewSet(viewsets.ModelViewSet):
                 sim.progress = 100
                 sim.save()
         except Exception as e:
+            import traceback
+            traceback.print_exc() # Print to docker logs
             if str(e) == "CANCELLATION_REQUESTED":
                 sim.status = 'CANCELLED'
                 sim.message = "Simulation annulée par l'utilisateur."
@@ -63,6 +103,8 @@ class SimulationViewSet(viewsets.ModelViewSet):
                 sim.status = 'FAILED'
                 sim.message = f"Erreur: {str(e)}"
             sim.save()
+        finally:
+            db.connections.close_all() # Ensure connections are released
 
     def _run_simulation_logic(self, sim):
         from .models import Simulation
@@ -124,6 +166,7 @@ class SimulationViewSet(viewsets.ModelViewSet):
 
         sim_results = run_simulation_timetable({
             'nb_filieres_ajoutees': sim.nb_filieres_ajoutees,
+            'nb_nouveaux_cours': sim.nb_nouveaux_cours,
             'nb_profs_ajoutes': sim.nb_profs_ajoutes,
             'nb_locaux_ajoutes': sim.nb_locaux_ajoutes
         }, progress_callback=progress_callback, cancel_check=cancel_check, semester_period=sim.periode)

@@ -61,7 +61,7 @@ def run_simulation_timetable(sim_params, progress_callback=None, cancel_check=No
         
     # B. New Simulated Filieres
     for i in range(sim_params.get('nb_filieres_ajoutees', 0)):
-        f = MockObject(id=10000+i, nom=f"Filière {i+1}", levels="Licence")
+        f = MockObject(id=10000+i, nom=f"Filière {i+1}", niveaux="Licence_f")
         
         # Only active semesters for the chosen period
         for s_idx in active_indices:
@@ -87,7 +87,7 @@ def run_simulation_timetable(sim_params, progress_callback=None, cancel_check=No
 
     # C. Additional Individual Courses
     for i in range(sim_params.get('nb_nouveaux_cours', 0)):
-        target_f = actual_filieres[0] if actual_filieres else None
+        target_f = actual_filieres[0] if actual_filieres else (virtual_comportes[0].filiere if virtual_comportes else None)
         if target_f:
             # Match semester to period
             sem = 'S1' if semester_period == 'autumn' else 'S2'
@@ -99,10 +99,18 @@ def run_simulation_timetable(sim_params, progress_callback=None, cancel_check=No
             virtual_comportes.append(cp)
             
     # 3. RUN THE GENETIC ALGORITHM
+    # Collect all unique filieres involved (Real + Mock)
+    all_involved_filieres = list(actual_filieres)
+    seen_f_ids = set(f.id for f in actual_filieres)
+    for cp in virtual_comportes:
+        if cp.filiere.id not in seen_f_ids:
+            all_involved_filieres.append(cp.filiere)
+            seen_f_ids.add(cp.filiere.id)
+
     success, result_data = run_genetic_algorithm(
         semester_codes=target_semesters, 
         custom_data={
-            'filieres': actual_filieres + [c.filiere for c in virtual_comportes if hasattr(c.filiere, 'levels')],
+            'filieres': all_involved_filieres,
             'locaux': all_locaux,
             'teachers': all_teachers,
             'comportes': virtual_comportes

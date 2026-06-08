@@ -25,6 +25,7 @@ const VacationManagement: React.FC = () => {
   const [isExtracting, setIsExtracting] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [editingVacationId, setEditingVacationId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     teacherId: '',
@@ -41,6 +42,7 @@ const VacationManagement: React.FC = () => {
         if (Array.isArray(data)) {
           const mappedData: Vacation[] = data.map((v: any) => ({
             id: v.id.toString(),
+            teacherId: v.enseignant?.toString() || 'all',
             teacherName: v.teacher_name,
             titre: v.titre,
             startDate: v.date_debut,
@@ -67,18 +69,25 @@ const VacationManagement: React.FC = () => {
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    const isGlobal = formData.teacherId === 'all';
     const payload = {
-      enseignant: formData.teacherId === 'all' ? 'all' : formData.teacherId,
+      enseignant: isGlobal ? null : parseInt(formData.teacherId),
       titre: formData.titre,
       date_debut: formData.startDate,
       date_fin: formData.endDate,
       type_conge: formData.type,
-      is_global: formData.teacherId === 'all',
-      statut: 'Pending',
+      is_global: isGlobal,
+      statut: 'Approved', // Default to approved for admin management
     };
 
-    fetch('http://localhost:8000/api/core/vacations/', {
-      method: 'POST',
+    const url = editingVacationId 
+      ? `http://localhost:8000/api/core/vacations/${editingVacationId}/`
+      : 'http://localhost:8000/api/core/vacations/';
+    
+    const method = editingVacationId ? 'PATCH' : 'POST';
+
+    fetch(url, {
+      method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
@@ -86,8 +95,20 @@ const VacationManagement: React.FC = () => {
       .then(() => {
         fetchVacations();
         setFormData({ teacherId: '', titre: '', startDate: '', endDate: '', type: 'Annual Leave' });
+        setEditingVacationId(null);
       })
       .catch(err => console.error('Error saving vacation:', err));
+  };
+
+  const handleEdit = (v: Vacation) => {
+    setEditingVacationId(v.id);
+    setFormData({
+      teacherId: v.is_global ? 'all' : (v as any).teacherId,
+      titre: v.titre || '',
+      startDate: v.startDate,
+      endDate: v.endDate,
+      type: v.type,
+    });
   };
 
   const handleDelete = (id: string) => {
@@ -169,7 +190,7 @@ const VacationManagement: React.FC = () => {
         <div className="col-span-12 lg:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm h-fit">
           <div className="flex items-center gap-2 mb-6 border-b border-outline-variant pb-4">
             <span className="material-symbols-outlined text-primary">edit_calendar</span>
-            <h3 className="font-h3 text-h3 text-on-surface">{t('vacations.new_entry')}</h3>
+            <h3 className="font-h3 text-h3 text-on-surface">{editingVacationId ? 'Modifier l\'Entrée' : t('vacations.new_entry')}</h3>
           </div>
           
           <form onSubmit={handleManualSubmit} className="space-y-4">
@@ -230,54 +251,72 @@ const VacationManagement: React.FC = () => {
               >
                 <option value="Annual Leave">{t('vacations.types.annual')}</option>
                 <option value="Public Holiday">{t('vacations.types.public')}</option>
+                <option value="Academic Holiday">{t('vacations.types.academic') || 'Calendrier Académique'}</option>
                 <option value="Sick Leave">{t('vacations.types.sick')}</option>
-                <option value="Maternity/Paternity">{t('vacations.types.parental')}</option>
                 <option value="Other">{t('vacations.types.other')}</option>
               </select>
             </div>
 
-            <button 
-              type="submit"
-              className="w-full bg-primary text-on-primary py-3 rounded-lg font-bold shadow-lg hover:bg-primary/90 transition-all active:scale-95 flex items-center justify-center gap-2 mt-4"
-            >
-              <span className="material-symbols-outlined text-[20px]">save</span>
-              {formData.teacherId === 'all' ? t('vacations.save_all') : t('vacations.save_vacation')}
-            </button>
+            <div className="flex gap-3 pt-4">
+              {editingVacationId && (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setEditingVacationId(null);
+                    setFormData({ teacherId: '', titre: '', startDate: '', endDate: '', type: 'Annual Leave' });
+                  }}
+                  className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-lg font-bold hover:bg-slate-200 transition-all active:scale-95"
+                >
+                  Annuler
+                </button>
+              )}
+              <button 
+                type="submit"
+                className="flex-1 bg-primary text-on-primary py-3 rounded-lg font-bold shadow-lg hover:bg-primary/90 transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[20px]">{editingVacationId ? 'edit' : 'save'}</span>
+                {editingVacationId ? 'Enregistrer' : (formData.teacherId === 'all' ? t('vacations.save_all') : t('vacations.save_vacation'))}
+              </button>
+            </div>
           </form>
 
-          <div className="relative my-8">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-outline-variant"></div></div>
-            <div className="relative flex justify-center text-xs uppercase font-bold tracking-widest">
-              <span className="bg-white px-2 text-outline">{t('vacations.ai_import')}</span>
-            </div>
-          </div>
+          {!editingVacationId && (
+            <>
+              <div className="relative my-8">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-outline-variant"></div></div>
+                <div className="relative flex justify-center text-xs uppercase font-bold tracking-widest">
+                  <span className="bg-white px-2 text-outline">{t('vacations.ai_import')}</span>
+                </div>
+              </div>
 
-          <div className="space-y-4">
-            <div className="border-2 border-dashed border-outline-variant rounded-xl p-6 flex flex-col items-center justify-center gap-3 hover:bg-surface-container-low transition-colors group cursor-pointer relative">
-              <input 
-                type="file" 
-                accept="image/*" 
-                className="absolute inset-0 opacity-0 cursor-pointer" 
-                onChange={handleImageChange}
-              />
-              {previewUrl ? (
-                <img src={previewUrl} alt="Preview" className="w-full h-32 object-cover rounded-lg" />
-              ) : (
-                <>
-                  <span className="material-symbols-outlined text-outline text-4xl group-hover:scale-110 transition-transform">add_a_photo</span>
-                  <p className="text-xs text-on-surface-variant font-medium text-center">{t('vacations.ai_upload_desc')}</p>
-                </>
-              )}
-            </div>
-            <button 
-              onClick={handleRealAIExtraction}
-              disabled={!selectedImage || isExtracting}
-              className={`w-full py-2.5 bg-secondary text-on-secondary rounded-lg font-bold uppercase text-[10px] tracking-widest hover:bg-secondary/90 shadow-md transition-all flex items-center justify-center gap-2 ${(!selectedImage || isExtracting) && 'opacity-50 grayscale'}`}
-            >
-              <span className="material-symbols-outlined text-[18px]">{isExtracting ? 'settings_suggest' : 'auto_fix_high'}</span>
-              {isExtracting ? t('vacations.ai_processing') : t('vacations.ai_extract_btn')}
-            </button>
-          </div>
+              <div className="space-y-4">
+                <div className="border-2 border-dashed border-outline-variant rounded-xl p-6 flex flex-col items-center justify-center gap-3 hover:bg-surface-container-low transition-colors group cursor-pointer relative">
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="absolute inset-0 opacity-0 cursor-pointer" 
+                    onChange={handleImageChange}
+                  />
+                  {previewUrl ? (
+                    <img src={previewUrl} alt="Preview" className="w-full h-32 object-cover rounded-lg" />
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-outline text-4xl group-hover:scale-110 transition-transform">add_a_photo</span>
+                      <p className="text-xs text-on-surface-variant font-medium text-center">{t('vacations.ai_upload_desc')}</p>
+                    </>
+                  )}
+                </div>
+                <button 
+                  onClick={handleRealAIExtraction}
+                  disabled={!selectedImage || isExtracting}
+                  className={`w-full py-2.5 bg-secondary text-on-secondary rounded-lg font-bold uppercase text-[10px] tracking-widest hover:bg-secondary/90 shadow-md transition-all flex items-center justify-center gap-2 ${(!selectedImage || isExtracting) && 'opacity-50 grayscale'}`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">{isExtracting ? 'settings_suggest' : 'auto_fix_high'}</span>
+                  {isExtracting ? t('vacations.ai_processing') : t('vacations.ai_extract_btn')}
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="col-span-12 lg:col-span-8 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden flex flex-col">
@@ -326,7 +365,10 @@ const VacationManagement: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <button className="p-1.5 text-outline hover:text-primary transition-colors">
+                        <button 
+                          className="p-1.5 text-outline hover:text-primary transition-colors"
+                          onClick={() => handleEdit(v)}
+                        >
                           <span className="material-symbols-outlined text-[20px]">edit</span>
                         </button>
                         <button 

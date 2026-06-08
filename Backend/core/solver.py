@@ -2,15 +2,13 @@ import random
 import copy
 from datetime import timedelta
 from .models import Filiere, Module, Comporte, Local, Enseignant, Sceance, SemesterPeriod, Vacation, ScheduleTask
-from scipy.optimize import linear_sum_assignment
-import numpy as np
 
-def run_hungarian_algorithm(semester_codes, task_id=None, custom_data=None, progress_callback=None, cancel_check=None):
+def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progress_callback=None, cancel_check=None):
     def update_progress(p, msg=None):
         if progress_callback:
             progress_callback(p, msg)
         elif task_id:
-            ScheduleTask.objects.filter(id=task_id).update(progress=p, message=msg or "Optimisation (Hungarian) en cours...")
+            ScheduleTask.objects.filter(id=task_id).update(progress=p, message=msg or "Optimisation en cours...")
 
     def check_cancelled():
         if cancel_check and cancel_check():
@@ -18,286 +16,240 @@ def run_hungarian_algorithm(semester_codes, task_id=None, custom_data=None, prog
 
     # 1. Initialization
     update_progress(5, "Initialisation des données...")
+    check_cancelled()
     
     if custom_data:
         filieres = custom_data.get('filieres')
         locaux = custom_data.get('locaux')
         teachers = custom_data.get('teachers')
+        # comportes_list is expected to be a pre-filtered list of Comporte-like objects
         comportes_list = custom_data.get('comportes')
     else:
         filieres = list(Filiere.objects.all())
         locaux = list(Local.objects.all())
-        # CRITICAL FIX: Only include REAL active professors, exclude admin/unassigned
-        teachers = list(Enseignant.objects.filter(
-            is_active=True, 
-            role__in=['ENSEIGNANT', 'CHEF_DEPARTEMENT']
-        ).exclude(email__icontains='admin').exclude(nom__icontains='assign'))
+        teachers = list(Enseignant.objects.all())
         comportes_list = None
     
     days_list = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
     times = ['08:30', '10:45', '14:30', '16:45']
     all_slots = [(d, t) for d in days_list for t in times]
+    total_slots = len(all_slots)
 
-    # 2. Gather session requirements (Target 14 per semester)
+    # 2. Gather session requirements
     requirements = []
+    mod_eligible_teachers = {}
+    
     if comportes_list is not None:
+        # Use provided requirements (Simulation mode)
         for cp in comportes_list:
             eligible_teachers = cp.eligible_teachers if hasattr(cp, 'eligible_teachers') else teachers
-            session_types = ['CM', 'TD'] # Default to split for simulation
+            mod_eligible_teachers[cp.module.id] = eligible_teachers
+            session_types = ['CM', random.choice(['TD', 'TP'])] if cp.v_h_hebdo >= 4 else ['CM']
             for s_type in session_types:
                 requirements.append({
                     'module': cp.module,
                     'filiere': cp.filiere,
                     'semester': cp.semestre,
                     'eligible_teachers': eligible_teachers,
-                    'type': s_type,
-                    'id': f"{cp.module.id}-{s_type}-{random.random()}"
+                    'type': s_type
                 })
     else:
+        # DB mode
         for sem in semester_codes:
-            for f in filieres:
-                comportes = list(Comporte.objects.filter(filiere=f, semestre=sem))[:7]
-                for idx, cp in enumerate(comportes):
-                    eligible_teachers = list(cp.module.users_habilites.all())
-                    # Filter eligible teachers too
-                    eligible_teachers = [t for t in eligible_teachers if t.role in ['ENSEIGNANT', 'CHEF_DEPARTEMENT'] and 'admin' not in t.email.lower()]
-                    if not eligible_teachers: eligible_teachers = teachers
-                    
-                    requirements.append({
-                        'module': cp.module, 'filiere': f, 'semester': sem,
-                        'eligible_teachers': eligible_teachers, 'type': 'CM', 'id': f"{cp.id}-CM-{idx}"
-                    })
-                    s_type = random.choice(['TD', 'TP'])
-                    requirements.append({
-                        'module': cp.module, 'filiere': f, 'semester': sem,
-                        'eligible_teachers': eligible_teachers, 'type': s_type, 'id': f"{cp.id}-{s_type}-{idx}"
-                    })
-
-    if not requirements: return False, "Aucun module trouvé."
-
-    # 3. Hungarian Assignment with Multi-Pass / Retry Logic
-    best_schedule = []
-    max_retries = 5
-    target_count = len(requirements)
-
-    for attempt in range(max_retries):
-        check_cancelled()
-        update_progress(10 + (attempt * 5), f"Tentative de génération {attempt+1}/{max_retries}...")
-        
-        current_schedule = []
-        remaining_reqs = list(requirements)
-        random.shuffle(remaining_reqs)
-
-        teacher_busy = {t.id: set() for t in teachers}
-        teacher_total_hours = {t.id: 0 for t in teachers}
-        MAX_HOURS_PER_WEEK = 14
-        
-        group_busy = {} # (filiere_id, semester) -> set(slots)
-        room_busy = {r.id: set() for r in locaux}
-        teacher_module_map = {} 
-
-        for slot_idx, (day, time_str) in enumerate(all_slots):
-            candidates = []
-            for req in remaining_reqs:
-                group_key = (req['filiere'].id, req['semester'])
-                if slot_idx not in group_busy.get(group_key, set()):
-                    eligible_and_available = []
-                    for t in req['eligible_teachers']:
-                        if slot_idx not in teacher_busy.get(t.id, set()) and teacher_total_hours.get(t.id, 0) < MAX_HOURS_PER_WEEK:
-                            assigned_mod = teacher_module_map.get((t.id, req['filiere'].id, req['semester']))
-                            if assigned_mod is None or assigned_mod == req['module'].id:
-                                eligible_and_available.append(t)
-                    if eligible_and_available:
-                        candidates.append(req)
-            
-            if not candidates: continue
-            available_rooms = [r for r in locaux if slot_idx not in room_busy.get(r.id, set())]
-            if not available_rooms: continue
-
-            num_rows, num_cols = len(candidates), len(available_rooms)
-            cost_matrix = np.full((num_rows, num_cols), 1000.0)
-
-            for i, req in enumerate(candidates):
-                for j, room in enumerate(available_rooms):
-                    cost = 10.0
-                    if req['type'] == 'CM' and room.is_amphi: cost = 0.0
-                    if req['type'] in ['TD', 'TP'] and not room.is_amphi: cost = 0.0
-                    
-                    free_teachers = [t for t in req['eligible_teachers'] if slot_idx not in teacher_busy.get(t.id, set()) and teacher_total_hours.get(t.id, 0) < MAX_HOURS_PER_WEEK]
-                    if not free_teachers: cost = 1000000.0
-                    else:
-                        min_global_load = min(teacher_total_hours[t.id] for t in free_teachers)
-                        cost += (min_global_load ** 2) * 5.0 
-                    cost_matrix[i, j] = cost
-
-            row_ind, col_ind = linear_sum_assignment(cost_matrix)
-            assigned_in_this_slot = []
-            already_assigned_groups_in_this_slot = set()
-            
-            for r_idx, c_idx in zip(row_ind, col_ind):
-                if cost_matrix[r_idx, c_idx] < 1000000.0:
-                    req = candidates[r_idx]
-                    group_key = (req['filiere'].id, req['semester'])
-                    if group_key in already_assigned_groups_in_this_slot: continue
-                    room = available_rooms[c_idx]
-                    free_teachers = [t for t in req['eligible_teachers'] if slot_idx not in teacher_busy.get(t.id, set()) and teacher_total_hours.get(t.id, 0) < MAX_HOURS_PER_WEEK]
-                    if not free_teachers: continue 
-                    teacher = min(free_teachers, key=lambda t: teacher_total_hours[t.id])
-
-                    current_schedule.append({
-                        'module': req['module'], 'teacher': teacher, 'filiere': req['filiere'],
-                        'semester': req['semester'], 'slot': slot_idx, 'room': room, 'type': req['type']
-                    })
-                    teacher_busy[teacher.id].add(slot_idx)
-                    teacher_total_hours[teacher.id] += 2
-                    room_busy[room.id].add(slot_idx)
-                    if group_key not in group_busy: group_busy[group_key] = set()
-                    group_busy[group_key].add(slot_idx)
-                    already_assigned_groups_in_this_slot.add(group_key)
-                    assigned_in_this_slot.append(req['id'])
-                    teacher_module_map[(teacher.id, req['filiere'].id, req['semester'])] = req['module'].id
-
-            remaining_reqs = [r for r in remaining_reqs if r['id'] not in assigned_in_this_slot]
-
-        if len(current_schedule) > len(best_schedule): best_schedule = current_schedule
-        if len(current_schedule) == target_count: break
-
-    if len(best_schedule) < target_count:
-        msg = f"Impossible de trouver une solution complète avec la limite de 14h/semaine. Seulement {len(best_schedule)}/{target_count} séances placées."
-        return False, msg
-
-    # 4. Prepare Results
-    update_progress(95, "Finalisation...")
-    periods = {p.semester: p for p in SemesterPeriod.objects.filter(semester__in=semester_codes)}
-    days_map_idx = {'Lundi': 0, 'Mardi': 1, 'Mercredi': 2, 'Jeudi': 3, 'Vendredi': 4, 'Samedi': 5}
-
-    serializable_schedule = []
-    for gene in best_schedule:
-        sem, slot_idx = gene['semester'], gene['slot']
-        day_name = days_list[slot_idx // 4]
-        period, preview_date = periods.get(sem), None
-        if period:
-            target_day = days_map_idx[day_name]
-            preview_date = period.date_debut
-            while preview_date.weekday() != target_day: preview_date += timedelta(days=1)
-
-        serializable_schedule.append({
-            'module_id': gene['module'].id, 'module_name': gene['module'].nom,
-            'teacher_id': gene['teacher'].id, 'teacher_name': str(gene['teacher']),
-            'filiere_id': gene['filiere'].id, 'filiere_name': str(gene['filiere']),
-            'semester': sem, 'slot': slot_idx, 'day': day_name,
-            'room_id': gene['room'].id, 'room_name': str(gene['room']),
-            'date': preview_date.strftime('%Y-%m-%d') if preview_date else None,
-            'startTime': times[slot_idx % 4], 'type': gene['type']
-        })
-    
-    update_progress(100, "Génération terminée !")
-    return True, serializable_schedule
-
-def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progress_callback=None, cancel_check=None):
-    # Keeping old GA for forecasting as requested
-    def update_progress(p, msg=None):
-        if progress_callback: progress_callback(p, msg)
-        elif task_id: ScheduleTask.objects.filter(id=task_id).update(progress=p, message=msg or "Optimisation en cours...")
-
-    def check_cancelled():
-        if cancel_check and cancel_check(): raise Exception("CANCELLATION_REQUESTED")
-
-    update_progress(5, "Initialisation GA...")
-    
-    if custom_data:
-        filieres, locaux, teachers, comportes_list = custom_data.get('filieres'), custom_data.get('locaux'), custom_data.get('teachers'), custom_data.get('comportes')
-    else:
-        filieres, locaux = list(Filiere.objects.all()), list(Local.objects.all())
-        teachers = list(Enseignant.objects.filter(is_active=True, role__in=['ENSEIGNANT', 'CHEF_DEPARTEMENT']).exclude(email__icontains='admin'))
-        comportes_list = None
-    
-    days_list = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
-    times = ['08:30', '10:45', '14:30', '16:45']
-    all_slots = [(d, t) for d in days_list for t in times]
-
-    requirements = []
-    if comportes_list is not None:
-        for cp in comportes_list:
-            eligible_teachers = cp.eligible_teachers if hasattr(cp, 'eligible_teachers') else teachers
-            session_types = ['CM', random.choice(['TD', 'TP'])] if cp.v_h_hebdo >= 4 else ['CM']
-            for s_type in session_types:
-                requirements.append({'module': cp.module, 'filiere': cp.filiere, 'semester': cp.semestre, 'eligible_teachers': eligible_teachers, 'type': s_type})
-    else:
-        for sem in semester_codes:
+            update_progress(10, f"Chargement des besoins pour {sem}...")
+            check_cancelled()
             for f in filieres:
                 comportes = Comporte.objects.filter(filiere=f, semestre=sem)
                 for cp in comportes:
                     eligible_teachers = list(cp.module.users_habilites.all())
                     if not eligible_teachers: eligible_teachers = teachers
+                    mod_eligible_teachers[cp.module.id] = eligible_teachers
+
                     session_types = ['CM', random.choice(['TD', 'TP'])] if cp.v_h_hebdo == 4 else ['CM']
+
                     for s_type in session_types:
-                        requirements.append({'module': cp.module, 'filiere': f, 'semester': sem, 'eligible_teachers': eligible_teachers, 'type': s_type})
+                        requirements.append({
+                            'module': cp.module,
+                            'filiere': f,
+                            'semester': sem,
+                            'eligible_teachers': eligible_teachers,
+                            'type': s_type
+                        })
 
-    if not requirements: return False, "Aucun module trouvé."
+    if not requirements: return False, "Aucun module trouvé pour ces semestres."
 
-    # GA Evolution logic (simplified for restoration)
-    # ... (Keeping the original structure for Prevision)
-    # Since the user requested keeping GA for prevision, I'll keep the full logic here
-    POPULATION_SIZE, GENERATIONS, MUTATION_RATE = 50, 100, 0.1
+    # --- RESOURCE DIAGNOSTIC ---
+    total_req_sessions = len(requirements)
+    total_prof_capacity = len(teachers) * 18 # 36h = 18 sessions
+    total_room_capacity = len(locaux) * total_slots
+
+    print(f"DEBUG: Req={total_req_sessions}, ProfCap={total_prof_capacity}, RoomCap={total_room_capacity}")
+
+    if total_req_sessions > total_prof_capacity:
+        msg = f"Pénurie d'enseignants : Vous avez {total_req_sessions} séances à caser, mais vos professeurs n'ont une capacité que de {total_prof_capacity} séances (limite de 30h/semaine). Veuillez ajouter des vacataires ou augmenter la limite."
+        print(f"DEBUG ERROR: {msg}")
+        return False, msg
+
+    if total_req_sessions > total_room_capacity:
+        msg = f"Pénurie de locaux : Vous avez {total_req_sessions} séances, mais vos {len(locaux)} locaux ne peuvent accueillir que {total_room_capacity} créneaux par semaine."
+        print(f"DEBUG ERROR: {msg}")
+        return False, msg
+
+    # 3. GA Parameters
+    POPULATION_SIZE = 80
+    GENERATIONS = 300 
+    MUTATION_RATE = 0.2
+
     amphis = [r for r in locaux if r.is_amphi]
     classrooms = [r for r in locaux if not r.is_amphi]
 
     def create_individual():
-        ind = []
+        individual = []
+        groups = {}
         for req in requirements:
-            room = random.choice(amphis if req['type'] == 'CM' and amphis else locaux)
-            ind.append({'module': req['module'], 'teacher': random.choice(req['eligible_teachers']), 'filiere': req['filiere'], 'semester': req['semester'], 'slot': random.randint(0, len(all_slots)-1), 'room': room, 'type': req['type']})
-        return ind
+            key = (req['filiere'].id, req['semester'])
+            if key not in groups: groups[key] = []
+            groups[key].append(req)
+        
+        for (f_id, sem), reqs in groups.items():
+            chosen_slots = random.sample(range(len(all_slots)), len(reqs))
+            module_teacher_map = {}
+            for i, req in enumerate(reqs):
+                mod_id = req['module'].id
+                if mod_id not in module_teacher_map:
+                    module_teacher_map[mod_id] = random.choice(req['eligible_teachers'])
+                
+                # Pick room based on type
+                if req['type'] in ['TD', 'TP']:
+                    room = random.choice(classrooms) if classrooms else random.choice(locaux)
+                else: # CM
+                    room = random.choice(amphis) if amphis else random.choice(locaux)
 
-    def calc_fitness(ind):
-        penalty, t_slots, r_slots, g_slots = 0, {}, {}, {}
-        for g in ind:
-            key_t, key_r, key_g = (g['teacher'].id, g['slot']), (g['room'].id, g['slot']), (g['filiere'].id, g['semester'], g['slot'])
-            if key_t in t_slots: penalty += 1000
-            t_slots[key_t] = 1
-            if key_r in r_slots: penalty += 1000
-            r_slots[key_r] = 1
-            if key_g in g_slots: penalty += 1000
-            g_slots[key_g] = 1
-        return 1/(1+penalty)
+                individual.append({
+                    'module': req['module'],
+                    'teacher': module_teacher_map[mod_id],
+                    'filiere': req['filiere'],
+                    'semester': req['semester'],
+                    'slot': chosen_slots[i],
+                    'room': room,
+                    'type': req['type']
+                })
+        return individual
 
-    pop = [create_individual() for _ in range(POPULATION_SIZE)]
+    def calculate_fitness(individual):
+        penalty = 0
+        teacher_slots, room_slots, filiere_slots, teacher_workload = {}, {}, {}, {}
+        for gene in individual:
+            t_id, r_id, f_id, sem, slot = gene['teacher'].id, gene['room'].id, gene['filiere'].id, gene['semester'], gene['slot']
+            
+            # Constraint: TP/TD should NOT be in Amphi
+            if gene['type'] in ['TD', 'TP'] and gene['room'].is_amphi:
+                penalty += 10000
+            
+            if (t_id, slot) in teacher_slots: penalty += 5000
+            teacher_slots[(t_id, slot)] = 1
+            if (r_id, slot) in room_slots: penalty += 5000
+            room_slots[(r_id, slot)] = 1
+            if (f_id, sem, slot) in filiere_slots: penalty += 5000
+            filiere_slots[(f_id, sem, slot)] = 1
+            teacher_workload[t_id] = teacher_workload.get(t_id, 0) + 1
+            if teacher_workload[t_id] > 18: penalty += 1000
+
+        # Balancing Penalty: Encourage equitable distribution of hours
+        if teachers:
+            avg_load = len(individual) / len(teachers)
+            for t in teachers:
+                load = teacher_workload.get(t.id, 0)
+                # Penalize squared difference from average
+                penalty += (load - avg_load) ** 2 * 50
+
+        return 1 / (1 + penalty)
+
+    # 4. Evolution
+    population = [create_individual() for _ in range(POPULATION_SIZE)]
     for gen in range(GENERATIONS):
         check_cancelled()
-        pop = sorted(pop, key=calc_fitness, reverse=True)
-        if calc_fitness(pop[0]) == 1.0: break
-        new_pop = pop[:10]
-        while len(new_pop) < POPULATION_SIZE:
-            p1, p2 = random.sample(pop[:20], 2)
-            split = random.randint(0, len(p1)-1)
-            child = p1[:split] + p2[split:]
-            if random.random() < MUTATION_RATE:
-                idx = random.randint(0, len(child)-1)
-                child[idx]['slot'] = random.randint(0, len(all_slots)-1)
-            new_pop.append(child)
-        pop = new_pop
+        population = sorted(population, key=calculate_fitness, reverse=True)
+        if calculate_fitness(population[0]) == 1.0: break
+        
+        if gen % 10 == 0:
+            prog = 15 + int((gen / GENERATIONS) * 60)
+            update_progress(prog, f"Evolution : Génération {gen}/{GENERATIONS}")
 
-    best = pop[0]
+        new_population = population[:10]
+        while len(new_population) < POPULATION_SIZE:
+            p1, p2 = random.sample(population[:20], 2)
+            split = random.randint(0, len(p1) - 1)
+            child = copy.deepcopy(p1[:split]) + copy.deepcopy(p2[split:])
+            
+            if random.random() < MUTATION_RATE:
+                idx = random.randint(0, len(child) - 1)
+                
+                # Teacher Mutation: Swap teacher for the entire module in this individual
+                if random.random() < 0.3:
+                    target_mod_id = child[idx]['module'].id
+                    if target_mod_id in mod_eligible_teachers:
+                        new_teacher = random.choice(mod_eligible_teachers[target_mod_id])
+                        for gene in child:
+                            if gene['module'].id == target_mod_id:
+                                gene['teacher'] = new_teacher
+
+                child[idx]['slot'] = random.randint(0, len(all_slots) - 1)
+                
+                # Re-pick room based on type during mutation
+                if child[idx]['type'] in ['TD', 'TP']:
+                    child[idx]['room'] = random.choice(classrooms) if classrooms else random.choice(locaux)
+                else:
+                    child[idx]['room'] = random.choice(amphis) if amphis else random.choice(locaux)
+
+            new_population.append(child)
+        population = new_population
+
+    # 5. Prepare Results for Return
+    update_progress(90, "Préparation de l'aperçu...")
+    check_cancelled()
+    best_schedule = population[0]
+    
+    # Calculate first week dates for each semester
     periods = {p.semester: p for p in SemesterPeriod.objects.filter(semester__in=semester_codes)}
-    days_map_idx = {'Lundi': 0, 'Mardi': 1, 'Mercredi': 2, 'Jeudi': 3, 'Vendredi': 4, 'Samedi': 5}
-    res = []
-    for g in best:
-        sem, slot_idx = g['semester'], g['slot']
+    
+    days_map = {'Lundi': 0, 'Mardi': 1, 'Mercredi': 2, 'Jeudi': 3, 'Vendredi': 4, 'Samedi': 5}
+
+    # Map objects to IDs for serialization
+    serializable_schedule = []
+    for gene in best_schedule:
+        sem = gene['semester']
+        slot_idx = gene['slot']
         day_name = days_list[slot_idx // 4]
-        period, preview_date = periods.get(sem), None
+        
+        # Calculate preview date (The very first occurrence of this session)
+        period = periods.get(sem)
         if period:
-            target_day = days_map_idx[day_name]
+            target_day_of_week = days_map[day_name]
+            
+            # Start from period.date_debut and find the first occurrence of target_day_of_week
             preview_date = period.date_debut
-            while preview_date.weekday() != target_day: preview_date += timedelta(days=1)
-        res.append({
-            'module_id': g['module'].id, 'module_name': g['module'].nom,
-            'teacher_id': g['teacher'].id, 'teacher_name': str(g['teacher']),
-            'filiere_id': g['filiere'].id, 'filiere_name': str(g['filiere']),
-            'semester': sem, 'slot': slot_idx, 'day': day_name,
-            'room_id': g['room'].id, 'room_name': str(g['room']),
+            while preview_date.weekday() != target_day_of_week:
+                preview_date += timedelta(days=1)
+        else:
+            preview_date = None
+
+        serializable_schedule.append({
+            'module_id': gene['module'].id,
+            'module_name': gene['module'].nom,
+            'teacher_id': gene['teacher'].id,
+            'teacher_name': str(gene['teacher']),
+            'filiere_id': gene['filiere'].id,
+            'filiere_name': str(gene['filiere']),
+            'semester': sem,
+            'slot': slot_idx,
+            'day': day_name,
+            'room_id': gene['room'].id,
+            'room_name': str(gene['room']),
             'date': preview_date.strftime('%Y-%m-%d') if preview_date else None,
-            'startTime': times[slot_idx % 4], 'type': g['type']
+            'startTime': times[slot_idx % 4],
+            'type': gene.get('type', 'CM')
         })
+    
     update_progress(100, "Génération terminée !")
-    return True, res
+    return True, serializable_schedule

@@ -143,7 +143,24 @@ const Timetable: React.FC = () => {
 
   const getHolidayInfo = (date: Date) => {
     const dateStr = formatDate(date);
-    return vacations.find(v => dateStr >= v.date_debut && dateStr <= v.date_fin);
+    return vacations.find(v => {
+      const isDateInRange = dateStr >= v.date_debut && dateStr <= v.date_fin;
+      if (!isDateInRange) return false;
+      
+      const title = (v.titre || '').toLowerCase();
+      const type = (v.type_conge || '').toLowerCase();
+
+      // Block if:
+      // 1. Explicitly global OR has no specific teacher assigned
+      // 2. Type is Public/Academic holiday
+      // 3. Title contains academic keywords provided by user
+      const isGlobalOrAcademic = v.is_global || !v.enseignant || 
+             ['public holiday', 'academic holiday', 'calendrier académique', 'vacances'].some(k => type.includes(k));
+      
+      const hasKeyword = ['examens', 'ratrappage', 'repos', 'préparation', 'grandes vacances', 'preparation', 'fête', 'aid', 'eid'].some(k => title.includes(k));
+      
+      return isGlobalOrAcademic || hasKeyword;
+    });
   };
 
   const fetchSlots = () => {
@@ -409,7 +426,14 @@ const Timetable: React.FC = () => {
     } catch (error) { console.error("Save error:", error); } finally { setIsSaving(false); }
   };
 
-  const handleSlotClick = (slot: any) => {
+  const handleSlotClick = (slot: TimetableSlot) => {
+    // 1. Check if the slot date is a holiday
+    const holiday = getHolidayInfo(new Date(slot.date));
+    if (holiday) {
+      alert(`Impossible de modifier : ce jour est férié/en vacances (${holiday.titre || holiday.type_conge}).`);
+      return;
+    }
+
     const moduleId = modules.find(m => m.nom === slot.module)?.id || '';
     const roomId = locaux.find(l => l.name === slot.room)?.id || '';
     const teacher = teachers.find(t => `${t.prenom} ${t.nom}` === slot.teacher || `Pr. ${t.nom} ${t.prenom}` === slot.teacher)?.id || '';
@@ -421,7 +445,14 @@ const Timetable: React.FC = () => {
   };
 
   const handleCellClick = (day: string, config: TimeConfig, date: string) => {
-    setEditingSessionId(null); 
+    // 1. Check if the date is a holiday
+    const holiday = getHolidayInfo(new Date(date));
+    if (holiday) {
+      alert(`Impossible d'ajouter une séance : ce jour est férié/en vacances (${holiday.titre || holiday.type_conge}).`);
+      return;
+    }
+
+    setEditingSessionId(null);
     setTimeFilter(timeToMinutes(config.start) < 780 ? 'Morning' : 'Afternoon');
     setSelectedCell({ day, time: config.start, endTime: config.end, date });
     
@@ -720,8 +751,24 @@ const Timetable: React.FC = () => {
                   </div>
                   {timeConfig.map((config, i) => {
                     const slot = slots.find(s => s.date === dateStr && timeToMinutes(s.startTime) < timeToMinutes(config.end) && timeToMinutes(config.start) < timeToMinutes(s.endTime));
-                    if (holiday && !config.isBreak) return <div key={i} className="border-b border-r border-outline-variant bg-error-container/5" />;
+                    
+                    if (holiday && !config.isBreak) return (
+                      <div key={i} className="border-b border-r border-outline-variant bg-rose-600 flex flex-col items-center justify-center p-2 relative overflow-hidden group shadow-[inset_0_0_20px_rgba(0,0,0,0.2)]">
+                        <div className="absolute inset-0 opacity-20 bg-[repeating-linear-gradient(45deg,#fff,#fff_10px,transparent_10px,transparent_20px)]"></div>
+                        <span className="material-symbols-outlined text-white text-2xl mb-1 drop-shadow-md">block</span>
+                        <div className="text-center relative z-10">
+                          <span className="block text-[9px] font-black text-white uppercase tracking-tighter leading-tight drop-shadow-sm">
+                            {holiday.titre || holiday.type_conge || 'JOUR FÉRIÉ'}
+                          </span>
+                          <span className="block text-[8px] font-bold text-white/80 uppercase tracking-widest mt-0.5">
+                            Interdit
+                          </span>
+                        </div>
+                      </div>
+                    );
+
                     if (config.isBreak) return <div key={i} className="border-b border-r border-outline-variant opacity-30 bg-[repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9_10px,#ffffff_10px,#ffffff_20px)] shadow-inner" />;
+                    
                     return (<div key={i} onClick={() => slot ? handleSlotClick(slot) : handleCellClick(day, config, dateStr)} className={`border-b border-r border-outline-variant transition-all ${slot ? 'p-2' : 'hover:bg-primary/5 cursor-pointer bg-white group'}`}>
                       {slot ? (<div className={`h-full border-l-4 p-2 flex flex-col justify-between rounded-lg shadow-md transition-all ${slot.color}`}>
                         <span className="text-[10px] font-black uppercase truncate leading-tight">{slot.type} : {slot.module}</span>

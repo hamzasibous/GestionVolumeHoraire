@@ -135,6 +135,40 @@ const Profile: React.FC = () => {
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const payload = {
+      nom: formData.get('nom'),
+      prenom: formData.get('prenom'),
+      email: formData.get('email'),
+      tel: formData.get('tel'),
+    };
+
+    try {
+      const response = await fetch('http://localhost:8000/api/users/profile/', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        const updatedUser = await response.json();
+        setUser(updatedUser);
+        setIsModalOpen(false);
+        // Trigger top bar update in case name changed
+        window.dispatchEvent(new Event('profileUpdate'));
+      } else {
+        alert("Erreur lors de la mise à jour du profil.");
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+    }
+  };
+
   if (loading) return (
     <div className="flex flex-col items-center justify-center p-20 gap-4">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -308,6 +342,82 @@ const Profile: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Edit Profile Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="bg-slate-900 p-6 flex items-center justify-between">
+              <div className="flex items-center gap-3 text-white">
+                <div className="p-2 bg-primary/20 rounded-lg"><span className="material-symbols-outlined text-primary-fixed">edit</span></div>
+                <h3 className="text-lg font-black uppercase tracking-tight">{t('profile.edit_profile')}</h3>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            
+            <form onSubmit={handleSubmit} className="p-8 space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Prénom</label>
+                  <input 
+                    name="prenom" 
+                    defaultValue={user.prenom} 
+                    required 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Nom</label>
+                  <input 
+                    name="nom" 
+                    defaultValue={user.nom} 
+                    required 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Email</label>
+                <input 
+                  name="email" 
+                  type="email" 
+                  defaultValue={user.email} 
+                  required 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Téléphone</label>
+                <input 
+                  name="tel" 
+                  defaultValue={user.tel} 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
+                />
+              </div>
+
+              <div className="pt-6 border-t border-slate-100 flex gap-4">
+                <button 
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors"
+                >
+                  Annuler
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 bg-slate-900 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg hover:bg-slate-800"
+                >
+                  Enregistrer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
