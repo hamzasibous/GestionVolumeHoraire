@@ -1,6 +1,7 @@
 import os
 import django
 
+#hada howa lhalaaaaaaaak
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'vh_backend.settings')
 django.setup()
 
