@@ -517,7 +517,14 @@ const Timetable: React.FC = () => {
         });
         setUploadStep('review');
       } else {
-        alert("Erreur lors de l'extraction");
+        let errorMsg = "Erreur inconnue";
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || JSON.stringify(errorData);
+        } catch (e) {
+           errorMsg = "Erreur HTTP " + response.status;
+        }
+        alert(`Erreur lors de l'extraction : ${errorMsg}`);
       }
     } catch (error) {
       console.error("Upload error:", error);
@@ -571,7 +578,17 @@ const Timetable: React.FC = () => {
         });
 
         if (!response.ok) {
+          let errorMsg = 'Erreur inconnue (Vérifiez la console).';
+          try {
+            const errorData = await response.json();
+            errorMsg = errorData.error || JSON.stringify(errorData);
+          } catch (e) {
+            errorMsg = `Erreur Serveur (HTTP ${response.status}).`;
+          }
           console.error("Failed to save session:", session);
+          alert(`Erreur lors de l'enregistrement de ${session.module_name || 'la séance'}: ${errorMsg}`);
+          setIsUploading(false);
+          return;
         }
         firstSession = false; // Disable for subsequent sessions
       }

@@ -115,13 +115,27 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
             if key not in groups: groups[key] = []
             groups[key].append(req)
         
+        # Round-Robin tracker to force usage of all teachers
+        global_teacher_usage = {t.id: 0 for t in teachers}
+        
         for (f_id, sem), reqs in groups.items():
             chosen_slots = random.sample(range(len(all_slots)), len(reqs))
             module_teacher_map = {}
             for i, req in enumerate(reqs):
                 mod_id = req['module'].id
                 if mod_id not in module_teacher_map:
-                    module_teacher_map[mod_id] = random.choice(req['eligible_teachers'])
+                    # Pick the teacher with the least current assignments from the eligible pool
+                    eligible = req['eligible_teachers']
+                    # Sort eligible teachers by their current usage to FORCE round-robin
+                    eligible.sort(key=lambda t: global_teacher_usage.get(t.id, 0))
+                    
+                    # Add a little randomness among the top tied candidates
+                    min_usage = global_teacher_usage.get(eligible[0].id, 0)
+                    tied_candidates = [t for t in eligible if global_teacher_usage.get(t.id, 0) == min_usage]
+                    chosen_teacher = random.choice(tied_candidates)
+                    
+                    module_teacher_map[mod_id] = chosen_teacher
+                    global_teacher_usage[chosen_teacher.id] += 1
                 
                 # Pick room based on type
                 if req['type'] in ['TD', 'TP']:
@@ -179,8 +193,13 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
             avg_load = len(individual) / len(teachers)
             for t in teachers:
                 load = teacher_workload.get(t.id, 0)
-                # Penalize squared difference from average (Aggressive fairness)
-                penalty += int((load - avg_load) ** 2 * 100)
+                
+                # FATAL PENALTY for 0 hours. We strictly want everyone working.
+                if load == 0:
+                    penalty += 50000
+                else:
+                    # Penalize squared difference from average (Aggressive fairness)
+                    penalty += int((load - avg_load) ** 2 * 1000)
 
         return 1 / (1 + penalty)
 
@@ -205,10 +224,22 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
                 idx = random.randint(0, len(child) - 1)
                 
                 # Teacher Mutation: Swap teacher for the entire module in this individual
-                if random.random() < 0.3:
+                if random.random() < 0.4:
                     target_mod_id = child[idx]['module'].id
                     if target_mod_id in mod_eligible_teachers:
-                        new_teacher = random.choice(mod_eligible_teachers[target_mod_id])
+                        # Load-Aware Mutation: actively seek under-loaded teachers
+                        current_loads = {}
+                        for g in child:
+                            current_loads[g['teacher'].id] = current_loads.get(g['teacher'].id, 0) + 1
+                        
+                        eligible = mod_eligible_teachers[target_mod_id]
+                        # Sort eligible teachers by their current load in this specific child schedule
+                        eligible_sorted = sorted(eligible, key=lambda t: current_loads.get(t.id, 0))
+                        
+                        # Pick randomly from the top 3 least loaded teachers to maintain genetic diversity
+                        top_candidates = eligible_sorted[:3] if len(eligible_sorted) >= 3 else eligible_sorted
+                        new_teacher = random.choice(top_candidates)
+                        
                         for gene in child:
                             if gene['module'].id == target_mod_id:
                                 gene['teacher'] = new_teacher

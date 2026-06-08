@@ -121,7 +121,7 @@ class Sceance(models.Model):
         Module, on_delete=models.CASCADE, related_name="sceances"
     )
     enseignant = models.ForeignKey(
-        Enseignant, on_delete=models.CASCADE, related_name="sceances",
+        "users.Utilisateur", on_delete=models.CASCADE, related_name="sceances",
         null=True, blank=True
     )
     local = models.ForeignKey(Local, on_delete=models.CASCADE, related_name="sceances")
@@ -132,7 +132,7 @@ class Sceance(models.Model):
 
 class Vacation(models.Model):
     enseignant = models.ForeignKey(
-        Enseignant, on_delete=models.CASCADE, related_name="vacations",
+        "users.Utilisateur", on_delete=models.CASCADE, related_name="vacations",
         null=True, blank=True
     )
     titre = models.CharField(max_length=200, blank=True, null=True)

@@ -52,28 +52,48 @@ class AIService:
         try:
             img = Image.open(image_file)
             
-            prompt = """
-            Analyze this image of a university timetable (Emploi du temps).
-            Extract all scheduled sessions (Séances).
-            Return ONLY a JSON list of objects with these keys:
-            - day: (string) name of the day in French (Lundi, Mardi, Mercredi, Jeudi, Vendredi, Samedi)
-            - time: (string) start time HH:MM
-            - duration: (integer) duration in minutes (usually 120 for a 2h slot)
-            - module_name: (string or null) name of the subject/module
-            - teacher_name: (string or null) name of the professor
-            - room_name: (string or null) name of the room/local
-            - type: (string) 'CM', 'TD', or 'TP'
+            # Convert to RGB if needed (e.g. PNGs with alpha)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+                
+            # Do NOT aggressively resize. Dense timetables require high resolution.
+            # Only resize if the image is astronomically large (e.g., > 4000px) to avoid payload limits.
+            img.thumbnail((3500, 3500), Image.Resampling.LANCZOS)
             
-            Example format:
-            [{"day": "Lundi", "time": "08:30", "duration": 120, "module_name": "Algorithmique", "teacher_name": "Ahmed", "room_name": "Amphi 1", "type": "CM"}]
+            prompt = """
+            You are an expert AI specialized in reading complex, dense university timetables (Emplois du temps) from images.
+            Carefully analyze this timetable grid. The columns usually represent days of the week, and the rows represent time slots.
+            
+            CRITICAL RULES FOR EXTRACTION:
+            1. EXTRACT EXACT TEXT: Do NOT translate, summarize, or guess module names. Write the exact letters you see in the cell.
+            2. The Day of the week (Lundi, Mardi, Mercredi, Jeudi, Vendredi, Samedi).
+            3. The Start Time: "08:30", "10:45", "14:30", or "16:45".
+            4. The Duration: Standard blocks are 2 hours (120).
+            5. The Module Name: Write exactly what is written (e.g. "Analyse 1", "M7", "Architecture").
+            6. The Teacher Name: Write exactly what is written.
+            7. The Room: Write exactly what is written.
+            8. The Type: You MUST specify 'CM' (Cours Magistral), 'TD' (Travaux Dirigés), or 'TP' (Travaux Pratiques). If it says 'Gr' or 'Groupe', it is a TD or TP. If it is in an Amphi, it is likely a CM. If you aren't sure, default to 'CM'.
+
+            Return ONLY a valid JSON list of objects. Do not include markdown formatting.
+            
+            Format exactly like this example:
+            [
+              {"day": "Lundi", "time": "08:30", "duration": 120, "module_name": "Analyse 1", "teacher_name": "Bourray", "room_name": "Amphi B", "type": "CM"},
+              {"day": "Mardi", "time": "14:30", "duration": 120, "module_name": "Algèbre", "teacher_name": "El Alaoui", "room_name": "Salle 10", "type": "TD"}
+            ]
             """
 
             response = self.model.generate_content([prompt, img])
             
             content = response.text.strip()
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0].strip()
             
-            return json.loads(content)
+            # Bulletproof JSON extraction: Find the first '[' and last ']'
+            import re
+            match = re.search(r'\[.*\]', content, re.DOTALL)
+            if match:
+                json_str = match.group(0)
+                return json.loads(json_str)
+            else:
+                return {"error": "Could not find a valid JSON array in the AI response."}
         except Exception as e:
-            return {"error": str(e)}
+            return {"error": f"AI Parsing Error: {str(e)}"}

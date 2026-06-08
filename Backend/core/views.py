@@ -341,6 +341,7 @@ class ExtractTimetableView(APIView):
         results = ai_service.extract_timetable_from_image(file_obj)
         
         if isinstance(results, dict) and "error" in results:
+            print(f"CRITICAL AI EXTRACTION ERROR: {results['error']}")
             return Response(results, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         from .models import Module, Local, Sceance, SemesterPeriod
@@ -377,16 +378,63 @@ class ExtractTimetableView(APIView):
             match = next((m for m in available_modules if extracted_name in m.nom.lower() or m.nom.lower() in extracted_name), None)
             return match
 
+        # Rule Enforcement: 7 modules total. 5 modules get 2 sessions, 2 modules get 1 session.
+        # Total = 12 sessions.
+        # Track usage: {module_id: {'CM': count, 'TD': count, 'TP': count, 'total': count}}
+        module_usage = {m.id: {'CM': 0, 'TD': 0, 'TP': 0, 'total': 0} for m in available_modules}
+        
+        def get_fallback_module(session_type_hint):
+            # We want 5 modules to hit 2 (1 CM + 1 TD/TP), and 2 modules to hit 1 (CM only).
+            for m in available_modules:
+                usage = module_usage[m.id]
+                
+                # If module has 0 sessions, it can take anything, but prefer CM first
+                if usage['total'] == 0:
+                    return m, 'CM'
+                
+                # If module has 1 session, it can take a 2nd session (TD/TP) IF we haven't hit the limit of 5 double-modules
+                if usage['total'] == 1:
+                    modules_with_2 = sum(1 for v in module_usage.values() if v['total'] >= 2)
+                    if modules_with_2 < 5 and usage['TD'] == 0 and usage['TP'] == 0:
+                        return m, session_type_hint if session_type_hint in ['TD', 'TP'] else 'TD'
+                        
+            # absolute fallback
+            return available_modules[0] if available_modules else None, session_type_hint
+
         for session in results:
             mod_name = session.get('module_name')
+            ai_session_type = session.get('type', 'CM')
             matched_module = find_best_module(mod_name)
             
-            # If no name match, pick an unassigned one from the DB for this semester
-            if not matched_module and unassigned_modules:
-                matched_module = unassigned_modules.pop(0)
-            # If still no match (all assigned), just pick the first available one (reuse)
-            if not matched_module and available_modules:
-                matched_module = available_modules[0]
+            # If no match or if the matched module is "full" (>=2), use fallback
+            if not matched_module or module_usage.get(matched_module.id, {}).get('total', 0) >= 2:
+                matched_module, assigned_type = get_fallback_module(ai_session_type)
+            else:
+                # We have a matched module. Let's determine its type based on what it already has
+                usage = module_usage[matched_module.id]
+                if usage['total'] == 0:
+                    assigned_type = 'CM'
+                elif usage['total'] == 1:
+                    modules_with_2 = sum(1 for v in module_usage.values() if v['total'] >= 2)
+                    if modules_with_2 < 5:
+                        # Give it the requested type if it doesn't have it, otherwise fallback to whatever is missing
+                        if ai_session_type in ['TD', 'TP'] and usage[ai_session_type] == 0:
+                            assigned_type = ai_session_type
+                        else:
+                            assigned_type = 'TD' if usage['CM'] > 0 else 'CM'
+                    else:
+                        # This module is forced to stay at 1. Fallback to another module.
+                        matched_module, assigned_type = get_fallback_module(ai_session_type)
+                else:
+                    matched_module, assigned_type = get_fallback_module(ai_session_type)
+
+            if matched_module:
+                module_usage[matched_module.id]['total'] += 1
+                # Ensure the key exists in case AI returns something weird
+                if assigned_type not in module_usage[matched_module.id]:
+                    module_usage[matched_module.id][assigned_type] = 0
+                module_usage[matched_module.id][assigned_type] += 1
+                session['type'] = assigned_type
 
             matched_teacher = None
             if session.get('teacher_name'):
@@ -636,45 +684,50 @@ class MyAssignmentsView(APIView):
         from django.db.models import Sum
 
         user = request.user
-        # Direct query for sessions to avoid proxy model related_name issues
-        from .models import Sceance
-        from django.db.models import Sum
         
-        total_minutes = Sceance.objects.filter(enseignant_id=user.id).aggregate(total=Sum('duree'))['total'] or 0
-        total_hours = total_minutes // 60
-        
-        # Group assignments by module and type
+        # Group assignments by module and type to avoid counting 14 weeks of the same class 14 times
         assignments = []
-        sceances_summary = Sceance.objects.filter(enseignant_id=user.id).values('module__id', 'module__nom', 'type').annotate(total_minutes=Sum('duree'))
+        sceances_summary = Sceance.objects.filter(enseignant_id=user.id).values('module__id', 'module__nom', 'type').annotate(count=models.Count('id'))
+        
+        total_hours = 0
+        total_cm_hours = 0
+        total_td_hours = 0
+        total_tp_hours = 0
         
         for item in sceances_summary:
             mod_id = item['module__id']
             mod_nom = item['module__nom']
             s_type = item['type']
-            mod_minutes = item['total_minutes'] or 0
+            
+            # Each unique module/type combo represents a standard 14-week course (2h/week = 28h total)
+            course_hours = 28
+            total_hours += course_hours
+            
+            if s_type == 'CM': total_cm_hours += course_hours
+            elif s_type == 'TD': total_td_hours += course_hours
+            elif s_type == 'TP': total_tp_hours += course_hours
             
             # Find a representative session to get location
             first_sceance = Sceance.objects.filter(enseignant_id=user.id, module_id=mod_id, type=s_type).first()
             
-            if mod_minutes > 0:
-                assignments.append({
-                    'id': f"m{mod_id}-{s_type}",
-                    'code': f"MOD{mod_id}",
-                    'name': mod_nom,
-                    'type': s_type,
-                    'hours': mod_minutes // 60,
-                    'students': 'Calculated', 
-                    'location': str(first_sceance.local) if first_sceance else 'N/A'
-                })
+            assignments.append({
+                'id': f"m{mod_id}-{s_type}",
+                'code': f"MOD{mod_id}",
+                'name': mod_nom,
+                'type': s_type,
+                'hours': course_hours,
+                'students': 'Calculated', 
+                'location': str(first_sceance.local) if first_sceance else 'N/A'
+            })
 
         return Response({
             'total_hours': total_hours,
             'statutory_requirement': 192,
             'overload': max(0, total_hours - 192),
             'breakdown': {
-                'CM': Sceance.objects.filter(enseignant_id=user.id, type='CM').aggregate(total=Sum('duree'))['total'] // 60 if Sceance.objects.filter(enseignant_id=user.id, type='CM').exists() else 0,
-                'TD': Sceance.objects.filter(enseignant_id=user.id, type='TD').aggregate(total=Sum('duree'))['total'] // 60 if Sceance.objects.filter(enseignant_id=user.id, type='TD').exists() else 0,
-                'TP': Sceance.objects.filter(enseignant_id=user.id, type='TP').aggregate(total=Sum('duree'))['total'] // 60 if Sceance.objects.filter(enseignant_id=user.id, type='TP').exists() else 0,
+                'CM': total_cm_hours,
+                'TD': total_td_hours,
+                'TP': total_tp_hours,
             },
             'assignments': assignments
         })
@@ -685,41 +738,42 @@ class FacultyAssignmentListView(APIView):
         from .models import Module, Sceance
         from django.db.models import Sum, Count
         
-        faculty = Enseignant.objects.all().prefetch_related('modules', 'sceances')
+        # Only fetch REAL active teachers
+        faculty = Enseignant.objects.filter(is_active=True).exclude(email__icontains='admin').exclude(nom__icontains='assign').prefetch_related('modules', 'sceances')
         data = []
         
         for prof in faculty:
-            # Total assigned hours
-            total_minutes = prof.sceances.aggregate(Sum('duree'))['duree__sum'] or 0
-            workload = total_minutes // 60
-            
             # Group assignments by module and type
             assignments = []
-            sceances_summary = prof.sceances.values('module__id', 'module__nom', 'type').annotate(total_minutes=Sum('duree'))
+            sceances_summary = prof.sceances.values('module__id', 'module__nom', 'type').annotate(count=Count('id'))
+            
+            total_hours = 0
             
             for item in sceances_summary:
                 mod_id = item['module__id']
                 mod_nom = item['module__nom']
                 s_type = item['type']
-                mod_minutes = item['total_minutes'] or 0
                 
-                if mod_minutes > 0:
-                    assignments.append({
-                        'id': f"m{mod_id}-{s_type}",
-                        'moduleCode': f"MOD{mod_id}",
-                        'moduleName': mod_nom,
-                        'type': s_type,
-                        'hours': mod_minutes // 60
-                    })
+                # Each unique module+type is 28h per semester
+                course_hours = 28
+                total_hours += course_hours
+                
+                assignments.append({
+                    'id': f"m{mod_id}-{s_type}",
+                    'moduleCode': f"MOD{mod_id}",
+                    'moduleName': mod_nom,
+                    'type': s_type,
+                    'hours': course_hours
+                })
 
             data.append({
                 'id': str(prof.id),
                 'name': str(prof),
                 'department': prof.departement.nom if prof.departement else 'N/A',
                 'title': 'Professeur',
-                'workload': workload,
+                'workload': total_hours,
                 'maxWorkload': 336,
-                'isOverloaded': workload > 336,
+                'isOverloaded': total_hours > 336,
                 'assignments': assignments,
                 'initials': "".join([n[0] for n in str(prof).split() if n]).upper()[:2]
             })
@@ -787,7 +841,7 @@ class SceanceViewSet(viewsets.ModelViewSet):
             from datetime import datetime
             
             # Find the semester for this module in the filiere
-            comporte = Comporte.objects.filter(module_id=module_id).first()
+            comporte = Comporte.objects.filter(module_id=module_id, filiere_id=filiere_id, semestre=semester).first()
             if comporte:
                 period = SemesterPeriod.objects.filter(semester=comporte.semestre).first()
                 if period:

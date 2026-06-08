@@ -175,7 +175,7 @@ const ProgramsManagement: React.FC = () => {
   };
 
   const handleExportAll = () => {
-    window.open(url, '_blank');
+    window.open('http://localhost:8000/api/core/filiere/export-all-timetables-zip/', '_blank');
   };
 
   const handleSubmitFiliere = async (e: React.FormEvent<HTMLFormElement>) => {
