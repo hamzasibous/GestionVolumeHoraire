@@ -1,2 +1,2 @@
 # GestionVolumeHoraire
-contact me befor using the project , kacimimohmad30@gmail.com
+contact me before using the project , kacimimohamad30@gmail.com
