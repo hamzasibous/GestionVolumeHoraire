@@ -1,7 +1,43 @@
 import random
 import copy
 from datetime import timedelta
+from django.db.models import Q
 from .models import Filiere, Module, Comporte, Local, Enseignant, Sceance, SemesterPeriod, Vacation, ScheduleTask
+
+def get_module_speciality(name):
+    name = name.lower()
+    name = name.replace("é", "e").replace("è", "e").replace("ê", "e").replace("à", "a").replace("ç", "c").replace("î", "i")
+    
+    # 1. Transversal / Languages / Soft Skills
+    if any(x in name for x in ["langue", "anglais", "francais", "civis", "droit", "personnel", "methodologie", "general", "citoyennete", "skills", "culture", "employabilite", "artistic", "artistiques"]):
+        return "LANGUES"
+        
+    # 2. Math / Research Operationnelle / Optimization
+    if any(x in name for x in ["analyse", "algebre", "calcul", "probabilite", "statistique", "mathematique", "optimisation", "stochastique", "variables aleatoires", "recherche operationnelle", "ro ", " ro", "jeux", "decision"]):
+        return "MATHEMATIQUES"
+        
+    # 3. Physics / Engineering / Hardware
+    if any(x in name for x in ["electronique", "thermodynamique", "optique", "signal", "image", "mecanique", "materiel", "embarque", "robotique", "electrostat", "magnetostat", "physique"]):
+        return "PHYSIQUE"
+        
+    # 4. Informatique (Explicit keywords or fallback)
+    return "INFORMATIQUE"
+
+
+def get_module_eqtd_hours(module_name, v_h_hebdo):
+    import re
+    match = re.search(r'\(S\d+ - (\d+)h\)', module_name)
+    raw_hours = int(match.group(1)) if match else (12 * v_h_hebdo)
+    
+    if 'pfe' in module_name.lower() or 'projet de fin' in module_name.lower():
+        return 0
+        
+    if v_h_hebdo >= 4:
+        # 50% CM (1.5) and 50% TD (1.0)
+        return raw_hours * 1.25
+    else:
+        # CM only (1.5)
+        return raw_hours * 1.5
 
 def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progress_callback=None, cancel_check=None):
     def update_progress(p, msg=None):
@@ -27,11 +63,11 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
     else:
         filieres = list(Filiere.objects.all())
         locaux = list(Local.objects.all())
-        # Filter REAL active professors
+        # Filter REAL active professors (excludes users without explicit ENSEIGNANT role)
         teachers = list(Enseignant.objects.filter(
-            is_active=True, 
-            role__in=['ENSEIGNANT', 'CHEF_DEPARTEMENT']
-        ).exclude(email__icontains='admin').exclude(nom__icontains='assign'))
+            role__icontains='ENSEIGNANT',
+            is_active=True
+        ).exclude(email='admin@gmail.com').exclude(nom__icontains='assign'))
         comportes_list = None
     
     days_list = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
@@ -39,46 +75,138 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
     all_slots = [(d, t) for d in days_list for t in times]
     total_slots = len(all_slots)
 
-    # 2. Gather session requirements
+    # 2. Gather session requirements and run the greedy Module Pre-Assignment Pass
     requirements = []
     mod_eligible_teachers = {}
     
+    # Collect all comportes to schedule
+    comportes_to_schedule = []
     if comportes_list is not None:
-        # Use provided requirements (Simulation mode)
         for cp in comportes_list:
-            eligible_teachers = cp.eligible_teachers if hasattr(cp, 'eligible_teachers') else teachers
-            mod_eligible_teachers[cp.module.id] = eligible_teachers
-            session_types = ['CM', random.choice(['TD', 'TP'])] if cp.v_h_hebdo >= 4 else ['CM']
-            for s_type in session_types:
-                requirements.append({
-                    'module': cp.module,
-                    'filiere': cp.filiere,
-                    'semester': cp.semestre,
-                    'eligible_teachers': eligible_teachers,
-                    'type': s_type
-                })
+            name_lower = cp.module.nom.lower()
+            if 'pfe' in name_lower or 'projet de fin' in name_lower:
+                continue
+            comportes_to_schedule.append(cp)
     else:
-        # DB mode
         for sem in semester_codes:
             update_progress(10, f"Chargement des besoins pour {sem}...")
             check_cancelled()
             for f in filieres:
                 comportes = Comporte.objects.filter(filiere=f, semestre=sem)
                 for cp in comportes:
-                    eligible_teachers = list(cp.module.users_habilites.all())
-                    if not eligible_teachers: eligible_teachers = teachers
-                    mod_eligible_teachers[cp.module.id] = eligible_teachers
+                    name_lower = cp.module.nom.lower()
+                    if 'pfe' in name_lower or 'projet de fin' in name_lower:
+                        continue
+                    comportes_to_schedule.append(cp)
 
-                    session_types = ['CM', random.choice(['TD', 'TP'])] if cp.v_h_hebdo == 4 else ['CM']
+    # Greedy Module Pre-Assignment
+    prof_load = {t.id: 0.0 for t in teachers}
+    prof_seuil = {}
+    for t in teachers:
+        dept_seuil = 192
+        if hasattr(t, 'departement') and t.departement:
+            dept_seuil = t.departement.seuil_horaire
+        prof_seuil[t.id] = dept_seuil
 
-                    for s_type in session_types:
-                        requirements.append({
-                            'module': cp.module,
-                            'filiere': f,
-                            'semester': sem,
-                            'eligible_teachers': eligible_teachers,
-                            'type': s_type
-                        })
+    module_to_comportes = {}
+    for cp in comportes_to_schedule:
+        mod_id = cp.module.id
+        if mod_id not in module_to_comportes:
+            module_to_comportes[mod_id] = []
+        module_to_comportes[mod_id].append(cp)
+
+    module_assigned_teacher = {}
+    for mod_id, cps in module_to_comportes.items():
+        total_module_hours = 0
+        first_cp = cps[0]
+        for cp in cps:
+            total_module_hours += get_module_eqtd_hours(cp.module.nom, cp.v_h_hebdo)
+
+        # Get candidate teachers
+        candidates = []
+        if hasattr(first_cp, 'eligible_teachers'):
+            candidates = first_cp.eligible_teachers
+        else:
+            candidates = list(first_cp.module.users_habilites.all())
+
+        if not candidates:
+            candidates = teachers
+
+        # Keep only active teachers in our list
+        valid_ids = set(t.id for t in teachers)
+        candidates = [t for t in candidates if t.id in valid_ids]
+        if not candidates:
+            candidates = teachers
+
+        # Filter candidates by module speciality
+        mod_spec = get_module_speciality(first_cp.module.nom)
+        spec_candidates = [t for t in candidates if getattr(t, 'specialite', 'INFORMATIQUE') == mod_spec]
+        if spec_candidates:
+            candidates = spec_candidates
+
+        # Find best teacher under seuil horaire limit
+        under_seuil = [t for t in candidates if prof_load[t.id] + total_module_hours <= prof_seuil[t.id]]
+        if under_seuil:
+            best_teacher = min(under_seuil, key=lambda t: prof_load[t.id])
+        else:
+            # Enforce work limit: Do NOT assign to any permanent professor who would exceed seuil.
+            # Instead, dynamically allocate to a VACATAIRE for this speciality
+            vac_index = 1
+            best_teacher = None
+            while True:
+                vac_email = f"vacataire_{mod_spec.lower()}_{vac_index}@umi.ac.ma"
+                vac_name = f"VACATAIRE {mod_spec} {vac_index}"
+                
+                v_t, created = Enseignant.objects.get_or_create(
+                    email=vac_email,
+                    defaults={
+                        'nom': vac_name,
+                        'prenom': 'Enseignant',
+                        'role': 'ENSEIGNANT',
+                        'specialite': mod_spec,
+                        'is_active': True,
+                        'tel': ''
+                    }
+                )
+                
+                # Register in local solver lists
+                if v_t.id not in prof_load:
+                    teachers.append(v_t)
+                    prof_load[v_t.id] = 0.0
+                    prof_seuil[v_t.id] = 192.0
+                    
+                # Check if this vacataire has enough remaining space
+                if prof_load[v_t.id] + total_module_hours <= prof_seuil[v_t.id]:
+                    best_teacher = v_t
+                    break
+                
+                if vac_index >= 50:
+                    best_teacher = v_t
+                    break
+                    
+                vac_index += 1
+
+        module_assigned_teacher[mod_id] = best_teacher
+        prof_load[best_teacher.id] += total_module_hours
+
+    # Build the requirements list with strictly pre-assigned teachers
+    for cp in comportes_to_schedule:
+        assigned_teacher = module_assigned_teacher.get(cp.module.id)
+        if not assigned_teacher:
+            continue
+        
+        eligible_teachers = [assigned_teacher]
+        mod_eligible_teachers[cp.module.id] = eligible_teachers
+
+        session_types = ['CM', random.choice(['TD', 'TP'])] if cp.v_h_hebdo >= 4 else ['CM']
+        for s_type in session_types:
+            requirements.append({
+                'module': cp.module,
+                'filiere': cp.filiere,
+                'semester': cp.semestre,
+                'eligible_teachers': eligible_teachers,
+                'type': s_type
+            })
 
     if not requirements: return False, "Aucun module trouvé pour ces semestres."
 
@@ -155,7 +283,8 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
         return individual
 
     def calculate_fitness(individual):
-        penalty = 0
+        hard_penalty = 0
+        soft_penalty = 0
         teacher_slots, room_slots, filiere_slots, teacher_workload = {}, {}, {}, {}
         
         # Tracker for "One module per prof per filiere per semester"
@@ -169,46 +298,56 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
             # 1. Constraint: One module per prof per program per semester
             assigned_mod = teacher_module_map.get((t_id, f_id, sem))
             if assigned_mod and assigned_mod != mod_id:
-                penalty += 10000
+                hard_penalty += 10000
             teacher_module_map[(t_id, f_id, sem)] = mod_id
 
             # 2. Constraint: TP/TD should NOT be in Amphi
             if gene['type'] in ['TD', 'TP'] and gene['room'].is_amphi:
-                penalty += 10000
+                hard_penalty += 10000
             
             # 3. Slot Conflicts
-            if (t_id, slot) in teacher_slots: penalty += 5000
+            if (t_id, slot) in teacher_slots: hard_penalty += 5000
             teacher_slots[(t_id, slot)] = 1
-            if (r_id, slot) in room_slots: penalty += 5000
+            if (r_id, slot) in room_slots: hard_penalty += 5000
             room_slots[(r_id, slot)] = 1
-            if (f_id, sem, slot) in filiere_slots: penalty += 5000
+            if (f_id, sem, slot) in filiere_slots: hard_penalty += 5000
             filiere_slots[(f_id, sem, slot)] = 1
             
-            # 4. Workload tracking
-            teacher_workload[t_id] = teacher_workload.get(t_id, 0) + 1
-            if teacher_workload[t_id] > 18: penalty += 2000 # 36h limit
+            # 4. Workload tracking (in EqTD weekly hours, assuming 2 hours per session slot)
+            session_hours = 2.0
+            if gene['type'] == 'CM':
+                eqtd_hours = session_hours * 1.5
+            elif gene['type'] == 'TP':
+                eqtd_hours = session_hours * 0.75
+            else:
+                eqtd_hours = session_hours * 1.0
+                
+            teacher_workload[t_id] = teacher_workload.get(t_id, 0) + eqtd_hours
+            if teacher_workload[t_id] > 36.0: hard_penalty += 2000 # 36h EqTD limit
 
         # Balancing Penalty: Encourage equitable distribution of hours
         if teachers:
-            avg_load = len(individual) / len(teachers)
+            total_eqtd = sum(teacher_workload.values())
+            avg_load = total_eqtd / len(teachers)
             for t in teachers:
                 load = teacher_workload.get(t.id, 0)
                 
                 # FATAL PENALTY for 0 hours. We strictly want everyone working.
                 if load == 0:
-                    penalty += 50000
+                    hard_penalty += 50000
                 else:
                     # Penalize squared difference from average (Aggressive fairness)
-                    penalty += int((load - avg_load) ** 2 * 1000)
+                    soft_penalty += int((load - avg_load) ** 2 * 1000)
 
-        return 1 / (1 + penalty)
+        # Base fitness to prioritize minimizing hard_penalty first
+        return 100000 / (1 + hard_penalty) + 1 / (1 + soft_penalty)
 
     # 4. Evolution
     population = [create_individual() for _ in range(POPULATION_SIZE)]
     for gen in range(GENERATIONS):
         check_cancelled()
         population = sorted(population, key=calculate_fitness, reverse=True)
-        if calculate_fitness(population[0]) == 1.0: break
+        if calculate_fitness(population[0]) >= 100000.0: break
         
         if gen % 10 == 0:
             prog = 15 + int((gen / GENERATIONS) * 60)
@@ -222,28 +361,6 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
             
             if random.random() < MUTATION_RATE:
                 idx = random.randint(0, len(child) - 1)
-                
-                # Teacher Mutation: Swap teacher for the entire module in this individual
-                if random.random() < 0.4:
-                    target_mod_id = child[idx]['module'].id
-                    if target_mod_id in mod_eligible_teachers:
-                        # Load-Aware Mutation: actively seek under-loaded teachers
-                        current_loads = {}
-                        for g in child:
-                            current_loads[g['teacher'].id] = current_loads.get(g['teacher'].id, 0) + 1
-                        
-                        eligible = mod_eligible_teachers[target_mod_id]
-                        # Sort eligible teachers by their current load in this specific child schedule
-                        eligible_sorted = sorted(eligible, key=lambda t: current_loads.get(t.id, 0))
-                        
-                        # Pick randomly from the top 3 least loaded teachers to maintain genetic diversity
-                        top_candidates = eligible_sorted[:3] if len(eligible_sorted) >= 3 else eligible_sorted
-                        new_teacher = random.choice(top_candidates)
-                        
-                        for gene in child:
-                            if gene['module'].id == target_mod_id:
-                                gene['teacher'] = new_teacher
-
                 child[idx]['slot'] = random.randint(0, len(all_slots) - 1)
                 
                 # Re-pick room based on type during mutation

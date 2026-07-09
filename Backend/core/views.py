@@ -6,6 +6,7 @@ from rest_framework import serializers, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
 from users.models import Enseignant
 import threading
 import zipfile
@@ -140,6 +141,137 @@ class ExportTimetablePDFView(APIView):
         response['Content-Disposition'] = f'attachment; filename="emploi_du_temps_{filiere.nom}_{semester}.pdf"'
         return response
 
+def generate_teacher_timetable_pdf(teacher, week_start_date):
+    from .models import Sceance, SemesterPeriod
+    buffer = io.BytesIO()
+    p = canvas.Canvas(buffer, pagesize=landscape(A4))
+    width, height = landscape(A4)
+
+    # --- Header ---
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(1*cm, height - 1*cm, "UNIVERSITE MOULAY ISMAIL")
+    p.drawString(1*cm, height - 1.4*cm, "FACULTE DES SCIENCES")
+    p.drawString(1*cm, height - 1.8*cm, "MEKNES")
+
+    # --- Academic Year Calculation ---
+    academic_year = "2025-26"
+    period = SemesterPeriod.objects.filter(date_debut__lte=week_start_date, date_fin__gte=week_start_date).first()
+    if not period:
+        period = SemesterPeriod.objects.first()
+    if period:
+        start_year = period.date_debut.year
+        start_month = period.date_debut.month
+        if start_month >= 8:
+            academic_year = f"{start_year}-{(start_year + 1) % 100:02d}"
+        else:
+            academic_year = f"{start_year - 1}-{start_year % 100:02d}"
+
+    p.drawRightString(width - 1*cm, height - 1*cm, f"Année universitaire : {academic_year}")
+    p.drawRightString(width - 1*cm, height - 1.4*cm, f"Enseignant : Pr. {teacher.nom} {teacher.prenom}")
+    p.drawRightString(width - 1*cm, height - 1.8*cm, f"Semaine du : {week_start_date.strftime('%d/%m/%Y')}")
+
+    p.setFont("Helvetica-Bold", 14)
+    p.drawCentredString(width/2, height - 3*cm, "EMPLOI DU TEMPS ENSEIGNANT")
+
+    # --- Grid Setup ---
+    margin_left = 2*cm
+    margin_top = 5*cm
+    grid_width = width - 3*cm
+    grid_height = height - 7*cm
+    row_height = grid_height / 6
+    col_width_day = 2.5*cm
+    col_width_time = (grid_width - col_width_day) / 11
+
+    days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+    times = ["8.30", "9.30", "10.30", "11.30", "12.30", "13.30", "14.30", "15.30", "16.30", "17.30", "18.30", "19.30"]
+
+    p.setFont("Helvetica", 10)
+    for i, t_label in enumerate(times):
+        x = margin_left + col_width_day + i * col_width_time
+        p.drawCentredString(x, height - margin_top + 0.5*cm, t_label)
+        p.setDash(1, 2)
+        p.line(x, height - margin_top, x, height - margin_top - grid_height)
+        p.setDash()
+
+    for i in range(7):
+        y = height - margin_top - i * row_height
+        p.line(margin_left, y, margin_left + grid_width, y)
+        if i < 6:
+            p.setFont("Helvetica-Bold", 10)
+            p.drawString(margin_left + 0.2*cm, y - row_height/2, days[i])
+
+    p.line(margin_left, height - margin_top, margin_left, height - margin_top - grid_height)
+    p.line(margin_left + col_width_day, height - margin_top, margin_left + col_width_day, height - margin_top - grid_height)
+    p.line(margin_left + grid_width, height - margin_top, margin_left + grid_width, height - margin_top - grid_height)
+
+    # --- Fill Data ---
+    end_date = week_start_date + timedelta(days=6)
+    sceances = Sceance.objects.filter(
+        enseignant=teacher, 
+        date__range=[week_start_date, end_date]
+    ).select_related('module', 'local')
+    
+    processed_slots = set()
+    for s in sceances:
+        if not s.heure_debut: continue
+        day_idx = s.date.weekday()
+        if day_idx > 5: continue
+        slot_key = (day_idx, s.heure_debut.hour, s.heure_debut.minute, s.module_id, s.local_id)
+        if slot_key in processed_slots: continue
+        processed_slots.add(slot_key)
+        start_minutes = s.heure_debut.hour * 60 + s.heure_debut.minute
+        base_minutes = 8 * 60 + 30
+        offset_minutes = start_minutes - base_minutes
+        x_start = margin_left + col_width_day + (offset_minutes / 60) * col_width_time
+        x_end = x_start + (s.duree / 60) * col_width_time
+        y_top = height - margin_top - day_idx * row_height
+        y_bottom = y_top - row_height
+        y_mid = y_bottom + (y_top - y_bottom) / 2
+        p.setStrokeColor(colors.black)
+        p.setLineWidth(1)
+        p.line(x_start + 5, y_mid, x_end - 5, y_mid)
+        p.line(x_start + 5, y_mid, x_start + 10, y_mid + 3)
+        p.line(x_start + 5, y_mid, x_start + 10, y_mid - 3)
+        p.line(x_end - 5, y_mid, x_end - 10, y_mid + 3)
+        p.line(x_end - 5, y_mid, x_end - 10, y_mid - 3)
+        p.setFont("Helvetica-Bold", 7)
+        
+        mod_room_text = f"{s.module.nom} : {s.local}"
+        if len(mod_room_text) > 40: mod_room_text = mod_room_text[:37] + "..."
+        p.drawCentredString((x_start + x_end) / 2, y_mid + 6, mod_room_text)
+        
+        # Show filiere
+        filiere_names = list(s.module.filieres.values_list('nom', flat=True))
+        filiere_text = f"Fil : {', '.join(filiere_names)}" if filiere_names else "Fil : N/A"
+        p.setFont("Helvetica-Oblique", 6)
+        p.drawCentredString((x_start + x_end) / 2, y_mid - 10, filiere_text)
+
+    p.setFont("Helvetica", 8)
+    p.drawRightString(width - 1*cm, 1*cm, datetime.now().strftime("%d/%m/%Y"))
+    p.showPage()
+    p.save()
+    pdf_data = buffer.getvalue()
+    buffer.close()
+    return pdf_data
+
+class ExportTeacherTimetablePDFView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        teacher = request.user
+        week_start_str = request.query_params.get('week_start')
+        if not week_start_str:
+            return Response({"error": "week_start date is required"}, status=400)
+        try:
+            week_start_date = datetime.strptime(week_start_str, "%Y-%m-%d").date()
+        except ValueError:
+            return Response({"error": "Invalid date format, use YYYY-MM-DD"}, status=400)
+
+        pdf_content = generate_teacher_timetable_pdf(teacher, week_start_date)
+        response = HttpResponse(pdf_content, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="emploi_du_temps_{teacher.nom}_{teacher.prenom}_{week_start_str}.pdf"'
+        return response
+
 class ExportAllTimetablesZIPView(APIView):
     def get(self, request):
         buffer = io.BytesIO()
@@ -198,12 +330,14 @@ class LocalViewSet(viewsets.ModelViewSet):
 
 class SceanceSerializer(serializers.ModelSerializer):
     enseignant_name = serializers.SerializerMethodField()
+    enseignant_email = serializers.CharField(source="enseignant.email", read_only=True, default="")
+    enseignant_tel = serializers.CharField(source="enseignant.tel", read_only=True, default="")
     local_name = serializers.CharField(source="local.__str__", read_only=True)
     module_name = serializers.CharField(source="module.nom", read_only=True)
     
     class Meta:
         model = Sceance
-        fields = ["id", "type", "duree", "date", "heure_debut", "module", "module_name", "enseignant", "enseignant_name", "local", "local_name"]
+        fields = ["id", "type", "duree", "date", "heure_debut", "module", "module_name", "enseignant", "enseignant_name", "enseignant_email", "enseignant_tel", "local", "local_name"]
 
     def get_enseignant_name(self, obj):
         if obj.enseignant:
@@ -253,7 +387,14 @@ class ModuleDetailSerializer(serializers.ModelSerializer):
         fields = ["id", "nom", "total_hours", "assigned_hours", "semestre", "v_h_hebdo", "seances"]
 
     def get_total_hours(self, obj):
-        # 12 weeks * weekly hours
+        name_lower = obj.nom.lower()
+        if 'pfe' in name_lower or 'projet de fin' in name_lower:
+            return 0
+        import re
+        match = re.search(r'\(S\d+ - (\d+)h\)', obj.nom)
+        if match:
+            return int(match.group(1))
+        # fallback
         vh = self.get_v_h_hebdo(obj)
         return 12 * vh
 
@@ -359,9 +500,9 @@ class ExtractTimetableView(APIView):
         
         # CRITICAL FIX: Only include REAL active professors
         all_profs = list(Enseignant.objects.filter(
-            is_active=True, 
-            role__in=['ENSEIGNANT', 'CHEF_DEPARTEMENT']
-        ).exclude(email__icontains='admin').exclude(nom__icontains='assign'))
+            role__icontains='ENSEIGNANT',
+            is_active=True
+        ).exclude(email='admin@gmail.com').exclude(nom__icontains='assign'))
         
         all_rooms = list(Local.objects.all())
         days_map = {'Lundi': 0, 'Mardi': 1, 'Mercredi': 2, 'Jeudi': 3, 'Vendredi': 4, 'Samedi': 5}
@@ -632,17 +773,52 @@ class DashboardStatsView(APIView):
         from users.models import Enseignant
         from django.db.models import Sum, Count
         
-        total_filieres = Filiere.objects.count()
-        total_modules = Module.objects.count()
-        total_profs = Enseignant.objects.count()
-        total_rooms = Local.objects.count()
+        user = request.user
+        filiere_id = None
+        if user.is_authenticated and any(r in user.role for r in ['RESPONSABLE_FILIERE', 'UTILISATEUR']) and not any(r in user.role for r in ['ADMIN', 'CHEF_DEPARTEMENT']) and user.filiere_id:
+            filiere_id = user.filiere_id
+            
+        if filiere_id:
+            filieres_qs = Filiere.objects.filter(id=filiere_id)
+            modules_qs = Module.objects.filter(filieres__id=filiere_id)
+            profs_qs = Enseignant.objects.filter(
+                role__icontains='ENSEIGNANT',
+                sceances__module__filieres__id=filiere_id
+            ).distinct().exclude(email='admin@gmail.com').exclude(nom__icontains='assign')
+            rooms_qs = Local.objects.filter(sceances__module__filieres__id=filiere_id).distinct()
+            sceances_qs = Sceance.objects.filter(module__filieres__id=filiere_id)
+            from users.models import Utilisateur
+            total_students = Utilisateur.objects.filter(role__icontains='UTILISATEUR', filiere_id=filiere_id).count()
+        else:
+            filieres_qs = Filiere.objects.all()
+            modules_qs = Module.objects.all()
+            profs_qs = Enseignant.objects.filter(
+                role__icontains='ENSEIGNANT'
+            ).exclude(email='admin@gmail.com').exclude(nom__icontains='assign')
+            rooms_qs = Local.objects.all()
+            sceances_qs = Sceance.objects.all()
+            from users.models import Utilisateur
+            total_students = Utilisateur.objects.filter(role__icontains='UTILISATEUR').count()
+            
+        total_filieres = filieres_qs.count()
+        total_modules = modules_qs.count()
+        total_profs = profs_qs.count()
+        total_rooms = rooms_qs.count()
         
-        # Total volume in hours
-        total_minutes = Sceance.objects.aggregate(Sum('duree'))['duree__sum'] or 0
-        total_hours = total_minutes // 60
+        # Total volume in EqTD hours
+        total_equiv_hours = 0
+        for s in sceances_qs.only('type', 'duree'):
+            hours = s.duree / 60.0
+            if s.type == 'CM':
+                total_equiv_hours += hours * 1.5
+            elif s.type == 'TP':
+                total_equiv_hours += hours * 0.75
+            else:
+                total_equiv_hours += hours * 1.0
+        total_hours = round(total_equiv_hours)
         
         # Breakdown by type
-        breakdown = Sceance.objects.values('type').annotate(count=Count('id'))
+        breakdown = sceances_qs.values('type').annotate(count=Count('id'))
         total_sceances = sum(item['count'] for item in breakdown)
         
         type_stats = {
@@ -652,16 +828,24 @@ class DashboardStatsView(APIView):
             for item in breakdown:
                 type_stats[item['type']] = round((item['count'] / total_sceances) * 100)
 
-        # Recent filieres
+        # Recent filieres with EqTD
         filieres_data = []
-        for f in Filiere.objects.all()[:5]:
-            # Simple aggregation for hours per filiere
-            f_minutes = Sceance.objects.filter(module__filieres=f).aggregate(Sum('duree'))['duree__sum'] or 0
+        for f in filieres_qs[:5]:
+            f_sceances = Sceance.objects.filter(module__filieres=f).only('type', 'duree')
+            f_equiv_hours = 0
+            for s in f_sceances:
+                hours = s.duree / 60.0
+                if s.type == 'CM':
+                    f_equiv_hours += hours * 1.5
+                elif s.type == 'TP':
+                    f_equiv_hours += hours * 0.75
+                else:
+                    f_equiv_hours += hours * 1.0
             filieres_data.append({
                 'name': f.nom,
                 'level': f.get_niveaux_display(),
-                'totalHours': f_minutes // 60,
-                'status': 'Validated' # Placeholder for now
+                'totalHours': round(f_equiv_hours),
+                'status': 'Validated' # Placeholder
             })
 
         return Response({
@@ -670,10 +854,37 @@ class DashboardStatsView(APIView):
             'total_profs': total_profs,
             'total_rooms': total_rooms,
             'total_hours': total_hours,
+            'total_students': total_students,
             'type_stats': type_stats,
             'filieres': filieres_data,
             'avg_workload': (total_hours // total_profs) if total_profs > 0 else 0
         })
+
+def get_session_hours(module_nom, session_type, all_session_types_for_module):
+    import re
+    if 'pfe' in module_nom.lower() or 'projet de fin' in module_nom.lower():
+        return 0.0, 0.0
+
+    match = re.search(r'\(S\d+ - (\d+)h\)', module_nom)
+    total_raw = float(match.group(1)) if match else 48.0
+    
+    has_cm = 'CM' in all_session_types_for_module
+    has_td_tp = any(t in all_session_types_for_module for t in ['TD', 'TP'])
+    
+    if has_cm and has_td_tp:
+        raw_hours = total_raw / 2.0
+    else:
+        raw_hours = total_raw
+
+    if session_type == 'CM':
+        equiv_hours = raw_hours * 1.5
+    elif session_type == 'TP':
+        equiv_hours = raw_hours * 0.75
+    else:
+        equiv_hours = raw_hours * 1.0
+        
+    return raw_hours, equiv_hours
+
 
 class MyAssignmentsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -685,7 +896,7 @@ class MyAssignmentsView(APIView):
 
         user = request.user
         
-        # Group assignments by module and type to avoid counting 14 weeks of the same class 14 times
+        # Group assignments by module and type
         assignments = []
         sceances_summary = Sceance.objects.filter(enseignant_id=user.id).values('module__id', 'module__nom', 'type').annotate(count=models.Count('id'))
         
@@ -699,15 +910,19 @@ class MyAssignmentsView(APIView):
             mod_nom = item['module__nom']
             s_type = item['type']
             
-            # Each unique module/type combo represents a standard 14-week course (2h/week = 28h total)
-            course_hours = 28
-            total_hours += course_hours
+            # Dynamically determine raw and EqTD hours
+            module_session_types = list(Sceance.objects.filter(module_id=mod_id).values_list('type', flat=True).distinct())
+            raw_hours, equiv_hours = get_session_hours(mod_nom, s_type, module_session_types)
             
-            if s_type == 'CM': total_cm_hours += course_hours
-            elif s_type == 'TD': total_td_hours += course_hours
-            elif s_type == 'TP': total_tp_hours += course_hours
+            if s_type == 'CM':
+                total_cm_hours += raw_hours
+            elif s_type == 'TD':
+                total_td_hours += raw_hours
+            elif s_type == 'TP':
+                total_tp_hours += raw_hours
             
-            # Find a representative session to get location
+            total_hours += equiv_hours
+            
             first_sceance = Sceance.objects.filter(enseignant_id=user.id, module_id=mod_id, type=s_type).first()
             
             assignments.append({
@@ -715,19 +930,23 @@ class MyAssignmentsView(APIView):
                 'code': f"MOD{mod_id}",
                 'name': mod_nom,
                 'type': s_type,
-                'hours': course_hours,
+                'hours': equiv_hours,
+                'raw_hours': raw_hours,
                 'students': 'Calculated', 
                 'location': str(first_sceance.local) if first_sceance else 'N/A'
             })
 
+        dept = user.departement
+        seuil = dept.seuil_horaire if dept else 192
+
         return Response({
             'total_hours': total_hours,
-            'statutory_requirement': 192,
-            'overload': max(0, total_hours - 192),
+            'statutory_requirement': seuil,
+            'overload': max(0, total_hours - seuil),
             'breakdown': {
-                'CM': total_cm_hours,
-                'TD': total_td_hours,
-                'TP': total_tp_hours,
+                'CM': total_cm_hours * 1.5,
+                'TD': total_td_hours * 1.0,
+                'TP': total_tp_hours * 0.75,
             },
             'assignments': assignments
         })
@@ -739,11 +958,10 @@ class FacultyAssignmentListView(APIView):
         from django.db.models import Sum, Count
         
         # Only fetch REAL active teachers
-        faculty = Enseignant.objects.filter(is_active=True).exclude(email__icontains='admin').exclude(nom__icontains='assign').prefetch_related('modules', 'sceances')
+        faculty = Enseignant.objects.filter(is_active=True, role__icontains='ENSEIGNANT').exclude(email__icontains='admin').exclude(nom__icontains='assign').prefetch_related('modules', 'sceances')
         data = []
         
         for prof in faculty:
-            # Group assignments by module and type
             assignments = []
             sceances_summary = prof.sceances.values('module__id', 'module__nom', 'type').annotate(count=Count('id'))
             
@@ -754,17 +972,21 @@ class FacultyAssignmentListView(APIView):
                 mod_nom = item['module__nom']
                 s_type = item['type']
                 
-                # Each unique module+type is 28h per semester
-                course_hours = 28
-                total_hours += course_hours
+                module_session_types = list(Sceance.objects.filter(module_id=mod_id).values_list('type', flat=True).distinct())
+                raw_hours, equiv_hours = get_session_hours(mod_nom, s_type, module_session_types)
+                
+                total_hours += equiv_hours
                 
                 assignments.append({
                     'id': f"m{mod_id}-{s_type}",
                     'moduleCode': f"MOD{mod_id}",
                     'moduleName': mod_nom,
                     'type': s_type,
-                    'hours': course_hours
+                    'hours': equiv_hours
                 })
+
+            dept = prof.departement
+            seuil = dept.seuil_horaire if dept else 192
 
             data.append({
                 'id': str(prof.id),
@@ -772,8 +994,8 @@ class FacultyAssignmentListView(APIView):
                 'department': prof.departement.nom if prof.departement else 'N/A',
                 'title': 'Professeur',
                 'workload': total_hours,
-                'maxWorkload': 336,
-                'isOverloaded': total_hours > 336,
+                'maxWorkload': seuil,
+                'isOverloaded': total_hours > seuil,
                 'assignments': assignments,
                 'initials': "".join([n[0] for n in str(prof).split() if n]).upper()[:2]
             })
@@ -781,8 +1003,13 @@ class FacultyAssignmentListView(APIView):
         return Response(data)
 
 class FiliereListView(ListAPIView):
-    queryset = Filiere.objects.all()
     serializer_class = FiliereSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated and any(r in user.role for r in ['RESPONSABLE_FILIERE', 'UTILISATEUR']) and user.filiere_id:
+            return Filiere.objects.filter(id=user.filiere_id)
+        return Filiere.objects.all()
 
 class DepartmentListView(ListAPIView):
     queryset = Departement.objects.all()
@@ -803,18 +1030,44 @@ class SceanceViewSet(viewsets.ModelViewSet):
         filiere_id = self.request.query_params.get('filiere')
         semester = self.request.query_params.get('semester')
         mine = self.request.query_params.get('mine')
+        
+        user = self.request.user
 
-        if mine == 'true' and self.request.user.is_authenticated:
-            queryset = queryset.filter(enseignant=self.request.user)
+        if user.is_authenticated:
+            # Strict scoping for student (UTILISATEUR)
+            if 'UTILISATEUR' in user.role:
+                if user.filiere_id:
+                    queryset = queryset.filter(module__filieres__id=user.filiere_id)
+                else:
+                    return Sceance.objects.none()
+            
+            # Strict scoping for Responsable de Filiere
+            elif 'RESPONSABLE_FILIERE' in user.role:
+                if user.filiere_id:
+                    if mine == 'true':
+                        queryset = queryset.filter(module__filieres__id=user.filiere_id, enseignant=user)
+                    else:
+                        queryset = queryset.filter(module__filieres__id=user.filiere_id)
+                elif filiere_id:
+                    queryset = queryset.filter(module__filieres__id=filiere_id)
+            
+            # Others: teachers see their own if mine=true, admins see all
+            else:
+                if mine == 'true':
+                    queryset = queryset.filter(enseignant=user)
+                elif filiere_id:
+                    queryset = queryset.filter(module__filieres__id=filiere_id)
+        else:
+            if filiere_id:
+                queryset = queryset.filter(module__filieres__id=filiere_id)
 
         if start_date and end_date:
             queryset = queryset.filter(date__range=[start_date, end_date])
 
-        if filiere_id:
-            queryset = queryset.filter(module__filieres__id=filiere_id)
-
         if semester:
-            queryset = queryset.filter(module__comporte__semestre=semester, module__comporte__filiere_id=filiere_id)
+            active_filiere = user.filiere_id if (user.is_authenticated and any(r in user.role for r in ['UTILISATEUR', 'RESPONSABLE_FILIERE']) and user.filiere_id) else filiere_id
+            if active_filiere:
+                queryset = queryset.filter(module__comporte__semestre=semester, module__comporte__filiere_id=active_filiere)
 
         return queryset
 
@@ -1002,9 +1255,9 @@ class SceanceViewSet(viewsets.ModelViewSet):
 
             # 2. Get all real professors (filtered)
             all_profs = Enseignant.objects.filter(
-                is_active=True, 
-                role__in=['ENSEIGNANT', 'CHEF_DEPARTEMENT']
-            ).exclude(email__icontains='admin').exclude(nom__icontains='assign')
+                role__icontains='ENSEIGNANT',
+                is_active=True
+            ).exclude(email='admin@gmail.com').exclude(nom__icontains='assign')
             
             print(f"DEBUG: Found {all_profs.count()} total potential professors after role filters.")
 
@@ -1229,6 +1482,7 @@ class ConfirmScheduleView(APIView):
 
 
 class TaskStatusView(APIView):
+    permission_classes = [AllowAny]
     def get(self, request, task_id):
         try:
             task = ScheduleTask.objects.get(id=task_id)
@@ -1248,9 +1502,316 @@ class ModuleListView(ListAPIView):
 
 
 class FiliereDetailListView(ListAPIView):
-    queryset = Filiere.objects.all().prefetch_related(
-        'modules__sceances__enseignant',
-        'modules__sceances__local',
-        'comporte_set'
-    )
     serializer_class = FiliereDetailSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Filiere.objects.all().prefetch_related(
+            'modules__sceances__enseignant',
+            'modules__sceances__local',
+            'comporte_set'
+        )
+        if user.is_authenticated and any(r in user.role for r in ['RESPONSABLE_FILIERE', 'UTILISATEUR']) and user.filiere_id:
+            return queryset.filter(id=user.filiere_id)
+        return queryset
+
+
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from users.models import Role, Utilisateur, Enseignant
+
+class SeuilHoraireView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        dept = user.departement
+        seuil = dept.seuil_horaire if dept else 192
+        return Response({"seuil_horaire": seuil})
+
+    def put(self, request):
+        user = request.user
+        if not any(r in user.role for r in [Role.ADMIN, Role.CHEF_DEPARTEMENT]):
+            return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+        
+        seuil = request.data.get("seuil_horaire")
+        if seuil is None:
+            return Response({"error": "seuil_horaire is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            seuil = int(seuil)
+        except ValueError:
+            return Response({"error": "seuil_horaire must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
+
+        dept = user.departement
+        if not dept:
+            dept, _ = Departement.objects.get_or_create(nom="Informatique")
+            user.departement = dept
+            user.save()
+
+        dept.seuil_horaire = seuil
+        dept.save()
+        return Response({"seuil_horaire": dept.seuil_horaire, "message": "Seuil horaire mis à jour avec succès"})
+
+
+class ImportTeachersExcelView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        if not any(r in user.role for r in [Role.ADMIN, Role.CHEF_DEPARTEMENT]):
+            return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+
+        file_obj = request.data.get('file')
+        if not file_obj:
+            return Response({"error": "Aucun fichier Excel fourni"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            wb = openpyxl.load_workbook(file_obj, read_only=True)
+            sheet = wb.active
+            
+            imported_count = 0
+            updated_count = 0
+            errors = []
+            
+            # Expect headers: Nom, Prénom, Email, Téléphone, Département, Rôle
+            row_idx = 1
+            for row in sheet.iter_rows(min_row=2, values_only=True):
+                row_idx += 1
+                if not row or not any(row):
+                    continue
+                
+                nom = str(row[0]).strip() if row[0] is not None else ""
+                prenom = str(row[1]).strip() if row[1] is not None else ""
+                email = str(row[2]).strip() if row[2] is not None else ""
+                tel = str(row[3]).strip() if row[3] is not None else ""
+                dept_name = str(row[4]).strip() if row[4] is not None else "Informatique"
+                role_str = str(row[5]).strip().upper() if len(row) > 5 and row[5] is not None else "ENSEIGNANT"
+                spec_str = str(row[6]).strip().upper() if len(row) > 6 and row[6] is not None else "INFORMATIQUE"
+                
+                filiere_obj = None
+                if len(row) > 7 and row[7] is not None:
+                    filiere_name = str(row[7]).strip()
+                    from core.models import Filiere
+                    filiere_obj = Filiere.objects.filter(nom__iexact=filiere_name).first()
+
+                if not email:
+                    errors.append(f"Ligne {row_idx}: Email manquant")
+                    continue
+                if not nom or not prenom:
+                    errors.append(f"Ligne {row_idx}: Nom ou Prénom manquant")
+                    continue
+
+                if role_str not in Role.values:
+                    role_str = Role.ENSEIGNANT
+
+                if spec_str not in ["INFORMATIQUE", "MATHEMATIQUES", "PHYSIQUE", "LANGUES", "AUTRE"]:
+                    spec_str = "INFORMATIQUE"
+
+                dept = None
+                if dept_name:
+                    dept, _ = Departement.objects.get_or_create(nom=dept_name)
+
+                u, created = Utilisateur.objects.get_or_create(
+                    email=email,
+                    defaults={
+                        'nom': nom,
+                        'prenom': prenom,
+                        'tel': tel,
+                        'role': role_str,
+                        'specialite': spec_str,
+                        'departement': dept,
+                        'filiere': filiere_obj,
+                        'is_staff': (role_str in [Role.ADMIN, Role.CHEF_DEPARTEMENT, Role.RESPONSABLE_FILIERE])
+                    }
+                )
+                
+                if created:
+                    u.set_password("Umi2024!")
+                    u.save()
+                    imported_count += 1
+                else:
+                    u.nom = nom
+                    u.prenom = prenom
+                    u.tel = tel
+                    u.role = role_str
+                    u.specialite = spec_str
+                    u.departement = dept
+                    if filiere_obj:
+                        u.filiere = filiere_obj
+                    u.is_staff = (role_str in [Role.ADMIN, Role.CHEF_DEPARTEMENT, Role.RESPONSABLE_FILIERE])
+                    u.save()
+                    updated_count += 1
+
+            return Response({
+                "message": f"{imported_count} enseignants importés, {updated_count} mis à jour.",
+                "imported": imported_count,
+                "updated": updated_count,
+                "errors": errors
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({"error": f"Erreur lors de la lecture du fichier Excel: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ExportWorkloadExcelView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if not any(r in user.role for r in [Role.ADMIN, Role.CHEF_DEPARTEMENT, Role.RESPONSABLE_FILIERE]):
+            return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+
+        filiere_id = request.query_params.get('filiere_id')
+        enseignant_id = request.query_params.get('enseignant_id')
+        module_id = request.query_params.get('module_id')
+        semester = request.query_params.get('semester')
+
+        queryset = Sceance.objects.all().select_related('enseignant', 'module', 'local')
+
+        if filiere_id:
+            queryset = queryset.filter(module__comporte__filiere_id=filiere_id)
+        if enseignant_id:
+            queryset = queryset.filter(enseignant_id=enseignant_id)
+        if module_id:
+            queryset = queryset.filter(module_id=module_id)
+        if semester:
+            queryset = queryset.filter(module__comporte__semestre=semester)
+
+        grouped_data = {}
+        for s in queryset:
+            prof = s.enseignant
+            if not prof: continue
+            
+            prof_id = prof.id
+            if prof_id not in grouped_data:
+                grouped_data[prof_id] = {
+                    'name': str(prof),
+                    'department': prof.departement.nom if prof.departement else 'N/A',
+                    'assignments': {}
+                }
+            
+            key = (s.module_id, s.type)
+            if key not in grouped_data[prof_id]['assignments']:
+                module_session_types = list(Sceance.objects.filter(module_id=s.module_id).values_list('type', flat=True).distinct())
+                raw_hours, equiv_hours = get_session_hours(s.module.nom, s.type, module_session_types)
+                grouped_data[prof_id]['assignments'][key] = {
+                    'module_name': s.module.nom,
+                    'type': s.type,
+                    'raw_hours': raw_hours,
+                    'equiv_hours': equiv_hours
+                }
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Volume Horaire"
+
+        headers = [
+            "Enseignant", "Département", "Module", "Type d'enseignement", 
+            "Heures Brutes", "Heures EqTD"
+        ]
+        
+        title_font = Font(name='Calibri', size=16, bold=True, color='1F4E78')
+        header_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+        header_fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
+        data_font = Font(name='Calibri', size=11)
+        total_font = Font(name='Calibri', size=11, bold=True)
+        thin_border = Border(
+            left=Side(style='thin', color='D9D9D9'),
+            right=Side(style='thin', color='D9D9D9'),
+            top=Side(style='thin', color='D9D9D9'),
+            bottom=Side(style='thin', color='D9D9D9')
+        )
+        double_bottom_border = Border(
+            top=Side(style='thin', color='000000'),
+            bottom=Side(style='double', color='000000')
+        )
+        
+        ws.append(["RAPPORT DES VOLUMES HORAIRES - DEPARTEMENT D'INFORMATIQUE"])
+        ws.merge_cells('A1:F1')
+        ws['A1'].font = title_font
+        ws['A1'].alignment = Alignment(horizontal='center')
+        ws.row_dimensions[1].height = 30
+        
+        ws.append([])
+        
+        ws.append(headers)
+        ws.row_dimensions[3].height = 24
+        
+        for col_idx in range(1, 7):
+            cell = ws.cell(row=3, column=col_idx)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = thin_border
+
+        row_num = 4
+        total_raw = 0
+        total_eqtd = 0
+        
+        for prof_id, prof_info in grouped_data.items():
+            for key, asg in prof_info['assignments'].items():
+                m_type = asg['type']
+                raw_h = asg['raw_hours']
+                eq_h = asg['equiv_hours']
+                
+                total_raw += raw_h
+                total_eqtd += eq_h
+                
+                row_data = [
+                    prof_info['name'],
+                    prof_info['department'],
+                    asg['module_name'],
+                    m_type,
+                    raw_h,
+                    eq_h
+                ]
+                
+                ws.append(row_data)
+                
+                for col_idx in range(1, 7):
+                    cell = ws.cell(row=row_num, column=col_idx)
+                    cell.font = data_font
+                    cell.border = thin_border
+                    if col_idx in [5, 6]:
+                        cell.alignment = Alignment(horizontal='right')
+                        cell.number_format = '0.00'
+                    else:
+                        cell.alignment = Alignment(horizontal='left')
+                
+                row_num += 1
+
+        total_row = ["TOTAL", "", "", "", total_raw, total_eqtd]
+        ws.append(total_row)
+        
+        for col_idx in range(1, 7):
+            cell = ws.cell(row=row_num, column=col_idx)
+            cell.font = total_font
+            cell.border = double_bottom_border
+            if col_idx in [5, 6]:
+                cell.alignment = Alignment(horizontal='right')
+                cell.number_format = '0.00'
+            else:
+                cell.alignment = Alignment(horizontal='left')
+
+        for col in ws.columns:
+            max_len = 0
+            for cell in col:
+                val_to_check = str(cell.value or '')
+                if cell.row == 1: continue
+                if len(val_to_check) > max_len:
+                    max_len = len(val_to_check)
+            col_letter = openpyxl.utils.get_column_letter(col[0].column)
+            ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = "attachment; filename=Rapport_Volume_Horaire.xlsx"
+        return response

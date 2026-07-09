@@ -60,7 +60,7 @@ const VacationManagement: React.FC = () => {
   useEffect(() => {
     fetch('http://localhost:8000/api/users/management/')
       .then(res => res.json())
-      .then(data => setUsers(data.filter((u: any) => u.role === 'ENSEIGNANT')))
+      .then(data => setUsers(data.filter((u: any) => u.role && u.role.includes('ENSEIGNANT'))))
       .catch(err => console.error('Error fetching teachers:', err));
 
     fetchVacations();

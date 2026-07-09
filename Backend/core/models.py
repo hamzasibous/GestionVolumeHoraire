@@ -34,10 +34,10 @@ class Semester(models.TextChoices):
     S4 = "S4", "Semestre 4"
     S5 = "S5", "Semestre 5"
     S6 = "S6", "Semestre 6"
-    M1 = "M1", "Semestre 7 (M1)"
-    M2 = "M2", "Semestre 8 (M2)"
-    M3 = "M3", "Semestre 9 (M3)"
-    M4 = "M4", "Semestre 10 (M4)"
+    S7 = "S7", "Semestre 7"
+    S8 = "S8", "Semestre 8"
+    S9 = "S9", "Semestre 9"
+    S10 = "S10", "Semestre 10"
 
 
 class SemesterPeriod(models.Model):
@@ -51,6 +51,7 @@ class SemesterPeriod(models.Model):
 
 class Departement(models.Model):
     nom = models.CharField(max_length=100)
+    seuil_horaire = models.IntegerField(default=192)
     chef = models.OneToOneField(
         "users.ChefDepartement",
         on_delete=models.SET_NULL,

@@ -29,7 +29,11 @@ from core.views import (
     ExtractVacationsView,
     ExtractTimetableView,
     ExportTimetablePDFView,
+    ExportTeacherTimetablePDFView,
     ExportAllTimetablesZIPView,
+    SeuilHoraireView,
+    ImportTeachersExcelView,
+    ExportWorkloadExcelView,
 )
 
 router = DefaultRouter()
@@ -41,6 +45,7 @@ urlpatterns = [
     path("vacations/extract/", ExtractVacationsView.as_view(), name="vacation-extract"),
     path("timetable/extract/", ExtractTimetableView.as_view(), name="timetable-extract"),
     path("filiere/export-pdf-timetable/", ExportTimetablePDFView.as_view(), name="export-pdf-timetable"),
+    path("teacher/export-pdf-timetable/", ExportTeacherTimetablePDFView.as_view(), name="export-teacher-pdf-timetable"),
     path("filiere/export-all-timetables-zip/", ExportAllTimetablesZIPView.as_view(), name="export-all-timetables-zip"),
     path("", include(router.urls)),
     path("filiere/", FiliereListView.as_view(), name="filiere-list"),
@@ -54,6 +59,10 @@ urlpatterns = [
     path("departement/", DepartmentListView.as_view(), name="departement-list"),
     path("module/", ModuleListView.as_view(), name="module-list"),
     path("local/", LocalListView.as_view(), name="local-list"),
+
+    path("seuil-horaire/", SeuilHoraireView.as_view(), name="seuil-horaire"),
+    path("import-teachers/", ImportTeachersExcelView.as_view(), name="import-teachers"),
+    path("export-workload/", ExportWorkloadExcelView.as_view(), name="export-workload"),
 
     path("filiere/<int:pk>/", FiliereDetailView.as_view(), name="filiere-detail"),
     path("module/<int:pk>/", ModuleDetailView.as_view(), name="module-detail"),

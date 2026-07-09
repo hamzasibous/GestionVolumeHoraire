@@ -16,6 +16,11 @@ interface UserProfile {
 const Profile: React.FC = () => {
   const { t, i18n } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -166,6 +171,58 @@ const Profile: React.FC = () => {
       }
     } catch (error) {
       console.error('Error updating profile:', error);
+    }
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setPasswordError(null);
+
+    if (!oldPassword) {
+      setPasswordError("Le mot de passe actuel est requis.");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError("Le mot de passe doit comporter au moins 6 caractères.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Les mots de passe ne correspondent pas.");
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:8000/api/users/profile/', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: JSON.stringify({ 
+          password: newPassword,
+          old_password: oldPassword
+        })
+      });
+
+      if (response.ok) {
+        alert("Mot de passe modifié avec succès !");
+        setIsPasswordModalOpen(false);
+        setOldPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        const data = await response.json();
+        setPasswordError(
+          data.old_password?.[0] || 
+          data.password?.[0] || 
+          "Erreur lors de la modification du mot de passe."
+        );
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      setPasswordError("Impossible de contacter le serveur.");
     }
   };
 
@@ -339,6 +396,22 @@ const Profile: React.FC = () => {
                 </button>
               </div>
             </div>
+
+            {/* Password Modification Row */}
+            <div className="p-gutter flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h4 className="font-body-lg text-body-lg font-bold text-on-surface">{t('profile.password')}</h4>
+                <p className="font-body-md text-body-md text-on-surface-variant">Modifier le mot de passe de votre compte utilisateur</p>
+              </div>
+              <div>
+                <button 
+                  onClick={() => setIsPasswordModalOpen(true)}
+                  className="px-6 py-2 border border-outline text-on-surface hover:bg-surface-container-high rounded font-label-caps text-label-caps uppercase tracking-widest text-[10px] font-bold"
+                >
+                  Modifier
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -412,6 +485,96 @@ const Profile: React.FC = () => {
                   className="flex-1 bg-slate-900 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg hover:bg-slate-800"
                 >
                   Enregistrer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Password Modal */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="bg-slate-900 p-6 flex items-center justify-between">
+              <div className="flex items-center gap-3 text-white">
+                <div className="p-2 bg-primary/20 rounded-lg"><span className="material-symbols-outlined text-primary-fixed">lock</span></div>
+                <h3 className="text-lg font-black uppercase tracking-tight">Modifier le mot de passe</h3>
+              </div>
+              <button onClick={() => {
+                setIsPasswordModalOpen(false);
+                setOldPassword('');
+                setNewPassword('');
+                setConfirmPassword('');
+                setPasswordError(null);
+              }} className="text-slate-400 hover:text-white transition-colors">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            
+            <form onSubmit={handlePasswordSubmit} className="p-8 space-y-6">
+              {passwordError && (
+                <div className="p-4 bg-error-container text-error text-sm font-bold rounded-xl flex items-center gap-2">
+                  <span className="material-symbols-outlined text-lg">error</span>
+                  {passwordError}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Mot de passe actuel</label>
+                <input 
+                  type="password"
+                  name="oldPassword" 
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  required 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Nouveau mot de passe</label>
+                <input 
+                  type="password"
+                  name="newPassword" 
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Confirmer le mot de passe</label>
+                <input 
+                  type="password"
+                  name="confirmPassword" 
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
+                />
+              </div>
+
+              <div className="pt-6 border-t border-slate-100 flex gap-4">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setIsPasswordModalOpen(false);
+                    setOldPassword('');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                    setPasswordError(null);
+                  }}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors"
+                >
+                  Annuler
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 bg-slate-900 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg hover:bg-slate-800"
+                >
+                  Confirmer
                 </button>
               </div>
             </form>

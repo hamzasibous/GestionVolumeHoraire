@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface SimulationResult {
   id: number;
@@ -26,14 +27,15 @@ interface SimulationResult {
 }
 
 const ForecastingSimulation: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generationMessage, setGenerationMessage] = useState('');
-  const pollInterval = useRef<NodeJS.Timeout | null>(null);
+  const pollInterval = useRef<any>(null);
 
   const [params, setParams] = useState({
-    nomScenario: 'Prévision ' + (new Date().getFullYear() + 1),
+    nomScenario: t('forecasting.title').split(' ')[0] + ' ' + (new Date().getFullYear() + 1),
     anneeCible: new Date().getFullYear() + 1,
     periode: 'autumn',
     nb_filieres_ajoutees: 1,
@@ -160,7 +162,7 @@ const ForecastingSimulation: React.FC = () => {
 
   const handleReset = () => {
     setParams({
-      nomScenario: 'Prévision ' + (new Date().getFullYear() + 1),
+      nomScenario: t('forecasting.title').split(' ')[0] + ' ' + (new Date().getFullYear() + 1),
       anneeCible: new Date().getFullYear() + 1,
       periode: 'autumn',
       nb_filieres_ajoutees: 0,
@@ -192,13 +194,13 @@ const ForecastingSimulation: React.FC = () => {
                 <span className="material-symbols-outlined text-sky-500 text-4xl animate-spin">psychology</span>
               </div>
               <div className="space-y-2">
-                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">IA Simulation en cours</h3>
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">{t('forecasting.simulation_running')}</h3>
                 <p className="text-slate-500 text-sm font-medium">{generationMessage}</p>
               </div>
               
               <div className="w-full space-y-3">
                 <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  <span>Optimisation Génétique</span>
+                  <span>{t('forecasting.genetic_optimization')}</span>
                   <span>{generationProgress}%</span>
                 </div>
                 <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
@@ -208,14 +210,14 @@ const ForecastingSimulation: React.FC = () => {
                   ></div>
                 </div>
               </div>
-              <p className="text-[10px] text-slate-400 italic">L'algorithme génétique teste des milliers de combinaisons pour valider votre scénario...</p>
+              <p className="text-[10px] text-slate-400 italic">{t('forecasting.genetic_optimization_desc')}</p>
               
               <button 
                 onClick={handleCancel}
                 className="mt-4 px-6 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-xs font-black uppercase tracking-widest transition-colors flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-sm">close</span>
-                Annuler la simulation
+                {t('forecasting.cancel_simulation')}
               </button>
             </div>
           </div>
@@ -225,8 +227,8 @@ const ForecastingSimulation: React.FC = () => {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row justify-between items-end border-b border-outline-variant pb-md gap-4">
         <div>
-          <h2 className="font-h1 text-h1 text-on-background mb-xs tracking-tight">Système de Prévision & Simulation</h2>
-          <p className="font-body-md text-body-md text-on-surface-variant">Estimer les besoins futurs et simuler la redistribution des charges pour {params.anneeCible}.</p>
+          <h2 className="font-h1 text-h1 text-on-background mb-xs tracking-tight">{t('forecasting.title')}</h2>
+          <p className="font-body-md text-body-md text-on-surface-variant">{t('forecasting.subtitle', { year: params.anneeCible })}</p>
         </div>
         <button 
           onClick={handleSimulate}
@@ -234,7 +236,7 @@ const ForecastingSimulation: React.FC = () => {
           className="bg-primary hover:bg-primary/90 text-on-primary font-h3 text-sm px-6 py-2.5 rounded shadow-sm transition-all flex items-center gap-2 h-fit active:scale-95 uppercase tracking-wider disabled:opacity-50"
         >
           <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>{loading ? 'sync' : 'analytics'}</span>
-          {loading ? 'Simulation...' : 'Lancer Simulation'}
+          {loading ? t('forecasting.simulating') : t('forecasting.start_simulation')}
         </button>
       </div>
 
@@ -243,7 +245,7 @@ const ForecastingSimulation: React.FC = () => {
         <div className="col-span-12 xl:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-lg p-md shadow-sm flex flex-col gap-6">
           <div className="flex items-center gap-2 border-b border-outline-variant pb-sm">
             <span className="material-symbols-outlined text-secondary-container">settings_suggest</span>
-            <h3 className="font-h3 text-h3 text-on-background tracking-tight">Paramètres du Scénario</h3>
+            <h3 className="font-h3 text-h3 text-on-background tracking-tight">{t('forecasting.scenario_parameters')}</h3>
           </div>
           
           <div className="flex flex-col gap-3">
@@ -254,7 +256,7 @@ const ForecastingSimulation: React.FC = () => {
                 checked={params.utiliser_donnees_actuelles}
                 onChange={(e) => setParams({...params, utiliser_donnees_actuelles: e.target.checked})}
               />
-              <span className="text-sm font-medium text-on-surface group-hover:text-primary transition-colors">Utiliser les volumes actuels</span>
+              <span className="text-sm font-medium text-on-surface group-hover:text-primary transition-colors">{t('forecasting.use_current_volumes')}</span>
             </label>
             <label className="flex items-center gap-3 cursor-pointer group">
               <input 
@@ -263,13 +265,13 @@ const ForecastingSimulation: React.FC = () => {
                 checked={params.utiliser_moyenne_departement}
                 onChange={(e) => setParams({...params, utiliser_moyenne_departement: e.target.checked})}
               />
-              <span className="text-sm font-medium text-on-surface group-hover:text-primary transition-colors">Baser sur la moyenne de département</span>
+              <span className="text-sm font-medium text-on-surface group-hover:text-primary transition-colors">{t('forecasting.use_department_average')}</span>
             </label>
           </div>
 
           <div className="flex flex-col gap-4 border-t border-outline-variant pt-4">
             <div className="flex flex-col gap-xs">
-              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Nombre de nouvelles filières</label>
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{t('forecasting.new_filieres_count')}</label>
               <input 
                 className="w-full bg-surface-bright border border-outline-variant rounded px-3 py-2 outline-none focus:border-primary shadow-inner" 
                 type="number" 
@@ -279,7 +281,7 @@ const ForecastingSimulation: React.FC = () => {
             </div>
             
             <div className="flex flex-col gap-xs">
-              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Nouveaux cours prévus</label>
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{t('forecasting.new_courses_count')}</label>
               <input 
                 className="w-full bg-surface-bright border border-outline-variant rounded px-3 py-2 outline-none focus:border-primary shadow-inner" 
                 type="number" 
@@ -289,7 +291,7 @@ const ForecastingSimulation: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-xs">
-              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Nouveaux professeurs à recruter</label>
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{t('forecasting.new_teachers_count')}</label>
               <input 
                 className="w-full bg-surface-bright border border-outline-variant rounded px-3 py-2 outline-none focus:border-primary shadow-inner" 
                 type="number" 
@@ -299,7 +301,7 @@ const ForecastingSimulation: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-xs">
-              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Nouveaux locaux acquis</label>
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{t('forecasting.new_rooms_count')}</label>
               <input 
                 className="w-full bg-surface-bright border border-outline-variant rounded px-3 py-2 outline-none focus:border-primary shadow-inner" 
                 type="number" 
@@ -309,28 +311,28 @@ const ForecastingSimulation: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-xs">
-              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Période de Simulation</label>
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{t('forecasting.period')}</label>
               <select 
                 className="w-full bg-surface-bright border border-outline-variant rounded px-3 py-2 outline-none focus:border-primary shadow-inner cursor-pointer" 
                 value={params.periode}
                 onChange={(e) => setParams({...params, periode: e.target.value})}
               >
-                <option value="autumn">Semestres Impairs (S1, S3, S5, M1, M3)</option>
-                <option value="spring">Semestres Pairs (S2, S4, S6, M2, M4)</option>
+                <option value="autumn">{t('forecasting.period_autumn')}</option>
+                <option value="spring">{t('forecasting.period_spring')}</option>
               </select>
             </div>
 
             <div className="flex flex-col gap-xs">
-              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Stratégie de redistribution</label>
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{t('forecasting.treatment_strategy')}</label>
               <select 
                 className="w-full bg-surface-bright border border-outline-variant rounded px-3 py-2 outline-none focus:border-primary shadow-inner cursor-pointer" 
                 value={params.strategie_traitement}
                 onChange={(e) => setParams({...params, strategie_traitement: e.target.value})}
               >
-                <option value="EQUITE">Équité (Charge équilibrée)</option>
-                <option value="JUNIOR">Junior (Priorité TD/TP)</option>
-                <option value="SENIOR">Senior (Priorité CM)</option>
-                <option value="ALLEGEMENT">Allégement (Réduction globale)</option>
+                <option value="EQUITE">{t('forecasting.strategy_equity')}</option>
+                <option value="JUNIOR">{t('forecasting.strategy_junior')}</option>
+                <option value="SENIOR">{t('forecasting.strategy_senior')}</option>
+                <option value="ALLEGEMENT">{t('forecasting.strategy_alleviation')}</option>
               </select>
             </div>
           </div>
@@ -339,7 +341,7 @@ const ForecastingSimulation: React.FC = () => {
             onClick={handleReset}
             className="w-full bg-surface-bright text-primary border border-outline-variant hover:bg-surface-container-low font-bold py-2 rounded transition-colors uppercase tracking-widest text-[10px] mt-2"
           >
-            Réinitialiser les paramètres
+            {t('forecasting.reset')}
           </button>
         </div>
 
@@ -347,37 +349,37 @@ const ForecastingSimulation: React.FC = () => {
           {!result ? (
             <div className="flex-1 bg-surface-container-low border border-dashed border-outline-variant rounded-lg flex flex-col items-center justify-center p-12 text-outline">
               <span className="material-symbols-outlined text-6xl mb-4 opacity-10">monitoring</span>
-              <p className="font-h3 text-center">Configurez votre scénario et lancez la simulation pour visualiser l'évolution des charges.</p>
+              <p className="font-h3 text-center">{t('forecasting.configure_prompt')}</p>
             </div>
           ) : (
             <div className="flex flex-col gap-gutter animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-md">
                 <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-md shadow-sm">
-                  <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest">Volume Actuel</h4>
-                  <div className="text-2xl font-bold text-on-background mt-1">{result.volume_actuel} <span className="text-sm font-normal">hrs</span></div>
-                  <div className="text-[10px] text-outline mt-1 italic">Données de l'année en cours</div>
+                  <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest">{t('forecasting.current_volume')}</h4>
+                  <div className="text-2xl font-bold text-on-background mt-1">{result.volume_actuel} <span className="text-sm font-normal">{t('faculty_assignments.hours_per_year').split('/')[0]}</span></div>
+                  <div className="text-[10px] text-outline mt-1 italic">{t('forecasting.current_data_hint')}</div>
                 </div>
                 <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-md shadow-sm">
-                  <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest">Volume Futur Prévu</h4>
-                  <div className="text-2xl font-bold text-primary mt-1">{result.volume_total_prevu} <span className="text-sm font-normal">hrs</span></div>
-                  <div className="text-[10px] text-primary font-medium mt-1">+{result.volume_total_prevu - result.volume_actuel} hrs d'évolution</div>
+                  <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest">{t('forecasting.future_volume')}</h4>
+                  <div className="text-2xl font-bold text-primary mt-1">{result.volume_total_prevu} <span className="text-sm font-normal">{t('faculty_assignments.hours_per_year').split('/')[0]}</span></div>
+                  <div className="text-[10px] text-primary font-medium mt-1">{t('forecasting.future_data_hint', { count: result.volume_total_prevu - result.volume_actuel })}</div>
                 </div>
                 <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-md shadow-sm">
-                  <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest">Capacité Profs/Locaux</h4>
+                  <h4 className="text-[10px] font-bold text-outline uppercase tracking-widest">{t('forecasting.resource_capacity')}</h4>
                   <div className="text-2xl font-bold text-secondary mt-1">+{params.nb_profs_ajoutes}P / +{params.nb_locaux_ajoutes}L</div>
-                  <div className="text-[10px] text-secondary font-medium mt-1">Nouvelles ressources</div>
+                  <div className="text-[10px] text-secondary font-medium mt-1">{t('forecasting.new_resources')}</div>
                 </div>
               </div>
 
               <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-md">
                 <h3 className="font-h3 text-lg mb-6 border-b border-outline-variant pb-3 flex items-center gap-2">
                   <span className="material-symbols-outlined text-primary">balance</span>
-                  Simulation de la Redistribution des Charges
+                  {t('forecasting.redistribution_simulation')}
                 </h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <div className="flex flex-col items-center text-center p-6 bg-surface-bright rounded-xl border border-outline-variant/50">
-                    <span className="text-[11px] font-black text-outline uppercase tracking-widest mb-4">Charge Moyenne Actuelle</span>
+                    <span className="text-[11px] font-black text-outline uppercase tracking-widest mb-4">{t('forecasting.avg_current_load')}</span>
                     <div className="relative w-32 h-32 flex items-center justify-center">
                       <svg className="w-full h-full transform -rotate-90">
                         <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-outline/10" />
@@ -385,13 +387,13 @@ const ForecastingSimulation: React.FC = () => {
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
                         <span className="text-2xl font-black">{result.moyenne_charge_actuelle}</span>
-                        <span className="text-[9px] uppercase font-bold text-outline">hrs / prof</span>
+                        <span className="text-[9px] uppercase font-bold text-outline">{t('forecasting.hours_per_teacher')}</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="flex flex-col items-center text-center p-6 bg-primary/5 rounded-xl border border-primary/20">
-                    <span className="text-[11px] font-black text-primary uppercase tracking-widest mb-4">Charge Moyenne Projetée</span>
+                    <span className="text-[11px] font-black text-primary uppercase tracking-widest mb-4">{t('forecasting.avg_projected_load')}</span>
                     <div className="relative w-32 h-32 flex items-center justify-center">
                       <svg className="w-full h-full transform -rotate-90">
                         <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-primary/10" />
@@ -399,7 +401,7 @@ const ForecastingSimulation: React.FC = () => {
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
                         <span className="text-2xl font-black text-primary">{result.moyenne_charge_prevue}</span>
-                        <span className="text-[9px] uppercase font-bold text-primary">hrs / prof</span>
+                        <span className="text-[9px] uppercase font-bold text-primary">{t('forecasting.hours_per_teacher')}</span>
                       </div>
                     </div>
                   </div>
@@ -408,11 +410,13 @@ const ForecastingSimulation: React.FC = () => {
                 <div className="mt-8 bg-on-surface/5 p-4 rounded-lg flex items-start gap-3">
                   <span className="material-symbols-outlined text-primary">lightbulb</span>
                   <p className="text-xs text-on-surface-variant leading-relaxed">
-                    Chaque nouvelle filière ajoute <strong>6 semestres</strong> complets (S1-S6). 
-                    Selon votre configuration, cela représente <strong>7 modules par semestre</strong> (5 de 4h et 2 de 2h), soit un impact annuel de <strong>2016 heures</strong> par filière.
-                    Avec l'ajout de <strong>{params.nb_profs_ajoutes} nouveaux professeurs</strong> et une stratégie <strong>{params.strategie_traitement}</strong>, 
-                    la charge moyenne par enseignant évolue de <strong>{result.moyenne_charge_actuelle}h</strong> à <strong>{result.moyenne_charge_prevue}h</strong>.
-                    Un recrutement de <strong>{result.nb_vacataires_estimes} vacataires</strong> est recommandé pour stabiliser le département à la moyenne statutaire de 192h.
+                    {t('forecasting.advice_text', {
+                      profs: params.nb_profs_ajoutes,
+                      strategy: params.strategie_traitement === 'EQUITE' ? t('forecasting.strategy_equity') : params.strategie_traitement === 'JUNIOR' ? t('forecasting.strategy_junior') : params.strategie_traitement === 'SENIOR' ? t('forecasting.strategy_senior') : t('forecasting.strategy_alleviation'),
+                      actuelle: result.moyenne_charge_actuelle,
+                      prevue: result.moyenne_charge_prevue,
+                      vacataires: result.nb_vacataires_estimes
+                    })}
                   </p>
                 </div>
 
@@ -422,7 +426,7 @@ const ForecastingSimulation: React.FC = () => {
                     className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-xl font-black uppercase text-[11px] tracking-widest hover:bg-slate-800 transition-all shadow-lg active:scale-95"
                   >
                     <span className="material-symbols-outlined">calendar_view_day</span>
-                    Voir l'Emploi du Temps Simulé
+                    {t('forecasting.sim_timetable_btn')}
                   </button>
                 </div>
               </div>

@@ -111,6 +111,7 @@ const Timetable: React.FC = () => {
   const [selectedSemester, setSelectedSemester] = useState<string>(semesterParam || '');
   const [semesterPeriods, setSemesterPeriods] = useState<any[]>([]);
   const [isListView, setIsListView] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -118,7 +119,6 @@ const Timetable: React.FC = () => {
   const [pendingTaskId, setPendingTaskId] = useState<number | null>(null);
   const [previewSlots, setPreviewSlots] = useState<TimetableSlot[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [modalAvailableProfs, setModalAvailableProfs] = useState<any[]>([]);
   const [modalAvailableRooms, setModalAvailableRooms] = useState<any[]>([]);
@@ -171,7 +171,10 @@ const Timetable: React.FC = () => {
     if (filiereId) url += `&filiere=${filiereId}`;
     if (selectedSemester) url += `&semester=${selectedSemester}`;
 
-    fetch(url)
+    const token = localStorage.getItem('access_token');
+    const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+    fetch(url, { headers })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -203,11 +206,13 @@ const Timetable: React.FC = () => {
   };
 
   const checkAvailability = (roomId: string, date: string, startTime: string, duree: number) => {
-    setIsCheckingAvailability(true);
     let url = `http://localhost:8000/api/core/sceance/check_availability/?local=${roomId}&date=${date}&heure_debut=${startTime}&duree=${duree}`;
     if (editingSessionId) url += `&exclude_id=${editingSessionId}`;
     
-    fetch(url)
+    const token = localStorage.getItem('access_token');
+    const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+    fetch(url, { headers })
       .then(res => res.json())
       .then(data => {
         if (!data.available) {
@@ -215,11 +220,9 @@ const Timetable: React.FC = () => {
         } else {
           setAvailabilityError(null);
         }
-        setIsCheckingAvailability(false);
       })
       .catch(err => {
         console.error('Error checking availability:', err);
-        setIsCheckingAvailability(false);
       });
   };
 
@@ -231,26 +234,50 @@ const Timetable: React.FC = () => {
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
+        const token = localStorage.getItem('access_token');
+        const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+        const profileRes = await fetch('http://localhost:8000/api/users/profile/', { headers });
+        let profile = null;
+        if (profileRes.ok) {
+          profile = await profileRes.json();
+          setCurrentUser(profile);
+        }
+
         const [locRes, filRes, vacRes, teaRes, semRes] = await Promise.all([
-          fetch('http://localhost:8000/api/core/local/'),
-          fetch('http://localhost:8000/api/core/filiere/details/'),
-          fetch('http://localhost:8000/api/core/vacations/'),
-          fetch('http://localhost:8000/api/users/management/'),
-          fetch('http://localhost:8000/api/core/generate-schedule/?check_dates=all')
+          fetch('http://localhost:8000/api/core/local/', { headers }),
+          fetch('http://localhost:8000/api/core/filiere/details/', { headers }),
+          fetch('http://localhost:8000/api/core/vacations/', { headers }),
+          fetch('http://localhost:8000/api/users/management/', { headers }),
+          fetch('http://localhost:8000/api/core/generate-schedule/?check_dates=all', { headers })
         ]);
 
         const [locData, filData, vacData, teaData, semData] = await Promise.all([
           locRes.json(), filRes.json(), vacRes.json(), teaRes.json(), semRes.json()
         ]);
 
+        // Restrict filieres if coordinator or student
+        const isScoped = profile && (profile.role.includes('RESPONSABLE_FILIERE') || profile.role.includes('UTILISATEUR')) && !profile.role.includes('ADMIN') && !profile.role.includes('CHEF_DEPARTEMENT');
+        const allowedFilieres = isScoped && profile.filiere
+          ? filData.filter((f: any) => f.id === profile.filiere)
+          : filData;
+
         setLocaux(locData);
-        setFilieres(filData);
+        setFilieres(allowedFilieres);
         setVacations(vacData);
-        setTeachers(teaData.filter((u: any) => u.role === 'ENSEIGNANT'));
+        setTeachers(teaData.filter((u: any) => u.role && u.role.includes('ENSEIGNANT')));
         setSemesterPeriods(semData);
 
-        if (filiereId) {
-          const currentFiliere = filData.find((f: any) => f.id.toString() === filiereId);
+        const activeFiliereId = filiereId || (profile?.filiere ? profile.filiere.toString() : (filData.length > 0 ? filData[0].id.toString() : ''));
+
+        // If activeFiliereId does not match current filiereId in query params, update the URL
+        if (activeFiliereId && activeFiliereId !== filiereId) {
+          handleFiliereChange(activeFiliereId, true);
+          return;
+        }
+
+        if (activeFiliereId) {
+          const currentFiliere = filData.find((f: any) => f.id.toString() === activeFiliereId);
           if (currentFiliere) {
             setSelectedFiliere(currentFiliere);
             const filteredModules = selectedSemester 
@@ -290,7 +317,9 @@ const Timetable: React.FC = () => {
       try {
         const isNumericId = editingSessionId && /^\d+$/.test(editingSessionId.toString());
         const url = `http://localhost:8000/api/core/sceance/get_available_resources/?date=${formData.startDate}&heure_debut=${startTime}&duree=${duration}&filiere_id=${filiereId}&semester=${selectedSemester}&module_id=${formData.module}${isNumericId ? `&exclude_id=${editingSessionId}` : ''}`;
-        const res = await fetch(url);
+        const token = localStorage.getItem('access_token');
+        const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch(url, { headers });
         if (res.ok) {
           const data = await res.json();
           setModalAvailableProfs(data.available_profs);
@@ -326,10 +355,12 @@ const Timetable: React.FC = () => {
   }, [formData.room, formData.startDate, formData.customTime]);
 
   // 4. Handlers
-  const handleFiliereChange = (id: string) => {
+  const handleFiliereChange = (id: string, keepSemester: boolean = false) => {
     const newParams = new URLSearchParams(location.search);
     newParams.set('filiereId', id);
-    newParams.delete('semester'); 
+    if (!keepSemester) {
+      newParams.delete('semester'); 
+    }
     navigate(`${location.pathname}?${newParams.toString()}`);
   };
 
@@ -354,9 +385,13 @@ const Timetable: React.FC = () => {
   const handleCancelGeneration = async () => {
     if (!currentTaskId) return;
     try {
+      const token = localStorage.getItem('access_token');
       const response = await fetch('http://localhost:8000/api/core/generate-schedule/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ action: 'cancel', task_id: currentTaskId })
       });
       if (response.ok) {
@@ -371,20 +406,26 @@ const Timetable: React.FC = () => {
   const handleGenerate = async () => {
     if (!selectedSemester) { alert("Veuillez d'abord sélectionner un semestre."); return; }
     setIsGenerating(true); setGenerationProgress(0); setGenerationMessage("Démarrage de l'IA...");
-    const isAutumn = ['S1', 'S3', 'S5', 'M1', 'M3'].includes(selectedSemester);
-    const targetSemesters = isAutumn ? 'S1,S3,S5,M1,M3' : 'S2,S4,S6,M2,M4';
+    const isAutumn = ['S1', 'S3', 'S5', 'S7', 'S9'].includes(selectedSemester);
+    const targetSemesters = isAutumn ? 'S1,S3,S5,S7,S9' : 'S2,S4,S6,S8,S10';
 
     try {
+      const token = localStorage.getItem('access_token');
       const response = await fetch('http://localhost:8000/api/core/generate-schedule/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ semesters: targetSemesters })
       });
       if (response.ok) {
         const { task_id } = await response.json();
         setCurrentTaskId(task_id);
         const pollInterval = setInterval(async () => {
-          const statusRes = await fetch(`http://localhost:8000/api/core/task-status/${task_id}/`);
+          const t = localStorage.getItem('access_token');
+          const h: HeadersInit = t ? { 'Authorization': `Bearer ${t}` } : {};
+          const statusRes = await fetch(`http://localhost:8000/api/core/task-status/${task_id}/`, { headers: h });
           if (statusRes.ok) {
             const task = await statusRes.json();
             setGenerationProgress(task.progress); setGenerationMessage(task.message);
@@ -415,9 +456,13 @@ const Timetable: React.FC = () => {
     if (!pendingTaskId) return;
     setIsSaving(true);
     try {
+      const token = localStorage.getItem('access_token');
       const response = await fetch('http://localhost:8000/api/core/confirm-schedule/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ task_id: pendingTaskId })
       });
       if (response.ok) {
@@ -479,7 +524,15 @@ const Timetable: React.FC = () => {
     const payload = { type: formData.type, duree: (eh * 60 + em) - (sh * 60 + sm), date: formData.startDate, heure_debut: startTime, module: formData.module, enseignant: formData.teacher || null, local: formData.room, number_of_sessions: formData.number_of_sessions };
     const method = editingSessionId ? 'PUT' : 'POST';
     const url = editingSessionId ? `http://localhost:8000/api/core/sceance/${editingSessionId}/?filiere=${filiereId}` : `http://localhost:8000/api/core/sceance/?filiere=${filiereId}`;
-    fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    const token = localStorage.getItem('access_token');
+    fetch(url, { 
+      method, 
+      headers: { 
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }, 
+      body: JSON.stringify(payload) 
+    })
     .then(res => { if (res.ok) { fetchSlots(); setIsModalOpen(false); } else { alert("Erreur lors de l'enregistrement"); } });
   };
 
@@ -503,8 +556,10 @@ const Timetable: React.FC = () => {
     formData.append('semester', uploadSemester);
 
     try {
+      const token = localStorage.getItem('access_token');
       const response = await fetch('http://localhost:8000/api/core/timetable/extract/', {
         method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         body: formData,
       });
       if (response.ok) {
@@ -571,9 +626,13 @@ const Timetable: React.FC = () => {
           semester: uploadSemester
         };
 
+        const token = localStorage.getItem('access_token');
         const response = await fetch('http://localhost:8000/api/core/sceance/', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
           body: JSON.stringify(payload)
         });
 
@@ -604,6 +663,8 @@ const Timetable: React.FC = () => {
     }
   };
 
+  const isAdmin = currentUser?.role ? (currentUser.role.includes('ADMIN') || currentUser.role.includes('CHEF_DEPARTEMENT')) : false;
+
   return (
     <div className="flex flex-col h-full relative animate-in fade-in duration-500">
       <header className="flex justify-between items-center h-20 px-gutter bg-slate-900 border-b border-slate-800 sticky top-0 z-40 shadow-lg">
@@ -615,12 +676,14 @@ const Timetable: React.FC = () => {
           <div className="hidden lg:flex items-center gap-4 ml-8 bg-slate-800/50 px-4 py-1.5 rounded-full border border-slate-700">
             <div className="flex items-center gap-2">
               <span className="text-sky-400 font-bold text-xs uppercase">{selectedFiliere?.nom || 'SÉLECTIONNER UNE FILIÈRE'}</span>
-              <div className="relative group/filiere">
-                <button className="text-slate-400 hover:text-white transition-colors flex items-center"><span className="material-symbols-outlined text-sm">arrow_drop_down</span></button>
-                <div className="absolute left-0 top-full mt-2 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 py-2 opacity-0 invisible group-hover/filiere:opacity-100 group-hover/filiere:visible transition-all duration-200">
-                  {filieres.map((f) => (<button key={f.id} onClick={() => handleFiliereChange(f.id.toString())} className={`w-full text-left px-4 py-2 text-xs transition-colors ${filiereId === f.id.toString() ? 'text-sky-400 bg-slate-700/50 font-bold' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>{f.nom}</button>))}
+              {!(currentUser?.role && (currentUser.role.includes('RESPONSABLE_FILIERE') || currentUser.role.includes('UTILISATEUR')) && !currentUser.role.includes('ADMIN') && !currentUser.role.includes('CHEF_DEPARTEMENT')) && (
+                <div className="relative group/filiere">
+                  <button className="text-slate-400 hover:text-white transition-colors flex items-center"><span className="material-symbols-outlined text-sm">arrow_drop_down</span></button>
+                  <div className="absolute left-0 top-full mt-2 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 py-2 opacity-0 invisible group-hover/filiere:opacity-100 group-hover/filiere:visible transition-all duration-200">
+                    {filieres.map((f) => (<button key={f.id} onClick={() => handleFiliereChange(f.id.toString())} className={`w-full text-left px-4 py-2 text-xs transition-colors ${filiereId === f.id.toString() ? 'text-sky-400 bg-slate-700/50 font-bold' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>{f.nom}</button>))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
             <div className="w-1 h-1 rounded-full bg-slate-600"></div>
             <div className="flex items-center gap-2">
@@ -628,17 +691,23 @@ const Timetable: React.FC = () => {
               <div className="relative group/semester">
                 <button className="text-slate-400 hover:text-white transition-colors flex items-center"><span className="material-symbols-outlined text-sm">arrow_drop_down</span></button>
                 <div className="absolute left-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 py-2 opacity-0 invisible group-hover/semester:opacity-100 group-hover/semester:visible transition-all duration-200">
-                  {selectedFiliere && (selectedFiliere.niveaux.startsWith('Master') ? ['M1', 'M2', 'M3', 'M4'] : ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']).map((sem) => (<button key={sem} onClick={() => handleSemesterChange(sem)} className={`w-full text-left px-4 py-2 text-xs transition-colors ${selectedSemester === sem ? 'text-sky-400 bg-slate-700/50 font-bold' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>{sem}</button>))}
+                  {selectedFiliere && (
+                    selectedFiliere.niveaux.startsWith('Master') ? ['S7', 'S8', 'S9', 'S10'] :
+                    selectedFiliere.niveaux === 'Licence_e' ? ['S5', 'S6'] :
+                    ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
+                  ).map((sem) => (<button key={sem} onClick={() => handleSemesterChange(sem)} className={`w-full text-left px-4 py-2 text-xs transition-colors ${selectedSemester === sem ? 'text-sky-400 bg-slate-700/50 font-bold' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>{sem}</button>))}
                 </div>
               </div>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-md">
-          <button onClick={() => setIsUploadModalOpen(true)} className="bg-slate-800 text-emerald-400 border border-slate-700 px-6 py-2 rounded-lg font-bold hover:bg-slate-700 transition-all uppercase text-[10px] tracking-widest flex items-center gap-2">
-            <span className="material-symbols-outlined text-sm">upload_file</span>
-            Importer Emploi
-          </button>
+          {isAdmin && (
+            <button onClick={() => setIsUploadModalOpen(true)} className="bg-slate-800 text-emerald-400 border border-slate-700 px-6 py-2 rounded-lg font-bold hover:bg-slate-700 transition-all uppercase text-[10px] tracking-widest flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm">upload_file</span>
+              Importer Emploi
+            </button>
+          )}
           <button onClick={handleExportPDF} className="bg-slate-800 text-rose-400 border border-slate-700 px-6 py-2 rounded-lg font-bold hover:bg-slate-700 transition-all uppercase text-[10px] tracking-widest flex items-center gap-2">
             <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
             Exporter PDF
@@ -647,10 +716,12 @@ const Timetable: React.FC = () => {
             <span className="material-symbols-outlined text-sm">{isListView ? 'grid_view' : 'list_alt'}</span>
             {isListView ? 'Vue Grille' : 'Vue Programme'}
           </button>
-          <button onClick={handleGenerate} disabled={isGenerating} className={`bg-slate-800 text-sky-400 border border-slate-700 px-6 py-2 rounded-lg font-bold hover:bg-slate-700 transition-all uppercase text-[10px] tracking-widest flex items-center gap-2 ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}>
-            <span className="material-symbols-outlined text-sm">{isGenerating ? 'sync' : 'psychology'}</span>
-            {isGenerating ? 'Génération...' : 'IA Optimisation'}
-          </button>
+          {isAdmin && (
+            <button onClick={handleGenerate} disabled={isGenerating} className={`bg-slate-800 text-sky-400 border border-slate-700 px-6 py-2 rounded-lg font-bold hover:bg-slate-700 transition-all uppercase text-[10px] tracking-widest flex items-center gap-2 ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              <span className="material-symbols-outlined text-sm">{isGenerating ? 'sync' : 'psychology'}</span>
+              {isGenerating ? 'Génération...' : 'IA Optimisation'}
+            </button>
+          )}
         </div>
       </header>
 
@@ -867,11 +938,12 @@ const Timetable: React.FC = () => {
                         {(() => {
                           const filiere = filieres.find(f => f.id.toString() === uploadFiliereId);
                           const isMaster = filiere?.niveaux?.startsWith('Master');
+                          const isExcellence = filiere?.niveaux === 'Licence_e';
                           
                           if (uploadSeason === 'Automne') {
-                            return isMaster ? ['M1', 'M3'] : ['S1', 'S3', 'S5'];
+                            return isMaster ? ['S7', 'S9'] : isExcellence ? ['S5'] : ['S1', 'S3', 'S5'];
                           } else {
-                            return isMaster ? ['M2', 'M4'] : ['S2', 'S4', 'S6'];
+                            return isMaster ? ['S8', 'S10'] : isExcellence ? ['S6'] : ['S2', 'S4', 'S6'];
                           }
                         })().map(sem => (
                           <option key={sem} value={sem}>{sem}</option>

@@ -1,5 +1,6 @@
 import random
 import copy
+from django.db.models import Q
 from core.models import Filiere, Module, Comporte, Local, Sceance
 from users.models import Enseignant
 from core.solver import run_genetic_algorithm
@@ -29,9 +30,9 @@ def run_simulation_timetable(sim_params, progress_callback=None, cancel_check=No
     
     # CRITICAL FIX: Only include REAL active professors
     actual_teachers = list(Enseignant.objects.filter(
-        is_active=True, 
-        role__in=['ENSEIGNANT', 'CHEF_DEPARTEMENT']
-    ).exclude(email__icontains='admin').exclude(nom__icontains='assign'))
+        role__icontains='ENSEIGNANT',
+        is_active=True
+    ).exclude(email='admin@gmail.com').exclude(nom__icontains='assign'))
     
     sim_teachers = []
     for i in range(sim_params.get('nb_profs_ajoutes', 0)):
@@ -51,10 +52,10 @@ def run_simulation_timetable(sim_params, progress_callback=None, cancel_check=No
     
     # A. Existing Filieres & Modules
     if semester_period == 'autumn':
-        target_semesters = ['S1', 'S3', 'S5', 'M1', 'M3']
+        target_semesters = ['S1', 'S3', 'S5', 'S7', 'S9']
         active_indices = [1, 3, 5]
     else: # spring
-        target_semesters = ['S2', 'S4', 'S6', 'M2', 'M4']
+        target_semesters = ['S2', 'S4', 'S6', 'S8', 'S10']
         active_indices = [2, 4, 6]
 
     real_comportes = Comporte.objects.filter(semestre__in=target_semesters)

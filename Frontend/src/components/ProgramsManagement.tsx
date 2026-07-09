@@ -7,6 +7,8 @@ interface Seance {
   name: string;
   type: 'CM' | 'TD' | 'TP';
   teacher: string;
+  teacherEmail?: string;
+  teacherTel?: string;
   room: string;
   volume: number;
 }
@@ -41,14 +43,24 @@ const ProgramsManagement: React.FC = () => {
   const [editingFiliere, setEditingFiliere] = useState<any>(null);
   const [editingModule, setEditingModule] = useState<any>(null);
   const [departments, setDepartments] = useState<any[]>([]);
-  const [allModules, setAllModules] = useState<any[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   const loadData = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/core/filiere/details/');
+      const token = localStorage.getItem('access_token');
+      const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+      const profileRes = await fetch('http://localhost:8000/api/users/profile/', { headers });
+      let profile = null;
+      if (profileRes.ok) {
+        profile = await profileRes.json();
+        setCurrentUser(profile);
+      }
+
+      const response = await fetch('http://localhost:8000/api/core/filiere/details/', { headers });
       const data = await response.json();
       
-      const mappedData: Filiere[] = data.map((f: any) => ({
+      let mappedData: Filiere[] = data.map((f: any) => ({
         id: f.id.toString(),
         name: f.nom,
         level: f.niveaux,
@@ -66,15 +78,32 @@ const ProgramsManagement: React.FC = () => {
                 name: `${s.type} - ${m.nom}`,
                 type: s.type,
                 teacher: teacherName,
+                teacherEmail: s.enseignant_email,
+                teacherTel: s.enseignant_tel,
                 room: s.local_name,
                 volume: 0,
               };
             }
-            acc[key].volume += s.duree;
+            
+            let equivDuree = s.duree;
+            if (s.type === 'CM') {
+              equivDuree = s.duree * 1.5;
+            } else if (s.type === 'TP') {
+              equivDuree = s.duree * 0.75;
+            }
+            acc[key].volume += equivDuree;
             return acc;
           }, {});
 
-          const totalMinutes = m.seances.reduce((acc: number, s: any) => acc + s.duree, 0);
+          const totalMinutes = m.seances.reduce((acc: number, s: any) => {
+            let equivDuree = s.duree;
+            if (s.type === 'CM') {
+              equivDuree = s.duree * 1.5;
+            } else if (s.type === 'TP') {
+              equivDuree = s.duree * 0.75;
+            }
+            return acc + equivDuree;
+          }, 0);
 
           return {
             id: m.id.toString(),
@@ -89,6 +118,11 @@ const ProgramsManagement: React.FC = () => {
           };
         })
       }));
+
+      const isScoped = profile && (profile.role.includes('RESPONSABLE_FILIERE') || profile.role.includes('UTILISATEUR')) && !profile.role.includes('ADMIN') && !profile.role.includes('CHEF_DEPARTEMENT');
+      if (isScoped && profile.filiere) {
+        mappedData = mappedData.filter((f: any) => f.id === profile.filiere.toString());
+      }
 
       setFilieres(mappedData);
       if (mappedData.length > 0 && !selectedFiliereId) {
@@ -111,11 +145,6 @@ const ProgramsManagement: React.FC = () => {
       .then(res => res.json())
       .then(data => setDepartments(data))
       .catch(err => console.error('Error fetching departments:', err));
-    // Fetch all modules
-    fetch('http://localhost:8000/api/core/module/')
-      .then(res => res.json())
-      .then(data => setAllModules(data))
-      .catch(err => console.error('Error fetching modules:', err));
   }, []);
 
   const filteredFilieres = filieres.filter(f => {
@@ -267,6 +296,8 @@ const ProgramsManagement: React.FC = () => {
     }
   };
 
+  const isAdmin = currentUser?.role ? (currentUser.role.includes('ADMIN') || currentUser.role.includes('CHEF_DEPARTEMENT')) : false;
+
   if (loading) {
     return <div className="flex items-center justify-center h-full">{t('common.loading')}</div>;
   }
@@ -291,24 +322,28 @@ const ProgramsManagement: React.FC = () => {
           <p className="font-body-md text-body-md text-on-surface-variant mt-2">{t('programs.description')}</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={handleExportAll} className="bg-rose-500 hover:bg-rose-600 text-white px-6 py-2 rounded-lg font-body-md text-body-md flex items-center gap-2 transition-colors shadow-sm uppercase tracking-wider font-bold">
-            <span className="material-symbols-outlined text-[20px]">folder_zip</span>
-            Tout Exporter (ZIP)
-          </button>
-          <button 
-            onClick={() => { setEditingModule(null); setIsModuleModalOpen(true); }}
-            className="border border-outline text-on-surface hover:bg-surface-container-high px-6 py-2 rounded-lg font-body-md text-body-md flex items-center gap-2 transition-colors shadow-sm uppercase tracking-wider font-bold"
-          >
-            <span className="material-symbols-outlined text-[20px]">add</span>
-            {t('programs.create_module')}
-          </button>
-          <button 
-            onClick={() => { setEditingFiliere(null); setIsFiliereModalOpen(true); }}
-            className="bg-primary hover:bg-primary/90 text-on-primary px-6 py-2 rounded-lg font-body-md text-body-md flex items-center gap-2 transition-colors shadow-sm uppercase tracking-wider font-bold"
-          >
-            <span className="material-symbols-outlined text-[20px]">add</span>
-            {t('programs.add_filiere')}
-          </button>
+          {isAdmin && (
+            <>
+              <button onClick={handleExportAll} className="bg-rose-500 hover:bg-rose-600 text-white px-6 py-2 rounded-lg font-body-md text-body-md flex items-center gap-2 transition-colors shadow-sm uppercase tracking-wider font-bold">
+                <span className="material-symbols-outlined text-[20px]">folder_zip</span>
+                Tout Exporter (ZIP)
+              </button>
+              <button 
+                onClick={() => { setEditingModule(null); setIsModuleModalOpen(true); }}
+                className="border border-outline text-on-surface hover:bg-surface-container-high px-6 py-2 rounded-lg font-body-md text-body-md flex items-center gap-2 transition-colors shadow-sm uppercase tracking-wider font-bold"
+              >
+                <span className="material-symbols-outlined text-[20px]">add</span>
+                {t('programs.create_module')}
+              </button>
+              <button 
+                onClick={() => { setEditingFiliere(null); setIsFiliereModalOpen(true); }}
+                className="bg-primary hover:bg-primary/90 text-on-primary px-6 py-2 rounded-lg font-body-md text-body-md flex items-center gap-2 transition-colors shadow-sm uppercase tracking-wider font-bold"
+              >
+                <span className="material-symbols-outlined text-[20px]">add</span>
+                {t('programs.add_filiere')}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -320,13 +355,15 @@ const ProgramsManagement: React.FC = () => {
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold uppercase tracking-widest text-[10px] text-outline">Filières</h3>
-              <button 
-                onClick={() => { setEditingFiliere(null); setIsFiliereModalOpen(true); }}
-                className="text-primary hover:text-primary/80 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest"
-              >
-                <span className="material-symbols-outlined text-sm">add</span>
-                Ajouter
-              </button>
+              {isAdmin && (
+                <button 
+                  onClick={() => { setEditingFiliere(null); setIsFiliereModalOpen(true); }}
+                  className="text-primary hover:text-primary/80 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest"
+                >
+                  <span className="material-symbols-outlined text-sm">add</span>
+                  Ajouter
+                </button>
+              )}
             </div>
             <div className="relative focus-within:ring-2 focus-within:ring-primary rounded-lg">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
@@ -375,25 +412,29 @@ const ProgramsManagement: React.FC = () => {
                   <div className="flex justify-between items-start mb-1">
                     <h3 className="font-h3 text-h3 text-on-surface">{filiere.name}</h3>
                     <div className="flex items-center gap-1">
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingFiliere(filiere);
-                          setIsFiliereModalOpen(true);
-                        }}
-                        className="p-1 text-outline hover:text-primary transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-sm">edit</span>
-                      </button>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteFiliere(filiere.id);
-                        }}
-                        className="p-1 text-outline hover:text-error transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-sm">delete</span>
-                      </button>
+                      {isAdmin && (
+                        <>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingFiliere(filiere);
+                              setIsFiliereModalOpen(true);
+                            }}
+                            className="p-1 text-outline hover:text-primary transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-sm">edit</span>
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteFiliere(filiere.id);
+                            }}
+                            className="p-1 text-outline hover:text-error transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
+                        </>
+                      )}
                       <span className="bg-primary-fixed text-on-primary-fixed px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider">{filiere.level}</span>
                     </div>
                   </div>
@@ -416,25 +457,29 @@ const ProgramsManagement: React.FC = () => {
                       >
                         <span className="text-sm">{m.name}</span>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingModule(m);
-                              setIsModuleModalOpen(true);
-                            }}
-                            className="p-1 text-outline hover:text-primary transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-xs">edit</span>
-                          </button>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteModule(m.id);
-                            }}
-                            className="p-1 text-outline hover:text-error transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-xs">delete</span>
-                          </button>
+                          {isAdmin && (
+                            <>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingModule(m);
+                                  setIsModuleModalOpen(true);
+                                }}
+                                className="p-1 text-outline hover:text-primary transition-colors"
+                              >
+                                <span className="material-symbols-outlined text-xs">edit</span>
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteModule(m.id);
+                                }}
+                                className="p-1 text-outline hover:text-error transition-colors"
+                              >
+                                <span className="material-symbols-outlined text-xs">delete</span>
+                              </button>
+                            </>
+                          )}
                           {selectedModuleId === m.id && <span className="material-symbols-outlined text-[16px]">chevron_right</span>}
                         </div>
                       </div>
@@ -522,6 +567,15 @@ const ProgramsManagement: React.FC = () => {
                                   {seance.teacher.split(' ').filter(Boolean).map((n: string) => n[0]).join('')}
                                 </div>
                                 <span className="text-on-surface">{seance.teacher}</span>
+                                {seance.teacherEmail && (
+                                  <a 
+                                    href={`mailto:${seance.teacherEmail}`}
+                                    className="p-1 text-slate-400 hover:text-sky-500 transition-colors ml-1 inline-flex items-center"
+                                    title={`Contacter par email: ${seance.teacherEmail}`}
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">mail</span>
+                                  </a>
+                                )}
                               </>
                             )}
                           </div>

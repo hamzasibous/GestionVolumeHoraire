@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import HolidayCalendar from './HolidayCalendar';
+import { useTranslation } from 'react-i18next';
+
+const dayTranslations: { [key: string]: string } = {
+  'Lundi': 'days.monday',
+  'Mardi': 'days.tuesday',
+  'Mercredi': 'days.wednesday',
+  'Jeudi': 'days.thursday',
+  'Vendredi': 'days.friday',
+  'Samedi': 'days.saturday',
+};
 
 interface TimetableSlot {
   id: string;
@@ -57,10 +67,30 @@ const addMinutes = (time: string, minutes: number) => {
 };
 
 const TeacherTimetable: React.FC = () => {
+  const { t } = useTranslation();
   const [currentWeekStart, setCurrentWeekStart] = useState(getMonday(new Date()));
   const [slots, setSlots] = useState<TimetableSlot[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showNavCalendar, setShowNavCalendar] = useState(false);
+
+  const getLocalizedLabel = (lbl: string) => {
+    if (lbl === 'Pause') return t('teacher_timetable.break');
+    if (lbl === 'Midi') return t('teacher_timetable.noon');
+    return lbl;
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      fetch('http://localhost:8000/api/users/profile/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => setCurrentUser(data))
+        .catch(err => console.error(err));
+    }
+  }, []);
 
   const fetchSlots = async () => {
     setLoading(true);
@@ -113,45 +143,98 @@ const TeacherTimetable: React.FC = () => {
     return `${currentWeekStart.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}`;
   };
 
+  const handleDownloadPDF = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const start = formatDate(currentWeekStart);
+      const url = `http://localhost:8000/api/core/teacher/export-pdf-timetable/?week_start=${start}`;
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error("Erreur de téléchargement");
+      }
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', `emploi_du_temps_${currentUser?.nom || 'prof'}_semaine_${start}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+    } catch (err) {
+      console.error('Error exporting PDF:', err);
+      alert("Erreur lors de l'export du PDF.");
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-lg animate-in fade-in duration-500">
+    <div className="flex flex-col gap-lg animate-in fade-in duration-500 max-w-[1400px] mx-auto">
       {/* Header */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-outline-variant pb-md">
         <div>
-          <h1 className="font-h1 text-h1 text-on-surface tracking-tight">Mon Emploi du Temps</h1>
-          <p className="font-body-md text-body-md text-on-surface-variant">Consultez vos séances d'enseignement et de tutorat pour la semaine.</p>
+          {currentUser?.role && currentUser.role.includes('UTILISATEUR') ? (
+            <div className="flex items-center gap-sm mb-xs">
+              <span className="px-2 py-0.5 bg-orange-500 text-white text-[10px] font-black uppercase tracking-wider rounded">
+                {currentUser?.filiere_name || "GINF SECTION A"}
+              </span>
+              <span className="text-on-surface-variant font-body-md text-xs font-semibold">• Semestre d'Automne</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-sm mb-xs">
+              <span className="px-2 py-0.5 bg-sky-500 text-white text-[10px] font-black uppercase tracking-wider rounded">
+                {currentUser ? `${currentUser.prenom} ${currentUser.nom}` : "Enseignant"}
+              </span>
+              <span className="text-on-surface-variant font-body-md text-xs font-semibold">• Espace Académique</span>
+            </div>
+          )}
+          
+          <h1 className="font-h1 text-h1 text-on-surface tracking-tight">{t('teacher_timetable.title')}</h1>
+          <p className="font-body-md text-body-md text-on-surface-variant">Année Académique 2026-2027</p>
         </div>
 
-        <div className="flex items-center gap-2 bg-surface-container-lowest border border-outline-variant p-1 rounded-lg shadow-sm">
-          <button onClick={() => navigateWeek('prev')} className="p-2 hover:bg-surface-container rounded-md transition-colors text-on-surface-variant">
-            <span className="material-symbols-outlined">chevron_left</span>
-          </button>
-          
-          <div className="relative">
-            <button 
-              onClick={() => setShowNavCalendar(!showNavCalendar)}
-              className="px-4 py-2 font-h3 text-[14px] text-on-surface hover:bg-surface-container rounded-md transition-colors flex items-center gap-2 min-w-[200px] justify-center"
-            >
-              <span className="material-symbols-outlined text-primary text-[18px]">calendar_month</span>
-              {getWeekRangeLabel()}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 bg-surface-container-lowest border border-outline-variant p-1 rounded-lg shadow-sm">
+            <button onClick={() => navigateWeek('prev')} className="p-2 hover:bg-surface-container rounded-md transition-colors text-on-surface-variant">
+              <span className="material-symbols-outlined">chevron_left</span>
             </button>
-            {showNavCalendar && (
-              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-[60] w-72 shadow-2xl">
-                <HolidayCalendar 
-                  onDateSelect={(date) => {
-                    const [y, m, d] = date.split('-').map(Number);
-                    setCurrentWeekStart(getMonday(new Date(y, m - 1, d)));
-                    setShowNavCalendar(false);
-                  }}
-                  onClose={() => setShowNavCalendar(false)}
-                  allowHolidayClick={true}
-                />
-              </div>
-            )}
-          </div>
+            
+            <div className="relative">
+              <button 
+                onClick={() => setShowNavCalendar(!showNavCalendar)}
+                className="px-4 py-2 font-h3 text-[14px] text-on-surface hover:bg-surface-container rounded-md transition-colors flex items-center gap-2 min-w-[200px] justify-center"
+              >
+                <span className="material-symbols-outlined text-primary text-[18px]">calendar_month</span>
+                {getWeekRangeLabel()}
+              </button>
+              {showNavCalendar && (
+                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-[60] w-72 shadow-2xl">
+                  <HolidayCalendar 
+                    onDateSelect={(date) => {
+                      const [y, m, d] = date.split('-').map(Number);
+                      setCurrentWeekStart(getMonday(new Date(y, m - 1, d)));
+                      setShowNavCalendar(false);
+                    }}
+                    onClose={() => setShowNavCalendar(false)}
+                    allowHolidayClick={true}
+                  />
+                </div>
+              )}
+            </div>
 
-          <button onClick={() => navigateWeek('next')} className="p-2 hover:bg-surface-container rounded-md transition-colors text-on-surface-variant">
-            <span className="material-symbols-outlined">chevron_right</span>
+            <button onClick={() => navigateWeek('next')} className="p-2 hover:bg-surface-container rounded-md transition-colors text-on-surface-variant">
+              <span className="material-symbols-outlined">chevron_right</span>
+            </button>
+          </div>
+          
+          <button 
+            onClick={handleDownloadPDF}
+            className="flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary hover:bg-primary-container rounded-xl font-label-caps text-label-caps uppercase tracking-widest transition-colors font-bold text-[10px] shadow-md"
+          >
+            <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+            Télécharger PDF
           </button>
         </div>
       </div>
@@ -162,7 +245,7 @@ const TeacherTimetable: React.FC = () => {
           <table className="w-full border-collapse table-fixed min-w-[1000px]">
             <thead>
               <tr className="bg-surface-container-low border-b border-outline-variant">
-                <th className="w-24 p-4 font-label-caps text-label-caps text-outline uppercase tracking-widest border-r border-outline-variant bg-surface-container-lowest">Heure</th>
+                <th className="w-24 p-4 font-label-caps text-label-caps text-outline uppercase tracking-widest border-r border-outline-variant bg-surface-container-lowest">{t('teacher_timetable.hour')}</th>
                 {days.map((day, idx) => {
                   const date = new Date(currentWeekStart);
                   date.setDate(date.getDate() + idx);
@@ -170,7 +253,7 @@ const TeacherTimetable: React.FC = () => {
                   return (
                     <th key={day} className={`p-4 border-r border-outline-variant last:border-r-0 ${isToday ? 'bg-primary/5' : ''}`}>
                       <div className="flex flex-col items-center">
-                        <span className={`font-label-caps text-label-caps uppercase tracking-widest ${isToday ? 'text-primary font-black' : 'text-on-surface-variant'}`}>{day}</span>
+                        <span className={`font-label-caps text-label-caps uppercase tracking-widest ${isToday ? 'text-primary font-black' : 'text-on-surface-variant'}`}>{t(dayTranslations[day])}</span>
                         <span className={`text-xl font-black mt-1 ${isToday ? 'text-primary' : 'text-on-surface'}`}>{date.getDate()}</span>
                       </div>
                     </th>
@@ -182,7 +265,7 @@ const TeacherTimetable: React.FC = () => {
               {timeConfig.map((time, timeIdx) => (
                 <tr key={timeIdx} className={`border-b border-outline-variant last:border-b-0 ${time.isBreak ? 'bg-surface-container-lowest/50' : 'h-32'}`}>
                   <td className="p-4 border-r border-outline-variant bg-surface-container-lowest flex flex-col items-center justify-center sticky left-0 z-10 h-full">
-                    <span className="font-h3 text-on-surface font-bold">{time.label}</span>
+                    <span className="font-h3 text-on-surface font-bold">{getLocalizedLabel(time.label)}</span>
                     {!time.isBreak && <span className="text-[10px] text-outline mt-1 font-bold">{time.start} - {time.end}</span>}
                   </td>
                   
@@ -191,7 +274,7 @@ const TeacherTimetable: React.FC = () => {
                       return (
                         <td key={dayIdx} className="border-r border-outline-variant last:border-r-0 relative group">
                            <div className="absolute inset-0 flex items-center justify-center opacity-30 group-hover:opacity-100 transition-opacity">
-                              <span className="font-label-caps text-[10px] font-black uppercase tracking-[0.2em] text-outline rotate-[-15deg]">{time.breakType} • {time.breakDuration}</span>
+                              <span className="font-label-caps text-[10px] font-black uppercase tracking-[0.2em] text-outline rotate-[-15deg]">{getLocalizedLabel(time.breakType || '')} • {time.breakDuration}</span>
                            </div>
                         </td>
                       );
@@ -244,10 +327,60 @@ const TeacherTimetable: React.FC = () => {
           </div>
           <div>
             <h3 className="font-h3 text-on-surface">Aucune séance cette semaine</h3>
-            <p className="font-body-md text-on-surface-variant max-w-sm mx-auto mt-1">Vous n'avez pas de séances d'enseignement ou de tutorat programmées pour cette période.</p>
+            <p className="font-body-md text-on-surface-variant max-w-sm mx-auto mt-1">Aucune séance de cours ou de travaux dirigés/pratiques n'est programmée pour cette période.</p>
           </div>
         </div>
       )}
+
+      {/* Bento style auxiliary cards (Mock notes & campus information) */}
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-12 gap-6">
+        {/* Notes de Session */}
+        <div className="md:col-span-8 bg-surface-container-lowest p-6 border border-outline-variant rounded-xl shadow-sm">
+          <h3 className="font-h3 text-h3 text-primary mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary">campaign</span>
+            Notes de Session
+          </h3>
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 p-4 bg-surface-container-low rounded-xl">
+              <span className="material-symbols-outlined text-orange-500">info</span>
+              <div>
+                <p className="font-body-md text-body-md font-bold text-on-surface">Changement de Salle</p>
+                <p className="font-body-md text-sm text-on-surface-variant">
+                  Les cours magistraux et les TP se tiendront dans les salles indiquées sur la grille horaire. Merci de vérifier les locaux avant chaque séance.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-4 bg-surface-container-low rounded-xl">
+              <span className="material-symbols-outlined text-orange-500">event</span>
+              <div>
+                <p className="font-body-md text-body-md font-bold text-on-surface">Séances de Rattrapage</p>
+                <p className="font-body-md text-sm text-on-surface-variant">
+                  Les séances de rattrapage éventuelles doivent être planifiées et validées en coordination directe avec l'administration.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Quote and Campus Card */}
+        <div className="md:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden flex flex-col">
+          <div className="relative h-48 w-full bg-slate-800">
+            <img 
+              className="object-cover w-full h-full opacity-80" 
+              alt="University campus view"
+              src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=600&q=80" 
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-4">
+              <p className="text-white font-label-caps text-[10px] font-black tracking-widest uppercase">Université Moulay Ismaïl</p>
+            </div>
+          </div>
+          <div className="p-4 flex-grow flex items-center justify-center bg-slate-50">
+            <p className="font-body-md text-sm text-on-surface-variant italic text-center">
+              "Ce planning est définitif pour le premier semestre. Toute modification sera notifiée via l'application."
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

@@ -139,7 +139,7 @@ const Login: React.FC = () => {
                     <input className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary" type="checkbox" />
                     <span className="font-body-md text-body-md text-on-surface-variant group-hover:text-on-surface">{t('login.remember_me')}</span>
                   </label>
-                  <a className="font-body-md text-body-md text-primary hover:underline font-semibold" href="#">{t('login.forgot_password')}</a>
+
                 </div>
 
                 {/* Submit Action */}
@@ -153,7 +153,7 @@ const Login: React.FC = () => {
               </form>
 
               {/* Divider */}
-              <div className="relative my-lg">
+              <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-outline-variant"></div></div>
                 <div className="relative flex justify-center text-label-caps">
                   <span className="bg-white px-2 text-on-surface-variant font-label-caps">{t('login.assistance')}</span>
@@ -162,10 +162,13 @@ const Login: React.FC = () => {
 
               {/* Footer Actions */}
               <div className="flex flex-col gap-sm">
-                <button className="w-full py-3 border border-outline-variant text-on-surface-variant hover:bg-surface-container transition-colors rounded flex items-center justify-center gap-sm font-body-md">
+                <a 
+                  href="mailto:h.bouray@edu.umi.ac.ma"
+                  className="w-full py-3 border border-outline-variant text-on-surface-variant hover:bg-surface-container transition-colors rounded flex items-center justify-center gap-sm font-body-md"
+                >
                   <span className="material-symbols-outlined">mail</span>
-                  {t('login.contact_admin')}
-                </button>
+                  {t('login.contact_admin')} (h.bouray@edu.umi.ac.ma)
+                </a>
               </div>
             </div>
           </div>

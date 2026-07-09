@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import Layout from './components/Layout'
 import Dashboard from './components/Dashboard'
 import ProgramsManagement from './components/ProgramsManagement'
@@ -18,6 +18,9 @@ import Login from './components/Login'
 import ProtectedRoute from './components/ProtectedRoute'
 import Profile from './components/Profile'
 import Notifications from './components/Notifications'
+import StudentPortal from './components/StudentPortal'
+import StudentEvaluations from './components/StudentEvaluations'
+import FiliereManagement from './components/FiliereManagement'
 
 function App() {
   const [role, setRole] = useState<string | null>(null);
@@ -60,8 +63,9 @@ function App() {
 
   if (loading && localStorage.getItem('access_token')) return null;
 
-  const isAdmin = role === 'ADMIN' || role === 'CHEF_DEPARTEMENT';
-  const isEnseignant = role === 'ENSEIGNANT';
+  const isAdmin = role ? (role.includes('ADMIN') || role.includes('CHEF_DEPARTEMENT')) : false;
+  const isPrivileged = role ? (isAdmin || role.includes('RESPONSABLE_FILIERE')) : false;
+  const isStudent = role ? (role.includes('UTILISATEUR') && !role.includes('ENSEIGNANT')) : false;
 
   return (
     <Routes>
@@ -72,34 +76,43 @@ function App() {
           <ProtectedRoute> 
             <Layout>
               <Routes>
-                {/* Admin or Default Dashboard */}
-                <Route path="/" element={isAdmin ? <Dashboard /> : <Navigate to="/consultation" />} />
+                {/* Admin, Student or Default Dashboard */}
+                <Route path="/" element={isPrivileged ? <Dashboard /> : isStudent ? <StudentPortal /> : <Navigate to="/consultation" />} />
                 <Route path="/profile" element={<Profile />} />
                 
-                {/* Admin Only Routes */}
-                {isAdmin ? (
+                {/* Privileged Routes */}
+                {isPrivileged && (
                   <>
                     <Route path="/programs" element={<ProgramsManagement />} />
+                    <Route path="/faculty" element={<FacultyAssignments />} />
+                    <Route path="/filiere-management" element={<FiliereManagement />} />
+                  </>
+                )}
+
+                {/* Admin & Chef Only Routes */}
+                {isAdmin && (
+                  <>
                     <Route path="/programs/new" element={<AddFiliere />} />
                     <Route path="/programs/new-module" element={<CreateModule />} />
-                    <Route path="/faculty" element={<FacultyAssignments />} />
                     <Route path="/forecasting" element={<ForecastingSimulation />} />
                     <Route path="/forecasting/timetable/:simulationId" element={<SimulatedTimetable />} />
                     <Route path="/users" element={<UserManagement />} />
                     <Route path="/vacations" element={<VacationManagement />} />
                     <Route path="/locals" element={<LocalManagement />} />
-                    <Route path="/timetable" element={<Timetable />} />
                   </>
-                ) : null}
+                )}
 
                 {/* Shared or User Routes */}
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/notifications" element={<Notifications />} />
+                <Route path="/messages" element={<Notifications />} />
                 <Route path="/consultation" element={<TeacherConsultation />} />
                 <Route path="/my-timetable" element={<TeacherTimetable />} />
+                <Route path="/timetable" element={<Timetable />} />
+                <Route path="/evaluations" element={<StudentEvaluations />} />
                 
                 {/* Fallback */}
-                <Route path="*" element={<Navigate to={isAdmin ? "/" : "/consultation"} />} />
+                <Route path="*" element={<Navigate to={isPrivileged ? "/" : isStudent ? "/" : "/consultation"} />} />
               </Routes>
             </Layout>
           </ProtectedRoute>

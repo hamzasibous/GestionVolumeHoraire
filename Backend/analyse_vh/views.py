@@ -109,14 +109,26 @@ class SimulationViewSet(viewsets.ModelViewSet):
     def _run_simulation_logic(self, sim):
         from .models import Simulation
         # 1. Base Volume (Current year)
-        base_hours = 0
         if sim.utiliser_donnees_actuelles:
-            actual_sessions_min = Sceance.objects.aggregate(total=Sum('duree'))['total'] or 0
-            if actual_sessions_min > 0:
-                base_hours = actual_sessions_min / 60.0
-            else:
-                programmed_volume = Comporte.objects.aggregate(total=Sum('v_h_hebdo'))['total'] or 0
-                base_hours = programmed_volume * 14.0
+            total_eqtd_minutes = 0
+            # Exclude PFE from calculation
+            for s in Sceance.objects.exclude(module__nom__icontains='pfe').exclude(module__nom__icontains='projet de fin').only('type', 'duree'):
+                if s.type == 'CM':
+                    total_eqtd_minutes += s.duree * 1.5
+                elif s.type == 'TP':
+                    total_eqtd_minutes += s.duree * 0.75
+                else:
+                    total_eqtd_minutes += s.duree * 1.0
+            base_hours = total_eqtd_minutes / 60.0
+        else:
+            programmed_eqtd = 0
+            # Exclude PFE from calculation
+            for cp in Comporte.objects.exclude(module__nom__icontains='pfe').exclude(module__nom__icontains='projet de fin').only('v_h_hebdo'):
+                if cp.v_h_hebdo >= 4:
+                    programmed_eqtd += 4.75
+                else:
+                    programmed_eqtd += 3.0
+            base_hours = programmed_eqtd * 14.0
         
         # 2. Current Capacity & Averages
         existing_profs = Enseignant.objects.all()

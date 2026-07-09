@@ -23,6 +23,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   useEffect(() => {
+    const handleOpenHelp = () => setIsHelpModalOpen(true);
+    window.addEventListener('openHelpModal', handleOpenHelp);
+    return () => window.removeEventListener('openHelpModal', handleOpenHelp);
+  }, []);
+
+  useEffect(() => {
     if (isHelpModalOpen) {
       // Fetch profs and current user
       const fetchData = async () => {
@@ -42,8 +48,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           if (usersRes.ok) {
             const allUsers = await usersRes.json();
             setProfs(allUsers.filter((u: any) => 
-              (u.role === 'ENSEIGNANT' || u.role === 'CHEF_DEPARTEMENT') && 
-              !u.email.toLowerCase().includes('admin') &&
+              u.role && u.role.includes('ENSEIGNANT') && 
+              u.email.toLowerCase() !== 'admin@gmail.com' &&
               !u.nom.toLowerCase().includes('assign')
             ));
           }

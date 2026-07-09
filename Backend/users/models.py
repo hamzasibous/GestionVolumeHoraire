@@ -9,7 +9,9 @@ from django.contrib.auth.models import (
 class Role(models.TextChoices):
     ADMIN = "ADMIN", "Administrateur"
     CHEF_DEPARTEMENT = "CHEF_DEPARTEMENT", "Chef de Département"
+    RESPONSABLE_FILIERE = "RESPONSABLE_FILIERE", "Responsable de Filière"
     ENSEIGNANT = "ENSEIGNANT", "Enseignant"
+    UTILISATEUR = "UTILISATEUR", "Utilisateur"
 
 
 class UtilisateurManager(BaseUserManager):
@@ -40,16 +42,32 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     tel = models.CharField(max_length=20, blank=True, null=True)
     role = models.CharField(
-        max_length=20, choices=Role.choices, default=Role.ENSEIGNANT
+        max_length=100, default=Role.ENSEIGNANT
     )
     langue = models.CharField(
         max_length=10, choices=Language.choices, default=Language.FRENCH
     )
     photo = models.ImageField(upload_to="profiles/", null=True, blank=True)
+    specialite = models.CharField(
+        max_length=50,
+        choices=[
+            ("INFORMATIQUE", "Informatique"),
+            ("MATHEMATIQUES", "Mathématiques"),
+            ("PHYSIQUE", "Physique"),
+            ("LANGUES", "Langues"),
+            ("AUTRE", "Autre")
+        ],
+        default="INFORMATIQUE",
+        blank=True,
+        null=True
+    )
     
     # Consolidate teacher fields into base user to allow dual roles (Admin can also teach)
     departement = models.ForeignKey(
         "core.Departement", on_delete=models.SET_NULL, null=True, blank=True, related_name="users_list"
+    )
+    filiere = models.ForeignKey(
+        "core.Filiere", on_delete=models.SET_NULL, null=True, blank=True, related_name="students_list"
     )
     modules = models.ManyToManyField(
         "core.Module", related_name="users_habilites", blank=True
