@@ -123,7 +123,7 @@ const WorkloadStatistics: React.FC = () => {
         if (semesterFilter !== 'ALL' && mod.semestre !== semesterFilter) continue;
         if (moduleSearch && !mod.nom.toLowerCase().includes(moduleSearch.toLowerCase())) continue;
 
-        const uniqueTypes = Array.from(new Set(mod.seances.map(s => s.type)));
+        const uniqueTypes = Array.from(new Set((mod.seances || []).map(s => s.type)));
         
         let modRaw = 0;
         let modEqtd = 0;
@@ -132,7 +132,7 @@ const WorkloadStatistics: React.FC = () => {
         let modTp = 0;
 
         uniqueTypes.forEach(type => {
-          const typeSessions = mod.seances.filter(s => s.type === type);
+          const typeSessions = (mod.seances || []).filter(s => s.type === type);
           if (typeSessions.length === 0) return;
 
           const matchedSession = typeSessions.find(s => teacherFilter === 'ALL' || s.enseignant_name === teacherFilter);
@@ -228,7 +228,7 @@ const WorkloadStatistics: React.FC = () => {
       if (filiereFilter !== 'ALL' && fil.nom !== filiereFilter) continue;
       for (const mod of fil.modules) {
         if (semesterFilter !== 'ALL' && mod.semestre !== semesterFilter) continue;
-        for (const s of mod.seances) {
+        for (const s of (mod.seances || [])) {
           if (s.enseignant_name) {
             activeTeachers.add(s.enseignant_name);
           }
