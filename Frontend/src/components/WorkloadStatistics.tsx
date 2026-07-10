@@ -124,80 +124,76 @@ const WorkloadStatistics: React.FC = () => {
         if (semesterFilter !== 'ALL' && mod.semestre !== semesterFilter) continue;
         if (moduleSearch && !mod.nom.toLowerCase().includes(moduleSearch.toLowerCase())) continue;
 
-        const allSessionTypes = mod.seances.map(s => s.type);
-        const uniqueTypes = Array.from(new Set(allSessionTypes));
-
+        const uniqueTypes = Array.from(new Set(mod.seances.map(s => s.type)));
+        
         let modRaw = 0;
         let modEqtd = 0;
         let modCm = 0;
         let modTd = 0;
         let modTp = 0;
 
-        // Group sessions by type to count them
-        const typeMap: { [t: string]: boolean } = {};
-        mod.seances.forEach(s => {
-          typeMap[s.type] = true;
-          
-          if (teacherFilter !== 'ALL' && s.enseignant_name !== teacherFilter) return;
+        uniqueTypes.forEach(type => {
+          const typeSessions = mod.seances.filter(s => s.type === type);
+          if (typeSessions.length === 0) return;
 
-          // Parse split hours
-          const { raw, eqtd } = getSessionHours(mod.nom, s.type, uniqueTypes);
+          const matchedSession = typeSessions.find(s => teacherFilter === 'ALL' || s.enseignant_name === teacherFilter);
+          if (!matchedSession) return;
+
+          const { raw, eqtd } = getSessionHours(mod.nom, type, uniqueTypes);
           modRaw += raw;
           modEqtd += eqtd;
-          if (s.type === 'CM') modCm += raw;
-          else if (s.type === 'TD') modTd += raw;
-          else if (s.type === 'TP') modTp += raw;
+          if (type === 'CM') modCm += raw;
+          else if (type === 'TD') modTd += raw;
+          else if (type === 'TP') modTp += raw;
 
-          // Aggregate by teacher
-          if (s.enseignant_name) {
-            if (!teacherMap[s.enseignant_name]) {
-              teacherMap[s.enseignant_name] = { raw: 0, eqtd: 0, cm: 0, td: 0, tp: 0 };
+          const teacherName = matchedSession.enseignant_name;
+          if (teacherName) {
+            if (!teacherMap[teacherName]) {
+              teacherMap[teacherName] = { raw: 0, eqtd: 0, cm: 0, td: 0, tp: 0 };
             }
-            teacherMap[s.enseignant_name].raw += raw;
-            teacherMap[s.enseignant_name].eqtd += eqtd;
-            if (s.type === 'CM') teacherMap[s.enseignant_name].cm += raw;
-            else if (s.type === 'TD') teacherMap[s.enseignant_name].td += raw;
-            else if (s.type === 'TP') teacherMap[s.enseignant_name].tp += raw;
+            teacherMap[teacherName].raw += raw;
+            teacherMap[teacherName].eqtd += eqtd;
+            if (type === 'CM') teacherMap[teacherName].cm += raw;
+            else if (type === 'TD') teacherMap[teacherName].td += raw;
+            else if (type === 'TP') teacherMap[teacherName].tp += raw;
           }
         });
 
-        // Add to module list
-        moduleList.push({
-          id: mod.id,
-          nom: mod.nom,
-          filiere: fil.nom,
-          semestre: mod.semestre || 'N/A',
-          raw: modRaw,
-          eqtd: modEqtd,
-          cm: modCm,
-          td: modTd,
-          tp: modTp
-        });
+        if (modRaw > 0) {
+          moduleList.push({
+            id: mod.id,
+            nom: mod.nom,
+            filiere: fil.nom,
+            semestre: mod.semestre || 'N/A',
+            raw: modRaw,
+            eqtd: modEqtd,
+            cm: modCm,
+            td: modTd,
+            tp: modTp
+          });
 
-        // Aggregate by filiere
-        filiereMap[fil.nom].raw += modRaw;
-        filiereMap[fil.nom].eqtd += modEqtd;
-        filiereMap[fil.nom].cm += modCm;
-        filiereMap[fil.nom].td += modTd;
-        filiereMap[fil.nom].tp += modTp;
+          filiereMap[fil.nom].raw += modRaw;
+          filiereMap[fil.nom].eqtd += modEqtd;
+          filiereMap[fil.nom].cm += modCm;
+          filiereMap[fil.nom].td += modTd;
+          filiereMap[fil.nom].tp += modTp;
 
-        // Aggregate by semester
-        const semKey = mod.semestre || 'N/A';
-        if (!semesterMap[semKey]) {
-          semesterMap[semKey] = { raw: 0, eqtd: 0, cm: 0, td: 0, tp: 0 };
+          const semKey = mod.semestre || 'N/A';
+          if (!semesterMap[semKey]) {
+            semesterMap[semKey] = { raw: 0, eqtd: 0, cm: 0, td: 0, tp: 0 };
+          }
+          semesterMap[semKey].raw += modRaw;
+          semesterMap[semKey].eqtd += modEqtd;
+          semesterMap[semKey].cm += modCm;
+          semesterMap[semKey].td += modTd;
+          semesterMap[semKey].tp += modTp;
+
+          totalGlobalRaw += modRaw;
+          totalGlobalEqtd += modEqtd;
+          totalGlobalCm += modCm;
+          totalGlobalTd += modTd;
+          totalGlobalTp += modTp;
         }
-        semesterMap[semKey].raw += modRaw;
-        semesterMap[semKey].eqtd += modEqtd;
-        semesterMap[semKey].cm += modCm;
-        semesterMap[semKey].td += modTd;
-        semesterMap[semKey].tp += modTp;
-
-        // Global sums
-        totalGlobalRaw += modRaw;
-        totalGlobalEqtd += modEqtd;
-        totalGlobalCm += modCm;
-        totalGlobalTd += modTd;
-        totalGlobalTp += modTp;
       }
     }
 
