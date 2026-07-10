@@ -82,8 +82,6 @@ const TopAppBar: React.FC = () => {
 
   const mainLinks = [
     { path: '/', label: t('common.dashboard'), icon: 'dashboard', adminOnly: true },
-    { path: '/faculty', label: t('common.faculty'), icon: 'groups', adminOnly: true },
-    { path: '/workload-stats', label: 'Volume Horaire', icon: 'monitoring', adminOnly: true },
     { path: '/forecasting', label: t('common.forecasting'), icon: 'analytics', adminOnly: true },
   ];
 
@@ -267,6 +265,49 @@ const TopAppBar: React.FC = () => {
                     {link.label}
                   </Link>
                 ))}
+
+                {/* Faculty & Volume Horaire Dropdown */}
+                {isAdmin && (
+                  <div className="relative group px-1 h-full flex items-center">
+                    <button
+                      className={`flex items-center gap-2 px-4 h-12 font-inter text-sm font-medium rounded-lg transition-all ${
+                        isActive('/faculty') || isActive('/workload-stats')
+                          ? 'text-primary bg-slate-50'
+                          : 'text-slate-550 hover:text-primary hover:bg-slate-50/30'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-lg">groups</span>
+                      Facultés & Volume Horaire
+                      <span className="material-symbols-outlined text-sm transition-transform group-hover:rotate-180">expand_more</span>
+                    </button>
+                    
+                    {/* Dropdown Menu */}
+                    <div className="absolute left-0 top-[calc(100%-8px)] w-60 bg-white border border-slate-200 rounded-xl shadow-xl z-30 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                      <Link
+                        to="/faculty"
+                        className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                          isActive('/faculty')
+                            ? 'text-primary bg-sky-50/50 font-semibold'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-lg">groups</span>
+                        {t('common.faculty')}
+                      </Link>
+                      <Link
+                        to="/workload-stats"
+                        className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                          isActive('/workload-stats')
+                            ? 'text-primary bg-sky-50/50 font-semibold'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-lg">monitoring</span>
+                        Volume Horaire
+                      </Link>
+                    </div>
+                  </div>
+                )}
 
                 {/* Programs Dropdown (Privileged only) */}
                 {isPrivileged && (
