@@ -221,7 +221,30 @@ const WorkloadStatistics: React.FC = () => {
 
   // List of unique filieres and teachers for dropdown filters
   const uniqueFiliereNames = Array.from(new Set(filieres.map(f => f.nom)));
-  const uniqueTeacherNames = Array.from(new Set(faculty.map(f => f.name)));
+
+  // Dynamically compute teachers active in the currently filtered filieres and semesters
+  const visibleTeacherNames = React.useMemo(() => {
+    const activeTeachers = new Set<string>();
+    for (const fil of filieres) {
+      if (filiereFilter !== 'ALL' && fil.nom !== filiereFilter) continue;
+      for (const mod of fil.modules) {
+        if (semesterFilter !== 'ALL' && mod.semestre !== semesterFilter) continue;
+        for (const s of mod.seances) {
+          if (s.enseignant_name) {
+            activeTeachers.add(s.enseignant_name);
+          }
+        }
+      }
+    }
+    return Array.from(activeTeachers).sort();
+  }, [filieres, filiereFilter, semesterFilter]);
+
+  // Auto-reset teacher filter if the selected teacher is no longer active in the selected filters
+  useEffect(() => {
+    if (teacherFilter !== 'ALL' && !visibleTeacherNames.includes(teacherFilter)) {
+      setTeacherFilter('ALL');
+    }
+  }, [visibleTeacherNames, teacherFilter]);
 
   if (loading) {
     return (
@@ -354,7 +377,7 @@ const WorkloadStatistics: React.FC = () => {
             className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
           >
             <option value="ALL">Tous les enseignants</option>
-            {uniqueTeacherNames.map((name) => (
+            {visibleTeacherNames.map((name) => (
               <option key={name} value={name}>{name}</option>
             ))}
           </select>
