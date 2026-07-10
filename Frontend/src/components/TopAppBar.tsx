@@ -276,8 +276,8 @@ const TopAppBar: React.FC = () => {
                           : 'text-slate-550 hover:text-primary hover:bg-slate-50/30'
                       }`}
                     >
-                      <span className="material-symbols-outlined text-lg">groups</span>
-                      Facultés & Volume Horaire
+                      <span className="material-symbols-outlined text-lg">monitoring</span>
+                      Volume Horaire
                       <span className="material-symbols-outlined text-sm transition-transform group-hover:rotate-180">expand_more</span>
                     </button>
                     
