@@ -78,25 +78,34 @@ const WorkloadStatistics: React.FC = () => {
     fetchData();
   }, []);
 
-  // Helper: dynamic parsing of session hours (CM / TD / TP splits)
-  const getSessionHours = (moduleNom: string, type: string) => {
+
+
+  const getModuleWorkload = (moduleNom: string) => {
     if (moduleNom.toLowerCase().includes('pfe') || moduleNom.toLowerCase().includes('projet de fin')) {
-      return { raw: 0, eqtd: 0 };
+      return { raw: 0, eqtd: 0, cm: 0, td: 0, tp: 0, cm_eq: 0, td_eq: 0, tp_eq: 0 };
     }
-    
-    // Parse total raw hours
     const match = moduleNom.match(/\(S\d+ - (\d+)h\)/);
     const totalRaw = match ? parseFloat(match[1]) : 48.0;
 
     const base = totalRaw / 3.25;
-    const raw = Math.round(base);
-    
-    let eqtd = base;
-    if (type === 'CM') eqtd = base * 1.5;
-    else if (type === 'TP') eqtd = base * 0.75;
-    eqtd = Math.round(eqtd);
+    const rawCm = Math.round(base);
+    const rawTd = Math.round(base);
+    const rawTp = Math.round(base);
 
-    return { raw, eqtd };
+    const cm_eq = Math.round(base * 1.5);
+    const td_eq = Math.round(base * 1.0);
+    const tp_eq = Math.round(base * 0.75);
+
+    return {
+      raw: rawCm + rawTd + rawTp,
+      eqtd: Math.round(totalRaw),
+      cm: rawCm,
+      td: rawTd,
+      tp: rawTp,
+      cm_eq,
+      td_eq,
+      tp_eq
+    };
   };
 
   // Process raw data into comprehensive statistics
@@ -124,38 +133,61 @@ const WorkloadStatistics: React.FC = () => {
         if (semesterFilter !== 'ALL' && mod.semestre !== semesterFilter) continue;
         if (moduleSearch && !mod.nom.toLowerCase().includes(moduleSearch.toLowerCase())) continue;
 
-        const uniqueTypes = Array.from(new Set((mod.seances || []).map(s => s.type)));
-        
+        const w = getModuleWorkload(mod.nom);
+
         let modRaw = 0;
         let modEqtd = 0;
         let modCm = 0;
         let modTd = 0;
         let modTp = 0;
 
-        uniqueTypes.forEach(type => {
-          const typeSessions = (mod.seances || []).filter(s => s.type === type);
-          if (typeSessions.length === 0) return;
+        const parts = ['CM', 'TD', 'TP'];
+        parts.forEach(part => {
+          const typeSessions = (mod.seances || []).filter(s => s.type === part);
+          
+          if (teacherFilter === 'ALL') {
+            const raw = part === 'CM' ? w.cm : (part === 'TD' ? w.td : w.tp);
+            const eq = part === 'CM' ? w.cm_eq : (part === 'TD' ? w.td_eq : w.tp_eq);
+            
+            modRaw += raw;
+            modEqtd += eq;
+            if (part === 'CM') modCm += raw;
+            else if (part === 'TD') modTd += raw;
+            else if (part === 'TP') modTp += raw;
 
-          const matchedSession = typeSessions.find(s => teacherFilter === 'ALL' || s.enseignant_name === teacherFilter);
-          if (!matchedSession) return;
+            typeSessions.forEach(s => {
+              if (s.enseignant_name) {
+                if (!teacherMap[s.enseignant_name]) {
+                  teacherMap[s.enseignant_name] = { raw: 0, eqtd: 0, cm: 0, td: 0, tp: 0 };
+                }
+                teacherMap[s.enseignant_name].raw += raw;
+                teacherMap[s.enseignant_name].eqtd += eq;
+                if (part === 'CM') teacherMap[s.enseignant_name].cm += raw;
+                else if (part === 'TD') teacherMap[s.enseignant_name].td += raw;
+                else if (part === 'TP') teacherMap[s.enseignant_name].tp += raw;
+              }
+            });
+          } else {
+            const matchedSession = typeSessions.find(s => s.enseignant_name === teacherFilter);
+            if (matchedSession) {
+              const raw = part === 'CM' ? w.cm : (part === 'TD' ? w.td : w.tp);
+              const eq = part === 'CM' ? w.cm_eq : (part === 'TD' ? w.td_eq : w.tp_eq);
 
-          const { raw, eqtd } = getSessionHours(mod.nom, type);
-          modRaw += raw;
-          modEqtd += eqtd;
-          if (type === 'CM') modCm += raw;
-          else if (type === 'TD') modTd += raw;
-          else if (type === 'TP') modTp += raw;
+              modRaw += raw;
+              modEqtd += eq;
+              if (part === 'CM') modCm += raw;
+              else if (part === 'TD') modTd += raw;
+              else if (part === 'TP') modTp += raw;
 
-          const teacherName = matchedSession.enseignant_name;
-          if (teacherName) {
-            if (!teacherMap[teacherName]) {
-              teacherMap[teacherName] = { raw: 0, eqtd: 0, cm: 0, td: 0, tp: 0 };
+              if (!teacherMap[teacherFilter]) {
+                teacherMap[teacherFilter] = { raw: 0, eqtd: 0, cm: 0, td: 0, tp: 0 };
+              }
+              teacherMap[teacherFilter].raw += raw;
+              teacherMap[teacherFilter].eqtd += eq;
+              if (part === 'CM') teacherMap[teacherFilter].cm += raw;
+              else if (part === 'TD') teacherMap[teacherFilter].td += raw;
+              else if (part === 'TP') teacherMap[teacherFilter].tp += raw;
             }
-            teacherMap[teacherName].raw += raw;
-            teacherMap[teacherName].eqtd += eqtd;
-            if (type === 'CM') teacherMap[teacherName].cm += raw;
-            else if (type === 'TD') teacherMap[teacherName].td += raw;
-            else if (type === 'TP') teacherMap[teacherName].tp += raw;
           }
         });
 

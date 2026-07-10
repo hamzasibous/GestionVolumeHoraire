@@ -1827,19 +1827,32 @@ class ExportWorkloadExcelView(APIView):
             
             for mod_id, info in modules_grouped.items():
                 seances = info['seances']
-                unique_types = list(set([s.type for s in seances]))
                 
                 m_cm = 0
                 m_td = 0
                 m_tp = 0
                 m_eq = 0
                 
-                for t in unique_types:
-                    raw_h, eq_h = get_session_hours(info['name'], t, unique_types)
-                    m_eq += eq_h
-                    if t == 'CM': m_cm += raw_h
-                    elif t == 'TD': m_td += raw_h
-                    elif t == 'TP': m_tp += raw_h
+                # Check CM
+                cm_sessions = [s for s in seances if s.type == 'CM']
+                if cm_sessions and (not enseignant_id or any(str(s.enseignant_id) == enseignant_id for s in cm_sessions)):
+                    cm_raw, cm_eq = get_session_hours(info['name'], 'CM', ['CM', 'TD', 'TP'])
+                    m_cm = cm_raw
+                    m_eq += cm_eq
+                
+                # Check TD
+                td_sessions = [s for s in seances if s.type == 'TD']
+                if (td_sessions and (not enseignant_id or any(str(s.enseignant_id) == enseignant_id for s in td_sessions))) or (not enseignant_id and not td_sessions):
+                    td_raw, td_eq = get_session_hours(info['name'], 'TD', ['CM', 'TD', 'TP'])
+                    m_td = td_raw
+                    m_eq += td_eq
+                    
+                # Check TP
+                tp_sessions = [s for s in seances if s.type == 'TP']
+                if (tp_sessions and (not enseignant_id or any(str(s.enseignant_id) == enseignant_id for s in tp_sessions))) or (not enseignant_id and not tp_sessions):
+                    tp_raw, tp_eq = get_session_hours(info['name'], 'TP', ['CM', 'TD', 'TP'])
+                    m_tp = tp_raw
+                    m_eq += tp_eq
                 
                 total_cm += m_cm
                 total_td += m_td
