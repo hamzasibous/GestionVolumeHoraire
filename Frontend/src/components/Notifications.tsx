@@ -66,14 +66,34 @@ const Notifications: React.FC = () => {
         });
         const usersData = await usersResponse.json();
         // Keep teachers (or any user that is not himself)
-        const faculty = usersData.filter((u: any) => u.id !== profileData.id);
-        setTeachers(faculty);
+        const isStudent = profileData.role && profileData.role.includes('UTILISATEUR') && 
+                          !profileData.role.includes('ENSEIGNANT') && 
+                          !profileData.role.includes('ADMIN') && 
+                          !profileData.role.includes('CHEF_DEPARTEMENT');
+
+        let contacts = [];
+        if (isStudent) {
+          contacts = usersData.filter((u: any) => 
+            u.id !== profileData.id && 
+            (u.role?.includes('ENSEIGNANT') || u.role?.includes('ADMIN') || u.role?.includes('CHEF_DEPARTEMENT')) &&
+            !u.nom?.toLowerCase().includes('assign')
+          );
+        } else {
+          contacts = usersData.filter((u: any) => 
+            u.id !== profileData.id && 
+            u.role?.includes('UTILISATEUR') && 
+            !u.role?.includes('ENSEIGNANT') && 
+            !u.role?.includes('ADMIN') && 
+            !u.role?.includes('CHEF_DEPARTEMENT')
+          );
+        }
+        setTeachers(contacts);
 
         const saved = JSON.parse(localStorage.getItem('notifications') || '[]');
         setNotifications(saved);
 
-        if (faculty.length > 0) {
-          setSelectedTeacherId(faculty[0].id);
+        if (contacts.length > 0) {
+          setSelectedTeacherId(contacts[0].id);
         }
       }
     } catch (error) {
@@ -232,6 +252,11 @@ const Notifications: React.FC = () => {
     (notif.senderId === currentUser?.id && notif.recipientId === selectedTeacherId) // sent to teacher
   ).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
+  const isStudent = currentUser?.role && currentUser.role.includes('UTILISATEUR') && 
+                    !currentUser.role.includes('ENSEIGNANT') && 
+                    !currentUser.role.includes('ADMIN') && 
+                    !currentUser.role.includes('CHEF_DEPARTEMENT');
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -256,7 +281,7 @@ const Notifications: React.FC = () => {
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
-              placeholder="Rechercher un enseignant..." 
+              placeholder={isStudent ? "Rechercher un enseignant ou admin..." : "Rechercher un étudiant..."}
             />
           </div>
         </div>
@@ -305,7 +330,7 @@ const Notifications: React.FC = () => {
             })
           ) : (
             <div className="p-8 text-center text-slate-400 text-xs italic">
-              Aucun enseignant trouvé
+              {isStudent ? "Aucun enseignant ou admin trouvé" : "Aucun étudiant trouvé"}
             </div>
           )}
         </div>
@@ -456,7 +481,11 @@ const Notifications: React.FC = () => {
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-slate-50 gap-3">
           <span className="material-symbols-outlined text-5xl opacity-20 animate-bounce">forum</span>
-          <p className="text-sm font-semibold">Sélectionner un enseignant pour démarrer la messagerie</p>
+          <p className="text-sm font-semibold">
+            {isStudent 
+              ? "Sélectionner un enseignant ou admin pour démarrer la messagerie" 
+              : "Sélectionner un étudiant pour démarrer la messagerie"}
+          </p>
         </div>
       )}
     </div>

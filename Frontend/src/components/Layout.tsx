@@ -25,30 +25,41 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   useEffect(() => {
     const handleOpenHelp = () => setIsHelpModalOpen(true);
     window.addEventListener('openHelpModal', handleOpenHelp);
+    
+    // Fetch profile on mount
+    const fetchMe = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+      try {
+        const meRes = await fetch('http://localhost:8000/api/users/profile/', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (meRes.ok) {
+          const data = await meRes.json();
+          setCurrentUser(data);
+        }
+      } catch (error) {
+        console.error('Error fetching profile in Layout:', error);
+      }
+    };
+    fetchMe();
+
     return () => window.removeEventListener('openHelpModal', handleOpenHelp);
   }, []);
 
   useEffect(() => {
     if (isHelpModalOpen) {
-      // Fetch profs and current user
       const fetchData = async () => {
         try {
           const token = localStorage.getItem('access_token');
-          
-          // Fetch current user
-          const meRes = await fetch('http://localhost:8000/api/users/profile/', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (meRes.ok) setCurrentUser(await meRes.ok ? await meRes.json() : null);
-
-          // Fetch all users and filter for ENSEIGNANT and REAL profiles
           const usersRes = await fetch('http://localhost:8000/api/users/management/', {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (usersRes.ok) {
             const allUsers = await usersRes.json();
             setProfs(allUsers.filter((u: any) => 
-              u.role && u.role.includes('ENSEIGNANT') && 
+              u.id !== currentUser?.id &&
+              (u.role?.includes('ENSEIGNANT') || u.role?.includes('ADMIN') || u.role?.includes('CHEF_DEPARTEMENT')) && 
               u.email.toLowerCase() !== 'admin@gmail.com' &&
               !u.nom.toLowerCase().includes('assign')
             ));
@@ -59,7 +70,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       };
       fetchData();
     }
-  }, [isHelpModalOpen]);
+  }, [isHelpModalOpen, currentUser?.id]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,6 +105,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }, 500);
   };
 
+  const isStudent = currentUser?.role && currentUser.role.includes('UTILISATEUR') &&
+                    !currentUser.role.includes('ENSEIGNANT') &&
+                    !currentUser.role.includes('ADMIN') &&
+                    !currentUser.role.includes('CHEF_DEPARTEMENT');
+
   return (
     <div className="flex flex-col min-h-screen relative">
       <TopAppBar />
@@ -102,15 +118,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </main>
 
       {/* Floating Aide Button */}
-      <button 
-        onClick={() => setIsHelpModalOpen(true)}
-        className="fixed bottom-8 left-8 z-[100] bg-slate-900 text-white p-4 rounded-full shadow-2xl hover:bg-sky-600 transition-all group flex items-center gap-0 hover:gap-3 overflow-hidden border border-slate-700 hover:border-sky-400"
-      >
-        <span className="material-symbols-outlined text-2xl">help</span>
-        <span className="max-w-0 group-hover:max-w-[100px] transition-all duration-300 font-bold uppercase text-[10px] tracking-widest whitespace-nowrap opacity-0 group-hover:opacity-100">
-          {t('common.help')}
-        </span>
-      </button>
+      {isStudent && (
+        <button 
+          onClick={() => setIsHelpModalOpen(true)}
+          className="fixed bottom-8 left-8 z-[100] bg-slate-900 text-white p-4 rounded-full shadow-2xl hover:bg-sky-600 transition-all group flex items-center gap-0 hover:gap-3 overflow-hidden border border-slate-700 hover:border-sky-400"
+        >
+          <span className="material-symbols-outlined text-2xl">help</span>
+          <span className="max-w-0 group-hover:max-w-[100px] transition-all duration-300 font-bold uppercase text-[10px] tracking-widest whitespace-nowrap opacity-0 group-hover:opacity-100">
+            {t('common.help')}
+          </span>
+        </button>
+      )}
 
       {/* Help Modal */}
       {isHelpModalOpen && (
