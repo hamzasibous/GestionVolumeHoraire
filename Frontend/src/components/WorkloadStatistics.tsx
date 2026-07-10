@@ -34,6 +34,7 @@ interface FiliereDetail {
 }
 
 const WorkloadStatistics: React.FC = () => {
+  const roundHours = (v: number) => Math.round(v * 100) / 100;
   const [loading, setLoading] = useState(true);
   const [faculty, setFaculty] = useState<TeacherStat[]>([]);
   const [filieres, setFilieres] = useState<FiliereDetail[]>([]);
@@ -328,11 +329,11 @@ const WorkloadStatistics: React.FC = () => {
           <div>
             <span className="font-label-caps text-label-caps text-on-surface-variant">Volume Global Département</span>
             <p className="font-h1 text-4xl font-extrabold text-primary mt-sm">
-              {Math.round(stats.global.eqtd)} <span className="text-sm font-normal text-on-surface-variant">Heures EqTD</span>
+              {roundHours(stats.global.eqtd)} <span className="text-sm font-normal text-on-surface-variant">Heures EqTD</span>
             </p>
           </div>
           <div className="border-t border-outline-variant mt-md pt-sm flex justify-between text-xs text-on-surface-variant">
-            <span>Volume Brut: {Math.round(stats.global.raw)}h</span>
+            <span>Volume Brut: {roundHours(stats.global.raw)}h</span>
             <span>Ratio: {((stats.global.eqtd / (stats.global.raw || 1)) * 100).toFixed(0)}% EqTD</span>
           </div>
         </div>
@@ -344,15 +345,15 @@ const WorkloadStatistics: React.FC = () => {
             <div className="grid grid-cols-3 gap-xs mt-sm text-center">
               <div className="bg-sky-50 border border-sky-100 rounded p-xs">
                 <span className="text-[10px] font-bold text-sky-850 uppercase">CM (*1.5)</span>
-                <p className="font-semibold text-sm text-sky-900 mt-xs">{Math.round(stats.global.cm)}h</p>
+                <p className="font-semibold text-sm text-sky-900 mt-xs">{roundHours(stats.global.cm)}h</p>
               </div>
               <div className="bg-emerald-50 border border-emerald-100 rounded p-xs">
                 <span className="text-[10px] font-bold text-emerald-850 uppercase">TD (*1.0)</span>
-                <p className="font-semibold text-sm text-emerald-900 mt-xs">{Math.round(stats.global.td)}h</p>
+                <p className="font-semibold text-sm text-emerald-900 mt-xs">{roundHours(stats.global.td)}h</p>
               </div>
               <div className="bg-purple-50 border border-purple-100 rounded p-xs">
                 <span className="text-[10px] font-bold text-purple-850 uppercase">TP (*0.75)</span>
-                <p className="font-semibold text-sm text-purple-900 mt-xs">{Math.round(stats.global.tp)}h</p>
+                <p className="font-semibold text-sm text-purple-900 mt-xs">{roundHours(stats.global.tp)}h</p>
               </div>
             </div>
           </div>
@@ -535,7 +536,7 @@ const WorkloadStatistics: React.FC = () => {
                   <tr key={t.id} className="hover:bg-surface-container-low transition-colors">
                     <td className="py-sm font-semibold">{t.name}</td>
                     <td className="py-sm text-sm text-on-surface-variant">{t.department}</td>
-                    <td className="py-sm text-sm text-center font-bold text-primary">{Math.round(t.workload)}h</td>
+                    <td className="py-sm text-sm text-center font-bold text-primary">{roundHours(t.workload)}h</td>
                     <td className="py-sm text-sm text-center text-on-surface-variant">{t.maxWorkload}h</td>
                     <td className="py-sm text-right">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
@@ -576,10 +577,10 @@ const WorkloadStatistics: React.FC = () => {
                     <td className="py-sm font-semibold">{m.nom}</td>
                     <td className="py-sm text-sm text-on-surface-variant">{m.filiere}</td>
                     <td className="py-sm text-sm text-center font-bold">{m.semestre}</td>
-                    <td className="py-sm text-sm text-center text-on-surface-variant">{m.cm}h</td>
-                    <td className="py-sm text-sm text-center text-on-surface-variant">{m.td}h</td>
-                    <td className="py-sm text-sm text-center text-on-surface-variant">{m.tp}h</td>
-                    <td className="py-sm text-sm text-center font-bold text-primary">{Math.round(m.eqtd)}h</td>
+                    <td className="py-sm text-sm text-center text-on-surface-variant">{roundHours(m.cm)}h</td>
+                    <td className="py-sm text-sm text-center text-on-surface-variant">{roundHours(m.td)}h</td>
+                    <td className="py-sm text-sm text-center text-on-surface-variant">{roundHours(m.tp)}h</td>
+                    <td className="py-sm text-sm text-center font-bold text-primary">{roundHours(m.eqtd)}h</td>
                   </tr>
                 ))}
               </tbody>
@@ -605,11 +606,11 @@ const WorkloadStatistics: React.FC = () => {
                 {Object.entries(stats.filiereMap).map(([name, data]: [string, any]) => (
                   <tr key={name} className="hover:bg-surface-container-low transition-colors">
                     <td className="py-sm font-semibold">{name}</td>
-                    <td className="py-sm text-sm text-center text-on-surface-variant">{Math.round(data.raw)}h</td>
-                    <td className="py-sm text-sm text-center text-on-surface-variant">{Math.round(data.cm)}h</td>
-                    <td className="py-sm text-sm text-center text-on-surface-variant">{Math.round(data.td)}h</td>
-                    <td className="py-sm text-sm text-center text-on-surface-variant">{Math.round(data.tp)}h</td>
-                    <td className="py-sm text-sm text-center font-bold text-primary">{Math.round(data.eqtd)}h</td>
+                    <td className="py-sm text-sm text-center text-on-surface-variant">{roundHours(data.raw)}h</td>
+                    <td className="py-sm text-sm text-center text-on-surface-variant">{roundHours(data.cm)}h</td>
+                    <td className="py-sm text-sm text-center text-on-surface-variant">{roundHours(data.td)}h</td>
+                    <td className="py-sm text-sm text-center text-on-surface-variant">{roundHours(data.tp)}h</td>
+                    <td className="py-sm text-sm text-center font-bold text-primary">{roundHours(data.eqtd)}h</td>
                   </tr>
                 ))}
               </tbody>
@@ -637,11 +638,11 @@ const WorkloadStatistics: React.FC = () => {
                   .map(([name, data]: [string, any]) => (
                     <tr key={name} className="hover:bg-surface-container-low transition-colors">
                       <td className="py-sm font-semibold">{name}</td>
-                      <td className="py-sm text-sm text-center text-on-surface-variant">{Math.round(data.raw)}h</td>
-                      <td className="py-sm text-sm text-center text-on-surface-variant">{Math.round(data.cm)}h</td>
-                      <td className="py-sm text-sm text-center text-on-surface-variant">{Math.round(data.td)}h</td>
-                      <td className="py-sm text-sm text-center text-on-surface-variant">{Math.round(data.tp)}h</td>
-                      <td className="py-sm text-sm text-center font-bold text-primary">{Math.round(data.eqtd)}h</td>
+                      <td className="py-sm text-sm text-center text-on-surface-variant">{roundHours(data.raw)}h</td>
+                      <td className="py-sm text-sm text-center text-on-surface-variant">{roundHours(data.cm)}h</td>
+                      <td className="py-sm text-sm text-center text-on-surface-variant">{roundHours(data.td)}h</td>
+                      <td className="py-sm text-sm text-center text-on-surface-variant">{roundHours(data.tp)}h</td>
+                      <td className="py-sm text-sm text-center font-bold text-primary">{roundHours(data.eqtd)}h</td>
                     </tr>
                   ))}
               </tbody>
