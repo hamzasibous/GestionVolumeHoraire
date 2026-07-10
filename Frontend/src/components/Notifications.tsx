@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface Notification {
   id: number;
@@ -32,6 +33,7 @@ interface UserProfile {
 }
 
 const Notifications: React.FC = () => {
+  const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -65,28 +67,21 @@ const Notifications: React.FC = () => {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const usersData = await usersResponse.json();
-        // Keep teachers (or any user that is not himself)
         const isStudent = profileData.role && profileData.role.includes('UTILISATEUR') && 
                           !profileData.role.includes('ENSEIGNANT') && 
                           !profileData.role.includes('ADMIN') && 
                           !profileData.role.includes('CHEF_DEPARTEMENT');
-
-        let contacts = [];
         if (isStudent) {
-          contacts = usersData.filter((u: any) => 
-            u.id !== profileData.id && 
-            (u.role?.includes('ENSEIGNANT') || u.role?.includes('ADMIN') || u.role?.includes('CHEF_DEPARTEMENT')) &&
-            !u.nom?.toLowerCase().includes('assign')
-          );
-        } else {
-          contacts = usersData.filter((u: any) => 
-            u.id !== profileData.id && 
-            u.role?.includes('UTILISATEUR') && 
-            !u.role?.includes('ENSEIGNANT') && 
-            !u.role?.includes('ADMIN') && 
-            !u.role?.includes('CHEF_DEPARTEMENT')
-          );
+          navigate('/');
+          return;
         }
+
+        // Only between profs/coordinators/admins
+        const contacts = usersData.filter((u: any) => 
+          u.id !== profileData.id && 
+          (u.role?.includes('ENSEIGNANT') || u.role?.includes('ADMIN') || u.role?.includes('CHEF_DEPARTEMENT')) &&
+          !u.nom?.toLowerCase().includes('assign')
+        );
         setTeachers(contacts);
 
         const saved = JSON.parse(localStorage.getItem('notifications') || '[]');

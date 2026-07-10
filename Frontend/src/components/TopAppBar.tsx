@@ -20,6 +20,8 @@ const TopAppBar: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [imgError, setImgError] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationsList, setNotificationsList] = useState<any[]>([]);
 
   const fetchProfile = async () => {
     try {
@@ -52,8 +54,33 @@ const TopAppBar: React.FC = () => {
 
   const updateUnreadCount = (userId: number) => {
     const saved = JSON.parse(localStorage.getItem('notifications') || '[]');
-    const count = saved.filter((n: any) => n.recipientId === userId && !n.read).length;
+    const myNotifs = saved.filter((n: any) => n.recipientId === userId);
+    setNotificationsList(myNotifs);
+    const count = myNotifs.filter((n: any) => !n.read).length;
     setUnreadCount(count);
+  };
+
+  const markNotificationRead = (notifId: number) => {
+    if (!user) return;
+    const saved = JSON.parse(localStorage.getItem('notifications') || '[]');
+    const updated = saved.map((n: any) => {
+      if (n.id === notifId) {
+        return { ...n, read: true };
+      }
+      return n;
+    });
+    localStorage.setItem('notifications', JSON.stringify(updated));
+    updateUnreadCount(user.id);
+    window.dispatchEvent(new Event('notificationsUpdate'));
+  };
+
+  const deleteNotification = (notifId: number) => {
+    if (!user) return;
+    const saved = JSON.parse(localStorage.getItem('notifications') || '[]');
+    const updated = saved.filter((n: any) => n.id !== notifId);
+    localStorage.setItem('notifications', JSON.stringify(updated));
+    updateUnreadCount(user.id);
+    window.dispatchEvent(new Event('notificationsUpdate'));
   };
 
   useEffect(() => {
@@ -395,17 +422,17 @@ const TopAppBar: React.FC = () => {
                           <span className="material-symbols-outlined text-lg">grade</span>
                           Évaluations
                         </Link>
-                        <Link
-                          to="/notifications"
-                          className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                            isActive('/notifications')
-                              ? 'text-primary bg-sky-50/50 font-semibold'
-                              : 'text-slate-700 hover:bg-slate-50'
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-lg">notifications</span>
-                          Notifications / Messages
-                        </Link>
+                         <Link
+                           to="/messages"
+                           className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                             isActive('/messages')
+                               ? 'text-primary bg-sky-50/50 font-semibold'
+                               : 'text-slate-700 hover:bg-slate-50'
+                           }`}
+                         >
+                           <span className="material-symbols-outlined text-lg">mail</span>
+                           Messages
+                         </Link>
                       </div>
                     </div>
                   )}
@@ -483,18 +510,76 @@ const TopAppBar: React.FC = () => {
         {/* Right: Actions, Notifications & Profile */}
         <div className="flex items-center gap-4 h-full">
           {/* Notifications Button */}
-          <Link
-            to="/notifications"
-            className="p-2 text-slate-500 hover:text-primary hover:bg-slate-100 rounded-xl transition-colors relative flex items-center justify-center"
-            title="Notifications"
-          >
-            <span className="material-symbols-outlined">notifications</span>
-            {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-orange-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white animate-pulse">
-                {unreadCount}
-              </span>
+          <div className="relative flex items-center">
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className={`p-2 text-slate-500 hover:text-primary hover:bg-slate-100 rounded-xl transition-colors relative flex items-center justify-center ${
+                showNotifications ? 'bg-slate-100 text-primary' : ''
+              }`}
+              title="Notifications"
+            >
+              <span className="material-symbols-outlined">notifications</span>
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-orange-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white animate-pulse">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Notifications Popover */}
+            {showNotifications && (
+              <div className="absolute right-0 top-[calc(100%+8px)] w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden py-1 animate-in slide-in-from-top-2 duration-200">
+                <div className="px-4 py-2.5 border-b border-slate-150 bg-slate-50 flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-wider">Demandes d'Assistance</span>
+                  {unreadCount > 0 && (
+                    <span className="bg-sky-100 text-sky-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      {unreadCount} Nouveaux
+                    </span>
+                  )}
+                </div>
+                <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 message-scrollbar">
+                  {notificationsList.length > 0 ? (
+                    notificationsList.map((n) => (
+                      <div 
+                        key={n.id} 
+                        className={`p-4 flex flex-col gap-1 transition-colors ${
+                          !n.read ? 'bg-sky-50/30' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <span className="font-bold text-slate-800 text-xs truncate">De: {n.from}</span>
+                          <span className="text-[9px] text-slate-400 font-medium">
+                            {new Date(n.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-normal">{n.message}</p>
+                        <div className="flex gap-2 mt-2">
+                          {!n.read && (
+                            <button
+                              onClick={() => markNotificationRead(n.id)}
+                              className="text-[9px] font-bold text-sky-600 hover:text-sky-800 uppercase tracking-wider"
+                            >
+                              Lu
+                            </button>
+                          )}
+                          <button
+                            onClick={() => deleteNotification(n.id)}
+                            className="text-[9px] font-bold text-red-500 hover:text-red-700 uppercase tracking-wider"
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-6 text-center text-xs text-slate-400 italic">
+                      Aucune demande d'assistance
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
-          </Link>
+          </div>
 
           {/* Help Button */}
           <button
