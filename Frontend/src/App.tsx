@@ -21,6 +21,7 @@ import Notifications from './components/Notifications'
 import StudentPortal from './components/StudentPortal'
 import StudentEvaluations from './components/StudentEvaluations'
 import FiliereManagement from './components/FiliereManagement'
+import WorkloadStatistics from './components/WorkloadStatistics'
 
 function App() {
   const [role, setRole] = useState<string | null>(null);
@@ -99,6 +100,7 @@ function App() {
                     <Route path="/users" element={<UserManagement />} />
                     <Route path="/vacations" element={<VacationManagement />} />
                     <Route path="/locals" element={<LocalManagement />} />
+                    <Route path="/workload-stats" element={<WorkloadStatistics />} />
                   </>
                 )}
 

@@ -83,6 +83,7 @@ const TopAppBar: React.FC = () => {
   const mainLinks = [
     { path: '/', label: t('common.dashboard'), icon: 'dashboard', adminOnly: true },
     { path: '/faculty', label: t('common.faculty'), icon: 'groups', adminOnly: true },
+    { path: '/workload-stats', label: 'Volume Horaire', icon: 'monitoring', adminOnly: true },
     { path: '/forecasting', label: t('common.forecasting'), icon: 'analytics', adminOnly: true },
   ];
 
