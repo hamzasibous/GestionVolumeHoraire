@@ -26,18 +26,11 @@ def get_module_speciality(name):
 
 def get_module_eqtd_hours(module_name, v_h_hebdo):
     import re
-    match = re.search(r'\(S\d+ - (\d+)h\)', module_name)
-    raw_hours = int(match.group(1)) if match else (12 * v_h_hebdo)
-    
     if 'pfe' in module_name.lower() or 'projet de fin' in module_name.lower():
         return 0
-        
-    if v_h_hebdo >= 4:
-        # 50% CM (1.5) and 50% TD (1.0)
-        return raw_hours * 1.25
-    else:
-        # CM only (1.5)
-        return raw_hours * 1.5
+    match = re.search(r'\(S\d+ - (\d+)h\)', module_name)
+    raw_hours = int(match.group(1)) if match else 48
+    return raw_hours
 
 def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progress_callback=None, cancel_check=None):
     def update_progress(p, msg=None):
@@ -198,7 +191,7 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
         eligible_teachers = [assigned_teacher]
         mod_eligible_teachers[cp.module.id] = eligible_teachers
 
-        session_types = ['CM', random.choice(['TD', 'TP'])] if cp.v_h_hebdo >= 4 else ['CM']
+        session_types = ['CM', 'TD', 'TP']
         for s_type in session_types:
             requirements.append({
                 'module': cp.module,
