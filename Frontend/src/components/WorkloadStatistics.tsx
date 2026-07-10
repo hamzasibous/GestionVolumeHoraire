@@ -54,7 +54,7 @@ const WorkloadStatistics: React.FC = () => {
         const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
 
         // 1. Fetch Faculty list with their workloads
-        const facultyRes = await fetch('http://localhost:8000/api/core/faculty/', { headers });
+        const facultyRes = await fetch('http://localhost:8000/api/core/faculty-assignments/', { headers });
         if (facultyRes.ok) {
           const data = await facultyRes.json();
           setFaculty(data);
