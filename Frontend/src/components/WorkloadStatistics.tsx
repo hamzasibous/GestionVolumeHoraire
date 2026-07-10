@@ -88,11 +88,12 @@ const WorkloadStatistics: React.FC = () => {
     const totalRaw = match ? parseFloat(match[1]) : 48.0;
 
     const base = totalRaw / 3.25;
-    const raw = base;
+    const raw = Math.round(base * 100) / 100;
     
     let eqtd = base;
     if (type === 'CM') eqtd = base * 1.5;
     else if (type === 'TP') eqtd = base * 0.75;
+    eqtd = Math.round(eqtd * 100) / 100;
 
     return { raw, eqtd };
   };
