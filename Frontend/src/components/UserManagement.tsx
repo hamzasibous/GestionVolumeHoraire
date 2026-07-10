@@ -38,6 +38,12 @@ const UserManagement: React.FC = () => {
   const [importResult, setImportResult] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('ALL');
+  const [deptFilter, setDeptFilter] = useState('ALL');
+  const [filiereFilter, setFiliereFilter] = useState('ALL');
+
   const [formData, setFormData] = useState({
     nom: '',
     prenom: '',
@@ -228,6 +234,19 @@ const UserManagement: React.FC = () => {
 
   if (loading) return <div className="p-8">{t('common.loading')}</div>;
 
+  const filteredUsers = users.filter((u) => {
+    const searchLower = searchQuery.toLowerCase();
+    const fullName = `${u.prenom} ${u.nom}`.toLowerCase();
+    const emailLower = u.email.toLowerCase();
+    const matchesSearch = fullName.includes(searchLower) || emailLower.includes(searchLower);
+
+    const matchesRole = roleFilter === 'ALL' || u.role.split(',').includes(roleFilter);
+    const matchesDept = deptFilter === 'ALL' || (u.departement && u.departement.toString() === deptFilter);
+    const matchesFiliere = filiereFilter === 'ALL' || (u.filiere && u.filiere.toString() === filiereFilter);
+
+    return matchesSearch && matchesRole && matchesDept && matchesFiliere;
+  });
+
   return (
     <div className="flex flex-col gap-lg">
       <div className="flex items-center justify-between">
@@ -253,6 +272,81 @@ const UserManagement: React.FC = () => {
         </div>
       </div>
 
+      {/* Search and Filters Bar */}
+      <div className="bg-surface-container-low border border-outline-variant rounded-xl p-md flex flex-wrap gap-md items-center shadow-sm">
+        {/* Search Input */}
+        <div className="flex-1 min-w-[200px] relative">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
+          <input
+            type="text"
+            placeholder="Rechercher par nom, prénom ou email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+          />
+        </div>
+
+        {/* Role Filter */}
+        <div className="w-[150px]">
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="ALL">Tous les rôles</option>
+            <option value="ADMIN">Administrateur</option>
+            <option value="CHEF_DEPARTEMENT">Chef Département</option>
+            <option value="RESPONSABLE_FILIERE">Responsable Filière</option>
+            <option value="ENSEIGNANT">Enseignant</option>
+            <option value="UTILISATEUR">Étudiant</option>
+          </select>
+        </div>
+
+        {/* Department Filter */}
+        <div className="w-[180px]">
+          <select
+            value={deptFilter}
+            onChange={(e) => setDeptFilter(e.target.value)}
+            className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="ALL">Tous les départements</option>
+            {departments.map((dept) => (
+              <option key={dept.id} value={dept.id.toString()}>{dept.nom}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Filiere Filter */}
+        <div className="w-[180px]">
+          <select
+            value={filiereFilter}
+            onChange={(e) => setFiliereFilter(e.target.value)}
+            className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="ALL">Toutes les filières</option>
+            {filieres.map((fil) => (
+              <option key={fil.id} value={fil.id.toString()}>{fil.nom}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Clear Filters Button */}
+        {(searchQuery || roleFilter !== 'ALL' || deptFilter !== 'ALL' || filiereFilter !== 'ALL') && (
+          <button
+            onClick={() => {
+              setSearchQuery('');
+              setRoleFilter('ALL');
+              setDeptFilter('ALL');
+              setFiliereFilter('ALL');
+            }}
+            className="text-xs font-bold text-red-650 hover:text-red-800 transition-colors uppercase tracking-wider flex items-center gap-xs cursor-pointer border-0 bg-transparent"
+          >
+            <span className="material-symbols-outlined text-[16px]">clear_all</span>
+            Réinitialiser
+          </button>
+        )}
+      </div>
+
       <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -265,8 +359,15 @@ const UserManagement: React.FC = () => {
             </tr>
           </thead>
           <tbody className="font-table-data text-table-data divide-y divide-surface-variant">
-            {users.map((user) => (
-              <tr key={user.id} className="hover:bg-surface-container-lowest/50 transition-colors bg-white">
+            {filteredUsers.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="text-center py-12 text-on-surface-variant italic">
+                  Aucun utilisateur ne correspond aux critères de recherche.
+                </td>
+              </tr>
+            ) : (
+              filteredUsers.map((user) => (
+                <tr key={user.id} className="hover:bg-surface-container-lowest/50 transition-colors bg-white">
                 <td className="px-6 py-4">
                   <div className="font-medium text-on-surface">{user.prenom} {user.nom}</div>
                   <div className="text-xs text-outline">{user.email}</div>
@@ -325,7 +426,8 @@ const UserManagement: React.FC = () => {
                   </div>
                 </td>
               </tr>
-            ))}
+            ))
+            )}
           </tbody>
         </table>
       </div>
