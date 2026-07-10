@@ -303,6 +303,60 @@ const TopAppBar: React.FC = () => {
                   </div>
                 )}
 
+                 {/* Chef de Département Personal Dropdown */}
+                 {user?.role && user.role.includes('CHEF_DEPARTEMENT') && (
+                   <div className="relative group px-1 h-full flex items-center">
+                     <button
+                       className={`flex items-center gap-2 px-4 h-12 font-inter text-sm font-medium rounded-lg transition-all ${
+                         isActive('/consultation') || isActive('/my-timetable') || isActive('/evaluations')
+                           ? 'text-primary bg-slate-50'
+                           : 'text-slate-550 hover:text-primary hover:bg-slate-50/30'
+                       }`}
+                     >
+                       <span className="material-symbols-outlined text-lg">person</span>
+                       Espace Personnel
+                       <span className="material-symbols-outlined text-sm transition-transform group-hover:rotate-180">expand_more</span>
+                     </button>
+                     
+                     {/* Dropdown Menu */}
+                     <div className="absolute left-0 top-[calc(100%-8px)] w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-30 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                       <Link
+                         to="/consultation"
+                         className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                           isActive('/consultation')
+                             ? 'text-primary bg-sky-50/50 font-semibold'
+                             : 'text-slate-700 hover:bg-slate-50'
+                         }`}
+                       >
+                         <span className="material-symbols-outlined text-lg">assignment_ind</span>
+                         Ma charge
+                       </Link>
+                       <Link
+                         to="/my-timetable"
+                         className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                           isActive('/my-timetable')
+                             ? 'text-primary bg-sky-50/50 font-semibold'
+                             : 'text-slate-700 hover:bg-slate-50'
+                         }`}
+                       >
+                         <span className="material-symbols-outlined text-lg">calendar_today</span>
+                         Mon emploi du temps
+                       </Link>
+                       <Link
+                         to="/evaluations"
+                         className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                           isActive('/evaluations')
+                             ? 'text-primary bg-sky-50/50 font-semibold'
+                             : 'text-slate-700 hover:bg-slate-50'
+                         }`}
+                       >
+                         <span className="material-symbols-outlined text-lg">grade</span>
+                         Évaluations
+                       </Link>
+                     </div>
+                   </div>
+                 )}
+
                 {/* Management Dropdown (Admin & Chef only) */}
                 {isAdmin && (
                   <div className="relative group px-1 h-full flex items-center">
