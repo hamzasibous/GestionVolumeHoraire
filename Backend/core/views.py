@@ -1667,6 +1667,7 @@ class ExportWorkloadExcelView(APIView):
         enseignant_id = request.query_params.get('enseignant_id')
         module_id = request.query_params.get('module_id')
         semester = request.query_params.get('semester')
+        export_type = request.query_params.get('export_type', 'teachers') # teachers, modules, filieres, semesters
 
         queryset = Sceance.objects.all().select_related('enseignant', 'module', 'local')
 
@@ -1679,39 +1680,9 @@ class ExportWorkloadExcelView(APIView):
         if semester:
             queryset = queryset.filter(module__comporte__semestre=semester)
 
-        grouped_data = {}
-        for s in queryset:
-            prof = s.enseignant
-            if not prof: continue
-            
-            prof_id = prof.id
-            if prof_id not in grouped_data:
-                grouped_data[prof_id] = {
-                    'name': str(prof),
-                    'department': prof.departement.nom if prof.departement else 'N/A',
-                    'assignments': {}
-                }
-            
-            key = (s.module_id, s.type)
-            if key not in grouped_data[prof_id]['assignments']:
-                module_session_types = list(Sceance.objects.filter(module_id=s.module_id).values_list('type', flat=True).distinct())
-                raw_hours, equiv_hours = get_session_hours(s.module.nom, s.type, module_session_types)
-                grouped_data[prof_id]['assignments'][key] = {
-                    'module_name': s.module.nom,
-                    'type': s.type,
-                    'raw_hours': raw_hours,
-                    'equiv_hours': equiv_hours
-                }
-
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = "Volume Horaire"
 
-        headers = [
-            "Enseignant", "Département", "Module", "Type d'enseignement", 
-            "Heures Brutes", "Heures EqTD"
-        ]
-        
         title_font = Font(name='Calibri', size=16, bold=True, color='1F4E78')
         header_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
         header_fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
@@ -1727,73 +1698,380 @@ class ExportWorkloadExcelView(APIView):
             top=Side(style='thin', color='000000'),
             bottom=Side(style='double', color='000000')
         )
-        
-        ws.append(["RAPPORT DES VOLUMES HORAIRES - DEPARTEMENT D'INFORMATIQUE"])
-        ws.merge_cells('A1:F1')
-        ws['A1'].font = title_font
-        ws['A1'].alignment = Alignment(horizontal='center')
-        ws.row_dimensions[1].height = 30
-        
-        ws.append([])
-        
-        ws.append(headers)
-        ws.row_dimensions[3].height = 24
-        
-        for col_idx in range(1, 7):
-            cell = ws.cell(row=3, column=col_idx)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = Alignment(horizontal='center', vertical='center')
-            cell.border = thin_border
 
-        row_num = 4
-        total_raw = 0
-        total_eqtd = 0
-        
-        for prof_id, prof_info in grouped_data.items():
-            for key, asg in prof_info['assignments'].items():
-                m_type = asg['type']
-                raw_h = asg['raw_hours']
-                eq_h = asg['equiv_hours']
+        if export_type == 'teachers':
+            ws.title = "Volume Par Enseignant"
+            headers = [
+                "Enseignant", "Département", "Module", "Type d'enseignement", 
+                "Heures Brutes", "Heures EqTD"
+            ]
+            ws.append(["RAPPORT DES VOLUMES HORAIRES - PAR ENSEIGNANT"])
+            ws.merge_cells('A1:F1')
+            ws['A1'].font = title_font
+            ws['A1'].alignment = Alignment(horizontal='center')
+            ws.row_dimensions[1].height = 30
+            ws.append([])
+            ws.append(headers)
+            ws.row_dimensions[3].height = 24
+            
+            for col_idx in range(1, 7):
+                cell = ws.cell(row=3, column=col_idx)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.border = thin_border
+
+            grouped_data = {}
+            for s in queryset:
+                prof = s.enseignant
+                if not prof: continue
+                prof_id = prof.id
+                if prof_id not in grouped_data:
+                    grouped_data[prof_id] = {
+                        'name': str(prof),
+                        'department': prof.departement.nom if prof.departement else 'N/A',
+                        'assignments': {}
+                    }
+                key = (s.module_id, s.type)
+                if key not in grouped_data[prof_id]['assignments']:
+                    module_session_types = list(Sceance.objects.filter(module_id=s.module_id).values_list('type', flat=True).distinct())
+                    raw_hours, equiv_hours = get_session_hours(s.module.nom, s.type, module_session_types)
+                    grouped_data[prof_id]['assignments'][key] = {
+                        'module_name': s.module.nom,
+                        'type': s.type,
+                        'raw_hours': raw_hours,
+                        'equiv_hours': equiv_hours
+                    }
+
+            row_num = 4
+            total_raw = 0
+            total_eqtd = 0
+            for prof_id, prof_info in grouped_data.items():
+                for key, asg in prof_info['assignments'].items():
+                    raw_h = asg['raw_hours']
+                    eq_h = asg['equiv_hours']
+                    total_raw += raw_h
+                    total_eqtd += eq_h
+                    row_data = [
+                        prof_info['name'],
+                        prof_info['department'],
+                        asg['module_name'],
+                        asg['type'],
+                        raw_h,
+                        eq_h
+                    ]
+                    ws.append(row_data)
+                    for col_idx in range(1, 7):
+                        cell = ws.cell(row=row_num, column=col_idx)
+                        cell.font = data_font
+                        cell.border = thin_border
+                        if col_idx in [5, 6]:
+                            cell.alignment = Alignment(horizontal='right')
+                            cell.number_format = '0.00'
+                        else:
+                            cell.alignment = Alignment(horizontal='left')
+                    row_num += 1
+
+            total_row = ["TOTAL", "", "", "", total_raw, total_eqtd]
+            ws.append(total_row)
+            for col_idx in range(1, 7):
+                cell = ws.cell(row=row_num, column=col_idx)
+                cell.font = total_font
+                cell.border = double_bottom_border
+                if col_idx in [5, 6]:
+                    cell.alignment = Alignment(horizontal='right')
+                    cell.number_format = '0.00'
+                else:
+                    cell.alignment = Alignment(horizontal='left')
+
+        elif export_type == 'modules':
+            ws.title = "Volume Par Module"
+            headers = [
+                "Module", "Filière", "Semestre", "Brut CM", "Brut TD", "Brut TP", "Volume EqTD"
+            ]
+            ws.append(["RAPPORT DES VOLUMES HORAIRES - PAR MODULE"])
+            ws.merge_cells('A1:G1')
+            ws['A1'].font = title_font
+            ws['A1'].alignment = Alignment(horizontal='center')
+            ws.row_dimensions[1].height = 30
+            ws.append([])
+            ws.append(headers)
+            ws.row_dimensions[3].height = 24
+            
+            for col_idx in range(1, 8):
+                cell = ws.cell(row=3, column=col_idx)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.border = thin_border
+
+            # Group by module
+            modules_grouped = {}
+            for s in queryset:
+                mod = s.module
+                if not mod: continue
+                if mod.id not in modules_grouped:
+                    comporte = mod.comporte_set.first()
+                    filiere_name = comporte.filiere.nom if (comporte and comporte.filiere) else 'N/A'
+                    semestre_name = comporte.semestre if comporte else 'N/A'
+                    modules_grouped[mod.id] = {
+                        'name': mod.nom,
+                        'filiere': filiere_name,
+                        'semestre': semestre_name,
+                        'seances': []
+                    }
+                modules_grouped[mod.id]['seances'].append(s)
+
+            row_num = 4
+            total_cm = 0
+            total_td = 0
+            total_tp = 0
+            total_eqtd = 0
+            
+            for mod_id, info in modules_grouped.items():
+                seances = info['seances']
+                unique_types = list(set([s.type for s in seances]))
                 
-                total_raw += raw_h
-                total_eqtd += eq_h
+                m_cm = 0
+                m_td = 0
+                m_tp = 0
+                m_eq = 0
+                
+                for t in unique_types:
+                    raw_h, eq_h = get_session_hours(info['name'], t, unique_types)
+                    m_eq += eq_h
+                    if t == 'CM': m_cm += raw_h
+                    elif t == 'TD': m_td += raw_h
+                    elif t == 'TP': m_tp += raw_h
+                
+                total_cm += m_cm
+                total_td += m_td
+                total_tp += m_tp
+                total_eqtd += m_eq
                 
                 row_data = [
-                    prof_info['name'],
-                    prof_info['department'],
-                    asg['module_name'],
-                    m_type,
-                    raw_h,
-                    eq_h
+                    info['name'],
+                    info['filiere'],
+                    info['semestre'],
+                    m_cm,
+                    m_td,
+                    m_tp,
+                    m_eq
                 ]
-                
                 ws.append(row_data)
-                
-                for col_idx in range(1, 7):
+                for col_idx in range(1, 8):
                     cell = ws.cell(row=row_num, column=col_idx)
                     cell.font = data_font
                     cell.border = thin_border
-                    if col_idx in [5, 6]:
+                    if col_idx in [4, 5, 6, 7]:
                         cell.alignment = Alignment(horizontal='right')
                         cell.number_format = '0.00'
                     else:
                         cell.alignment = Alignment(horizontal='left')
-                
                 row_num += 1
 
-        total_row = ["TOTAL", "", "", "", total_raw, total_eqtd]
-        ws.append(total_row)
-        
-        for col_idx in range(1, 7):
-            cell = ws.cell(row=row_num, column=col_idx)
-            cell.font = total_font
-            cell.border = double_bottom_border
-            if col_idx in [5, 6]:
-                cell.alignment = Alignment(horizontal='right')
-                cell.number_format = '0.00'
-            else:
-                cell.alignment = Alignment(horizontal='left')
+            total_row = ["TOTAL", "", "", total_cm, total_td, total_tp, total_eqtd]
+            ws.append(total_row)
+            for col_idx in range(1, 8):
+                cell = ws.cell(row=row_num, column=col_idx)
+                cell.font = total_font
+                cell.border = double_bottom_border
+                if col_idx in [4, 5, 6, 7]:
+                    cell.alignment = Alignment(horizontal='right')
+                    cell.number_format = '0.00'
+                else:
+                    cell.alignment = Alignment(horizontal='left')
+
+        elif export_type == 'filieres':
+            ws.title = "Volume Par Filière"
+            headers = [
+                "Filière", "Volume Brut", "Part CM", "Part TD", "Part TP", "Volume EqTD"
+            ]
+            ws.append(["RAPPORT DES VOLUMES HORAIRES - PAR FILIERE"])
+            ws.merge_cells('A1:F1')
+            ws['A1'].font = title_font
+            ws['A1'].alignment = Alignment(horizontal='center')
+            ws.row_dimensions[1].height = 30
+            ws.append([])
+            ws.append(headers)
+            ws.row_dimensions[3].height = 24
+            
+            for col_idx in range(1, 7):
+                cell = ws.cell(row=3, column=col_idx)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.border = thin_border
+
+            # We want to aggregate modules by filiere
+            filieres_grouped = {}
+            for s in queryset:
+                mod = s.module
+                if not mod: continue
+                comportes = mod.comporte_set.all()
+                for comp in comportes:
+                    f_name = comp.filiere.nom if comp.filiere else 'N/A'
+                    if f_name not in filieres_grouped:
+                        filieres_grouped[f_name] = {}
+                    
+                    if mod.id not in filieres_grouped[f_name]:
+                        filieres_grouped[f_name][mod.id] = {
+                            'name': mod.nom,
+                            'seances': []
+                        }
+                    filieres_grouped[f_name][mod.id]['seances'].append(s)
+
+            row_num = 4
+            total_raw = 0
+            total_cm = 0
+            total_td = 0
+            total_tp = 0
+            total_eqtd = 0
+            
+            for f_name, mods_in_f in filieres_grouped.items():
+                f_raw = 0
+                f_cm = 0
+                f_td = 0
+                f_tp = 0
+                f_eq = 0
+                
+                for m_id, m_info in mods_in_f.items():
+                    unique_types = list(set([s.type for s in m_info['seances']]))
+                    for t in unique_types:
+                        raw_h, eq_h = get_session_hours(m_info['name'], t, unique_types)
+                        f_raw += raw_h
+                        f_eq += eq_h
+                        if t == 'CM': f_cm += raw_h
+                        elif t == 'TD': f_td += raw_h
+                        elif t == 'TP': f_tp += raw_h
+                
+                total_raw += f_raw
+                total_cm += f_cm
+                total_td += f_td
+                total_tp += f_tp
+                total_eqtd += f_eq
+                
+                row_data = [f_name, f_raw, f_cm, f_td, f_tp, f_eq]
+                ws.append(row_data)
+                for col_idx in range(1, 7):
+                    cell = ws.cell(row=row_num, column=col_idx)
+                    cell.font = data_font
+                    cell.border = thin_border
+                    if col_idx in [2, 3, 4, 5, 6]:
+                        cell.alignment = Alignment(horizontal='right')
+                        cell.number_format = '0.00'
+                    else:
+                        cell.alignment = Alignment(horizontal='left')
+                row_num += 1
+
+            total_row = ["TOTAL", total_raw, total_cm, total_td, total_tp, total_eqtd]
+            ws.append(total_row)
+            for col_idx in range(1, 7):
+                cell = ws.cell(row=row_num, column=col_idx)
+                cell.font = total_font
+                cell.border = double_bottom_border
+                if col_idx in [2, 3, 4, 5, 6]:
+                    cell.alignment = Alignment(horizontal='right')
+                    cell.number_format = '0.00'
+                else:
+                    cell.alignment = Alignment(horizontal='left')
+
+        elif export_type == 'semesters':
+            ws.title = "Volume Par Semestre"
+            headers = [
+                "Semestre", "Volume Brut", "Part CM", "Part TD", "Part TP", "Volume EqTD"
+            ]
+            ws.append(["RAPPORT DES VOLUMES HORAIRES - PAR SEMESTRE"])
+            ws.merge_cells('A1:F1')
+            ws['A1'].font = title_font
+            ws['A1'].alignment = Alignment(horizontal='center')
+            ws.row_dimensions[1].height = 30
+            ws.append([])
+            ws.append(headers)
+            ws.row_dimensions[3].height = 24
+            
+            for col_idx in range(1, 7):
+                cell = ws.cell(row=3, column=col_idx)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.border = thin_border
+
+            # We want to aggregate modules by semester
+            semesters_grouped = {}
+            for s in queryset:
+                mod = s.module
+                if not mod: continue
+                comportes = mod.comporte_set.all()
+                for comp in comportes:
+                    sem_name = comp.semestre if comp.semestre else 'N/A'
+                    if sem_name not in semesters_grouped:
+                        semesters_grouped[sem_name] = {}
+                    
+                    if mod.id not in semesters_grouped[sem_name]:
+                        semesters_grouped[sem_name][mod.id] = {
+                            'name': mod.nom,
+                            'seances': []
+                        }
+                    semesters_grouped[sem_name][mod.id]['seances'].append(s)
+
+            row_num = 4
+            total_raw = 0
+            total_cm = 0
+            total_td = 0
+            total_tp = 0
+            total_eqtd = 0
+            
+            sorted_sems = sorted(semesters_grouped.keys(), key=lambda x: int(x[1:]) if (x.startswith('S') and x[1:].isdigit()) else 999)
+            
+            for sem_name in sorted_sems:
+                mods_in_sem = semesters_grouped[sem_name]
+                s_raw = 0
+                s_cm = 0
+                s_td = 0
+                s_tp = 0
+                s_eq = 0
+                
+                for m_id, m_info in mods_in_sem.items():
+                    unique_types = list(set([s.type for s in m_info['seances']]))
+                    for t in unique_types:
+                        raw_h, eq_h = get_session_hours(m_info['name'], t, unique_types)
+                        s_raw += raw_h
+                        s_eq += eq_h
+                        if t == 'CM': s_cm += raw_h
+                        elif t == 'TD': s_td += raw_h
+                        elif t == 'TP': s_tp += raw_h
+                
+                total_raw += s_raw
+                total_cm += s_cm
+                total_td += s_td
+                total_tp += s_tp
+                total_eqtd += s_eq
+                
+                row_data = [sem_name, s_raw, s_cm, s_td, s_tp, s_eq]
+                ws.append(row_data)
+                for col_idx in range(1, 7):
+                    cell = ws.cell(row=row_num, column=col_idx)
+                    cell.font = data_font
+                    cell.border = thin_border
+                    if col_idx in [2, 3, 4, 5, 6]:
+                        cell.alignment = Alignment(horizontal='right')
+                        cell.number_format = '0.00'
+                    else:
+                        cell.alignment = Alignment(horizontal='left')
+                row_num += 1
+
+            total_row = ["TOTAL", total_raw, total_cm, total_td, total_tp, total_eqtd]
+            ws.append(total_row)
+            for col_idx in range(1, 7):
+                cell = ws.cell(row=row_num, column=col_idx)
+                cell.font = total_font
+                cell.border = double_bottom_border
+                if col_idx in [2, 3, 4, 5, 6]:
+                    cell.alignment = Alignment(horizontal='right')
+                    cell.number_format = '0.00'
+                else:
+                    cell.alignment = Alignment(horizontal='left')
 
         for col in ws.columns:
             max_len = 0
@@ -1813,5 +2091,5 @@ class ExportWorkloadExcelView(APIView):
             output.read(),
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        response["Content-Disposition"] = "attachment; filename=Rapport_Volume_Horaire.xlsx"
+        response["Content-Disposition"] = f"attachment; filename=Rapport_Volume_Horaire_{export_type}.xlsx"
         return response

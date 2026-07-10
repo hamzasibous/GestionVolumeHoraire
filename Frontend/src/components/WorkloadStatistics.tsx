@@ -250,6 +250,7 @@ const WorkloadStatistics: React.FC = () => {
     try {
       const token = localStorage.getItem('access_token');
       const params = new URLSearchParams();
+      params.append('export_type', activeTab);
       
       if (filiereFilter !== 'ALL') {
         const found = filieres.find(f => f.nom === filiereFilter);
@@ -279,7 +280,7 @@ const WorkloadStatistics: React.FC = () => {
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = `Volume_Horaire_Rapport.xlsx`;
+      a.download = `Volume_Horaire_Rapport_${activeTab}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
