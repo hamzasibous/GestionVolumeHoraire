@@ -392,18 +392,23 @@ const TopAppBar: React.FC = () => {
                   </div>
                 )}
 
-                {/* Personal Links */}
-                {personalLinks.filter(link => {
-                   const isProf = user?.role ? user.role.includes('ENSEIGNANT') : false;
-                   const isCoord = user?.role ? user.role.includes('RESPONSABLE_FILIERE') : false;
-                   if (link.path === '/consultation' || link.path === '/my-timetable' || link.path === '/evaluations') {
-                     return isProf;
-                   }
-                   if (link.path === '/filiere-management') {
-                     return isCoord;
-                   }
-                   return !link.teacherOnly || (user?.role && !user.role.includes('UTILISATEUR'));
-                }).map((link) => (
+                 {/* Personal Links */}
+                 {personalLinks.filter(link => {
+                    const isProf = user?.role ? user.role.includes('ENSEIGNANT') : false;
+                    const isCoord = user?.role ? user.role.includes('RESPONSABLE_FILIERE') : false;
+                    const isChef = user?.role ? user.role.includes('CHEF_DEPARTEMENT') : false;
+                    
+                    if (isChef && (link.path === '/consultation' || link.path === '/my-timetable' || link.path === '/evaluations')) {
+                      return false;
+                    }
+                    if (link.path === '/consultation' || link.path === '/my-timetable' || link.path === '/evaluations') {
+                      return isProf;
+                    }
+                    if (link.path === '/filiere-management') {
+                      return isCoord;
+                    }
+                    return !link.teacherOnly || (user?.role && !user.role.includes('UTILISATEUR'));
+                 }).map((link) => (
                   <Link
                     key={link.path}
                     to={link.path}
