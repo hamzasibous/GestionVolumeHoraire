@@ -34,7 +34,7 @@ interface FiliereDetail {
 }
 
 const WorkloadStatistics: React.FC = () => {
-  const roundHours = (v: number) => Math.round(v * 100) / 100;
+  const roundHours = (v: number) => Math.round(v);
   const [loading, setLoading] = useState(true);
   const [faculty, setFaculty] = useState<TeacherStat[]>([]);
   const [filieres, setFilieres] = useState<FiliereDetail[]>([]);
@@ -89,12 +89,12 @@ const WorkloadStatistics: React.FC = () => {
     const totalRaw = match ? parseFloat(match[1]) : 48.0;
 
     const base = totalRaw / 3.25;
-    const raw = Math.round(base * 100) / 100;
+    const raw = Math.round(base);
     
     let eqtd = base;
     if (type === 'CM') eqtd = base * 1.5;
     else if (type === 'TP') eqtd = base * 0.75;
-    eqtd = Math.round(eqtd * 100) / 100;
+    eqtd = Math.round(eqtd);
 
     return { raw, eqtd };
   };
