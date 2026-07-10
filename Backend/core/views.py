@@ -868,20 +868,17 @@ def get_session_hours(module_nom, session_type, all_session_types_for_module):
     match = re.search(r'\(S\d+ - (\d+)h\)', module_nom)
     total_raw = float(match.group(1)) if match else 48.0
     
-    has_cm = 'CM' in all_session_types_for_module
-    has_td_tp = any(t in all_session_types_for_module for t in ['TD', 'TP'])
-    
-    if has_cm and has_td_tp:
-        raw_hours = total_raw / 2.0
-    else:
-        raw_hours = total_raw
+    base_hours = total_raw / 3.25
 
     if session_type == 'CM':
-        equiv_hours = raw_hours * 1.5
+        raw_hours = base_hours
+        equiv_hours = base_hours * 1.5
     elif session_type == 'TP':
-        equiv_hours = raw_hours * 0.75
+        raw_hours = base_hours
+        equiv_hours = base_hours * 0.75
     else:
-        equiv_hours = raw_hours * 1.0
+        raw_hours = base_hours
+        equiv_hours = base_hours * 1.0
         
     return raw_hours, equiv_hours
 

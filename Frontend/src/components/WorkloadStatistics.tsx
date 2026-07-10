@@ -78,7 +78,7 @@ const WorkloadStatistics: React.FC = () => {
   }, []);
 
   // Helper: dynamic parsing of session hours (CM / TD / TP splits)
-  const getSessionHours = (moduleNom: string, type: string, allTypes: string[]) => {
+  const getSessionHours = (moduleNom: string, type: string) => {
     if (moduleNom.toLowerCase().includes('pfe') || moduleNom.toLowerCase().includes('projet de fin')) {
       return { raw: 0, eqtd: 0 };
     }
@@ -87,14 +87,12 @@ const WorkloadStatistics: React.FC = () => {
     const match = moduleNom.match(/\(S\d+ - (\d+)h\)/);
     const totalRaw = match ? parseFloat(match[1]) : 48.0;
 
-    const hasCm = allTypes.includes('CM');
-    const hasTdTp = allTypes.some(t => t === 'TD' || t === 'TP');
-
-    const raw = (hasCm && hasTdTp) ? (totalRaw / 2.0) : totalRaw;
+    const base = totalRaw / 3.25;
+    const raw = base;
     
-    let eqtd = raw;
-    if (type === 'CM') eqtd = raw * 1.5;
-    else if (type === 'TP') eqtd = raw * 0.75;
+    let eqtd = base;
+    if (type === 'CM') eqtd = base * 1.5;
+    else if (type === 'TP') eqtd = base * 0.75;
 
     return { raw, eqtd };
   };
@@ -139,7 +137,7 @@ const WorkloadStatistics: React.FC = () => {
           const matchedSession = typeSessions.find(s => teacherFilter === 'ALL' || s.enseignant_name === teacherFilter);
           if (!matchedSession) return;
 
-          const { raw, eqtd } = getSessionHours(mod.nom, type, uniqueTypes);
+          const { raw, eqtd } = getSessionHours(mod.nom, type);
           modRaw += raw;
           modEqtd += eqtd;
           if (type === 'CM') modCm += raw;
