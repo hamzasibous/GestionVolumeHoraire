@@ -871,16 +871,13 @@ def get_session_hours(module_nom, session_type, all_session_types_for_module):
     base_hours = total_raw / 3.25
 
     if session_type == 'CM':
-        raw_hours = round(base_hours)
-        equiv_hours = round(base_hours * 1.5)
+        val = round(base_hours * 1.5)
     elif session_type == 'TP':
-        raw_hours = round(base_hours)
-        equiv_hours = round(base_hours * 0.75)
+        val = round(base_hours * 0.75)
     else:
-        raw_hours = round(base_hours)
-        equiv_hours = round(base_hours * 1.0)
+        val = round(base_hours * 1.0)
         
-    return raw_hours, equiv_hours
+    return val, val
 
 
 class MyAssignmentsView(APIView):

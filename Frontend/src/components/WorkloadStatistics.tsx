@@ -88,9 +88,9 @@ const WorkloadStatistics: React.FC = () => {
     const totalRaw = match ? parseFloat(match[1]) : 48.0;
 
     const base = totalRaw / 3.25;
-    const rawCm = Math.round(base);
-    const rawTd = Math.round(base);
-    const rawTp = Math.round(base);
+    const rawCm = Math.round(base * 1.5);
+    const rawTd = Math.round(base * 1.0);
+    const rawTp = Math.round(base * 0.75);
 
     const cm_eq = Math.round(base * 1.5);
     const td_eq = Math.round(base * 1.0);
@@ -98,7 +98,7 @@ const WorkloadStatistics: React.FC = () => {
 
     return {
       raw: rawCm + rawTd + rawTp,
-      eqtd: Math.round(totalRaw),
+      eqtd: rawCm + rawTd + rawTp,
       cm: rawCm,
       td: rawTd,
       tp: rawTp,
