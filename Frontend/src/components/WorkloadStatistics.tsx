@@ -246,6 +246,49 @@ const WorkloadStatistics: React.FC = () => {
     }
   }, [visibleTeacherNames, teacherFilter]);
 
+  const handleExportExcel = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const params = new URLSearchParams();
+      
+      if (filiereFilter !== 'ALL') {
+        const found = filieres.find(f => f.nom === filiereFilter);
+        if (found) params.append('filiere_id', found.id.toString());
+      }
+      
+      if (semesterFilter !== 'ALL') {
+        params.append('semester', semesterFilter);
+      }
+      
+      if (teacherFilter !== 'ALL') {
+        const found = faculty.find(f => f.name === teacherFilter);
+        if (found) params.append('enseignant_id', found.id);
+      }
+
+      const url = `http://localhost:8000/api/core/export-workload/?${params.toString()}`;
+      
+      const response = await fetch(url, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to export workload');
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `Volume_Horaire_Rapport.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (error) {
+      console.error('Error exporting workload Excel:', error);
+      alert('Erreur lors de l\'exportation du volume horaire.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -258,12 +301,23 @@ const WorkloadStatistics: React.FC = () => {
     <div className="max-w-[1400px] mx-auto p-gutter lg:p-lg space-y-lg text-on-surface">
       
       {/* Header */}
-      <div>
-        <p className="font-label-caps text-label-caps text-primary opacity-70 mb-xs uppercase">Espace Administration</p>
-        <h1 className="font-h1 text-h1 text-on-background">Gestion des Volumes Horaires & Statistiques</h1>
-        <p className="font-body-md text-body-md text-on-surface-variant mt-xs">
-          Visualisation globale, répartition par cours, et suivi des seuils statutaires du département.
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-base border-b border-outline-variant pb-md">
+        <div>
+          <p className="font-label-caps text-label-caps text-primary opacity-70 mb-xs uppercase">Espace Administration</p>
+          <h1 className="font-h1 text-h1 text-on-background">Gestion des Volumes Horaires & Statistiques</h1>
+          <p className="font-body-md text-body-md text-on-surface-variant mt-xs">
+            Visualisation globale, répartition par cours, et suivi des seuils statutaires du département.
+          </p>
+        </div>
+        <div className="flex items-center gap-base">
+          <button
+            onClick={handleExportExcel}
+            className="bg-primary hover:bg-primary/95 text-on-primary font-bold text-xs uppercase tracking-wider px-6 py-3 rounded-lg shadow-md flex items-center gap-2 transition-all border-0 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[18px]">download_for_offline</span>
+            Exporter Rapport Excel
+          </button>
+        </div>
       </div>
 
       {/* Bento Grid: Statistics Cards */}
