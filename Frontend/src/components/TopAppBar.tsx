@@ -384,20 +384,31 @@ const TopAppBar: React.FC = () => {
                          <span className="material-symbols-outlined text-lg">calendar_today</span>
                          Mon emploi du temps
                        </Link>
-                       <Link
-                         to="/evaluations"
-                         className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                           isActive('/evaluations')
-                             ? 'text-primary bg-sky-50/50 font-semibold'
-                             : 'text-slate-700 hover:bg-slate-50'
-                         }`}
-                       >
-                         <span className="material-symbols-outlined text-lg">grade</span>
-                         Évaluations
-                       </Link>
-                     </div>
-                   </div>
-                 )}
+                        <Link
+                          to="/evaluations"
+                          className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                            isActive('/evaluations')
+                              ? 'text-primary bg-sky-50/50 font-semibold'
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-lg">grade</span>
+                          Évaluations
+                        </Link>
+                        <Link
+                          to="/notifications"
+                          className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                            isActive('/notifications')
+                              ? 'text-primary bg-sky-50/50 font-semibold'
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-lg">notifications</span>
+                          Notifications / Messages
+                        </Link>
+                      </div>
+                    </div>
+                  )}
 
                 {/* Management Dropdown (Admin & Chef only) */}
                 {isAdmin && (
@@ -440,7 +451,7 @@ const TopAppBar: React.FC = () => {
                     const isCoord = user?.role ? user.role.includes('RESPONSABLE_FILIERE') : false;
                     const isChef = user?.role ? user.role.includes('CHEF_DEPARTEMENT') : false;
                     
-                    if (isChef && (link.path === '/consultation' || link.path === '/my-timetable' || link.path === '/evaluations')) {
+                    if (isChef && (link.path === '/consultation' || link.path === '/my-timetable' || link.path === '/evaluations' || link.path === '/messages')) {
                       return false;
                     }
                     if (link.path === '/consultation' || link.path === '/my-timetable' || link.path === '/evaluations') {
