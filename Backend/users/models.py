@@ -73,6 +73,8 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
         "core.Module", related_name="users_habilites", blank=True
     )
     
+    seuil_horaire = models.IntegerField(null=True, blank=True)
+    
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 

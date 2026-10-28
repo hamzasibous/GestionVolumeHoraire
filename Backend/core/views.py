@@ -805,47 +805,61 @@ class DashboardStatsView(APIView):
         total_profs = profs_qs.count()
         total_rooms = rooms_qs.count()
         
-        # Total volume in EqTD hours
+        # Deduplicated statutory workload calculation (consistent with Espace Administration)
+        sceances_summary = list(sceances_qs.values('module__id', 'module__nom', 'type').distinct())
+        
         total_equiv_hours = 0
-        for s in sceances_qs.only('type', 'duree'):
-            hours = s.duree / 60.0
-            if s.type == 'CM':
-                total_equiv_hours += hours * 1.5
-            elif s.type == 'TP':
-                total_equiv_hours += hours * 0.75
-            else:
-                total_equiv_hours += hours * 1.0
+        module_session_types_cache = {}
+        type_hours = {'CM': 0.0, 'TD': 0.0, 'TP': 0.0}
+        
+        for item in sceances_summary:
+            mod_id = item['module__id']
+            mod_nom = item['module__nom']
+            s_type = item['type']
+            
+            if mod_id not in module_session_types_cache:
+                module_session_types_cache[mod_id] = list(
+                    Sceance.objects.filter(module_id=mod_id).values_list('type', flat=True).distinct()
+                )
+            
+            session_types = module_session_types_cache[mod_id]
+            _, equiv_hours = get_session_hours(mod_nom, s_type, session_types)
+            total_equiv_hours += equiv_hours
+            if s_type in type_hours:
+                type_hours[s_type] += equiv_hours
+                
         total_hours = round(total_equiv_hours)
         
-        # Breakdown by type
-        breakdown = sceances_qs.values('type').annotate(count=Count('id'))
-        total_sceances = sum(item['count'] for item in breakdown)
-        
+        # Breakdown by EqTD workload type
+        total_type_hours = sum(type_hours.values())
         type_stats = {
             'CM': 0, 'TD': 0, 'TP': 0
         }
-        if total_sceances > 0:
-            for item in breakdown:
-                type_stats[item['type']] = round((item['count'] / total_sceances) * 100)
+        if total_type_hours > 0:
+            for k in type_stats.keys():
+                type_stats[k] = round((type_hours[k] / total_type_hours) * 100)
 
-        # Recent filieres with EqTD
+        # Recent filieres with EqTD (deduplicated statutory)
         filieres_data = []
-        for f in filieres_qs[:5]:
-            f_sceances = Sceance.objects.filter(module__filieres=f).only('type', 'duree')
+        for f in filieres_qs:
+            f_sceances_summary = list(
+                Sceance.objects.filter(module__filieres=f).values('module__id', 'module__nom', 'type').distinct()
+            )
             f_equiv_hours = 0
-            for s in f_sceances:
-                hours = s.duree / 60.0
-                if s.type == 'CM':
-                    f_equiv_hours += hours * 1.5
-                elif s.type == 'TP':
-                    f_equiv_hours += hours * 0.75
-                else:
-                    f_equiv_hours += hours * 1.0
+            for item in f_sceances_summary:
+                mod_id = item['module__id']
+                mod_nom = item['module__nom']
+                s_type = item['type']
+                
+                m_types = list(Sceance.objects.filter(module_id=mod_id).values_list('type', flat=True).distinct())
+                _, equiv = get_session_hours(mod_nom, s_type, m_types)
+                f_equiv_hours += equiv
+            
             filieres_data.append({
                 'name': f.nom,
                 'level': f.get_niveaux_display(),
                 'totalHours': round(f_equiv_hours),
-                'status': 'Validated' # Placeholder
+                'status': 'Validé' if f_sceances_summary else 'En attente'
             })
 
         return Response({
@@ -980,7 +994,8 @@ class FacultyAssignmentListView(APIView):
                 })
 
             dept = prof.departement
-            seuil = dept.seuil_horaire if dept else 192
+            dept_seuil = dept.seuil_horaire if dept else 192
+            seuil = prof.seuil_horaire if prof.seuil_horaire is not None else dept_seuil
 
             data.append({
                 'id': str(prof.id),
@@ -1272,10 +1287,49 @@ class SceanceViewSet(viewsets.ModelViewSet):
                         enseignant_id=p.id
                     ).exclude(module_id=module_id).exists()
                 
+                # Recalculate statutory workload for prof p (deduplicated by module + session type)
+                p_sceances_summary = p.sceances.values('module__id', 'module__nom', 'type').annotate(count=Count('id'))
+                current_workload = 0
+                for item in p_sceances_summary:
+                    m_id = item['module__id']
+                    m_nom = item['module__nom']
+                    t_type = item['type']
+                    
+                    m_session_types = list(Sceance.objects.filter(module_id=m_id).values_list('type', flat=True).distinct())
+                    _, eq_hrs = get_session_hours(m_nom, t_type, m_session_types)
+                    current_workload += eq_hrs
+
+                session_type = request.query_params.get('type', 'CM')
+                
+                already_teaches = p.sceances.filter(module_id=module_id, type=session_type).exists() if module_id else False
+                
+                potential_workload = current_workload
+                if not already_teaches and module_id:
+                    try:
+                        from .models import Module
+                        target_mod = Module.objects.get(id=module_id)
+                        m_session_types = list(Sceance.objects.filter(module_id=module_id).values_list('type', flat=True).distinct())
+                        if session_type not in m_session_types:
+                            m_session_types.append(session_type)
+                        _, added_eq = get_session_hours(target_mod.nom, session_type, m_session_types)
+                        potential_workload += added_eq
+                    except Exception:
+                        pass
+                
+                p_dept = p.departement
+                dept_seuil = p_dept.seuil_horaire if p_dept else 192
+                p_seuil = p.seuil_horaire if p.seuil_horaire is not None else dept_seuil
+                
+                exceeds_seuil = potential_workload > p_seuil
+
                 available_profs.append({
                     "id": p.id,
                     "name": str(p),
-                    "violates_rule": violates_filiere_rule
+                    "violates_rule": violates_filiere_rule,
+                    "exceeds_seuil": exceeds_seuil,
+                    "current_workload": current_workload,
+                    "potential_workload": potential_workload,
+                    "max_workload": p_seuil
                 })
 
             print(f"DEBUG: Returning {len(available_profs)} available professors.")
@@ -1365,6 +1419,7 @@ class GenerateScheduleView(APIView):
                 return Response({"error": "Tâche non trouvée"}, status=404)
 
         semesters_str = request.data.get('semesters', '')
+        custom_assignments = request.data.get('custom_assignments', {})
         if not semesters_str:
             return Response({"error": "No semesters provided"}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -1377,7 +1432,7 @@ class GenerateScheduleView(APIView):
                     task.refresh_from_db()
                     return task.status == 'CANCELLED'
 
-                success, results = run_genetic_algorithm(semester_codes, task_id=task.id, cancel_check=cancel_check)
+                success, results = run_genetic_algorithm(semester_codes, task_id=task.id, cancel_check=cancel_check, custom_assignments=custom_assignments)
                 
                 # Re-check status
                 task.refresh_from_db()
@@ -1520,14 +1575,39 @@ class SeuilHoraireView(APIView):
     def get(self, request):
         user = request.user
         dept = user.departement
-        seuil = dept.seuil_horaire if dept else 192
-        return Response({"seuil_horaire": seuil})
+        dept_seuil = dept.seuil_horaire if dept else 192
+        
+        teacher_id = request.query_params.get("teacher_id")
+        if teacher_id:
+            try:
+                prof = Utilisateur.objects.get(id=teacher_id)
+                return Response({
+                    "seuil_horaire": prof.seuil_horaire,
+                    "dept_seuil": dept_seuil,
+                    "is_custom": prof.seuil_horaire is not None
+                })
+            except Utilisateur.DoesNotExist:
+                return Response({"error": "Teacher not found"}, status=status.HTTP_404_NOT_FOUND)
+                
+        return Response({"seuil_horaire": dept_seuil, "dept_seuil": dept_seuil})
 
     def put(self, request):
         user = request.user
         if not any(r in user.role for r in [Role.ADMIN, Role.CHEF_DEPARTEMENT]):
             return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
         
+        teacher_id = request.data.get("teacher_id")
+        clear_custom = request.data.get("clear_custom", False)
+        
+        if clear_custom and teacher_id:
+            try:
+                prof = Utilisateur.objects.get(id=teacher_id)
+                prof.seuil_horaire = None
+                prof.save()
+                return Response({"message": "Seuil horaire réinitialisé à la valeur du département"})
+            except Utilisateur.DoesNotExist:
+                return Response({"error": "Teacher not found"}, status=status.HTTP_404_NOT_FOUND)
+
         seuil = request.data.get("seuil_horaire")
         if seuil is None:
             return Response({"error": "seuil_horaire is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1537,6 +1617,15 @@ class SeuilHoraireView(APIView):
         except ValueError:
             return Response({"error": "seuil_horaire must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
 
+        if teacher_id:
+            try:
+                prof = Utilisateur.objects.get(id=teacher_id)
+                prof.seuil_horaire = seuil
+                prof.save()
+                return Response({"seuil_horaire": prof.seuil_horaire, "message": "Seuil horaire de l'enseignant mis à jour avec succès"})
+            except Utilisateur.DoesNotExist:
+                return Response({"error": "Teacher not found"}, status=status.HTTP_404_NOT_FOUND)
+
         dept = user.departement
         if not dept:
             dept, _ = Departement.objects.get_or_create(nom="Informatique")
@@ -1545,7 +1634,7 @@ class SeuilHoraireView(APIView):
 
         dept.seuil_horaire = seuil
         dept.save()
-        return Response({"seuil_horaire": dept.seuil_horaire, "message": "Seuil horaire mis à jour avec succès"})
+        return Response({"seuil_horaire": dept.seuil_horaire, "message": "Seuil horaire du département mis à jour avec succès"})
 
 
 class ImportTeachersExcelView(APIView):

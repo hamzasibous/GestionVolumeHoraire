@@ -36,6 +36,9 @@ const FacultyAssignments: React.FC = () => {
   // Threshold Configuration State
   const [isThresholdModalOpen, setIsThresholdModalOpen] = useState(false);
   const [thresholdValue, setThresholdValue] = useState<number>(192);
+  const [thresholdApplyTo, setThresholdApplyTo] = useState<'dept' | 'prof'>('dept');
+  const [thresholdTeacherId, setThresholdTeacherId] = useState<string>('');
+  const [isCustomThreshold, setIsCustomThreshold] = useState<boolean>(false);
 
   // Export State
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -76,6 +79,10 @@ const FacultyAssignments: React.FC = () => {
   }, []);
 
   const fetchThreshold = () => {
+    setThresholdApplyTo('dept');
+    setThresholdTeacherId('');
+    setIsCustomThreshold(false);
+    
     const token = localStorage.getItem('access_token');
     const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
     fetch('http://localhost:8000/api/core/seuil-horaire/', { headers })
@@ -83,6 +90,21 @@ const FacultyAssignments: React.FC = () => {
       .then(data => {
         setThresholdValue(data.seuil_horaire || 192);
         setIsThresholdModalOpen(true);
+      })
+      .catch(err => console.error(err));
+  };
+
+  const handleTeacherThresholdChange = (teacherId: string) => {
+    setThresholdTeacherId(teacherId);
+    if (!teacherId) return;
+    
+    const token = localStorage.getItem('access_token');
+    const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+    fetch(`http://localhost:8000/api/core/seuil-horaire/?teacher_id=${teacherId}`, { headers })
+      .then(res => res.json())
+      .then(data => {
+        setThresholdValue(data.seuil_horaire || data.dept_seuil || 192);
+        setIsCustomThreshold(data.is_custom);
       })
       .catch(err => console.error(err));
   };
@@ -95,10 +117,40 @@ const FacultyAssignments: React.FC = () => {
     } : {
       'Content-Type': 'application/json'
     };
+    
+    const body: any = { seuil_horaire: thresholdValue };
+    if (thresholdApplyTo === 'prof' && thresholdTeacherId) {
+      body.teacher_id = thresholdTeacherId;
+    }
+    
     fetch('http://localhost:8000/api/core/seuil-horaire/', { 
       method: 'PUT',
       headers,
-      body: JSON.stringify({ seuil_horaire: thresholdValue })
+      body: JSON.stringify(body)
+    })
+      .then(res => res.json())
+      .then(() => {
+        setIsThresholdModalOpen(false);
+        loadFacultyData();
+      })
+      .catch(err => console.error(err));
+  };
+
+  const handleClearTeacherThreshold = () => {
+    if (thresholdApplyTo !== 'prof' || !thresholdTeacherId) return;
+    
+    const token = localStorage.getItem('access_token');
+    const headers: HeadersInit = token ? { 
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    } : {
+      'Content-Type': 'application/json'
+    };
+    
+    fetch('http://localhost:8000/api/core/seuil-horaire/', { 
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ teacher_id: thresholdTeacherId, clear_custom: true })
     })
       .then(res => res.json())
       .then(() => {
@@ -424,11 +476,11 @@ const FacultyAssignments: React.FC = () => {
       {/* Threshold Modal */}
       {isThresholdModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden text-slate-800">
             <div className="bg-slate-900 p-6 flex items-center justify-between">
               <div className="flex items-center gap-3 text-white">
                 <span className="material-symbols-outlined text-sky-400">tune</span>
-                <h3 className="text-lg font-black uppercase tracking-tight">Seuil Horaire</h3>
+                <h3 className="text-lg font-black uppercase tracking-tight">Configuration du Seuil Horaire</h3>
               </div>
               <button onClick={() => setIsThresholdModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
                 <span className="material-symbols-outlined">close</span>
@@ -437,19 +489,75 @@ const FacultyAssignments: React.FC = () => {
             
             <div className="p-8 space-y-6">
               <p className="text-slate-600 text-sm">
-                Définissez le seuil statutaire d'heures (Équivalent TD) par semestre pour ce département. Les enseignants dépassant ce seuil seront signalés en alerte.
+                Définissez le seuil statutaire d'heures (Équivalent TD) par semestre. Vous pouvez le configurer pour tout le département ou l'attribuer de façon personnalisée à un enseignant spécifique.
               </p>
               
               <div className="space-y-2">
-                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Heures statutaires (EqTD)</label>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Appliquer à</label>
+                <select
+                  value={thresholdApplyTo}
+                  onChange={(e) => {
+                    const val = e.target.value as 'dept' | 'prof';
+                    setThresholdApplyTo(val);
+                    if (val === 'dept') {
+                      setThresholdTeacherId('');
+                      setIsCustomThreshold(false);
+                      const token = localStorage.getItem('access_token');
+                      const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+                      fetch('http://localhost:8000/api/core/seuil-horaire/', { headers })
+                        .then(res => res.json())
+                        .then(data => setThresholdValue(data.seuil_horaire || 192))
+                        .catch(err => console.error(err));
+                    }
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none"
+                >
+                  <option value="dept">Tout le Département</option>
+                  <option value="prof">Un Enseignant Spécifique</option>
+                </select>
+              </div>
+
+              {thresholdApplyTo === 'prof' && (
+                <div className="space-y-2 animate-in slide-in-from-top duration-200">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Sélectionner l'Enseignant</label>
+                  <select
+                    value={thresholdTeacherId}
+                    onChange={(e) => handleTeacherThresholdChange(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none"
+                  >
+                    <option value="">-- Choisissez un enseignant --</option>
+                    {faculty.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Heures statutaires (EqTD) {thresholdApplyTo === 'prof' && thresholdTeacherId && 'pour cet enseignant'}
+                </label>
                 <input 
                   type="number" 
                   value={thresholdValue}
                   onChange={(e) => setThresholdValue(parseInt(e.target.value) || 0)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none transition-all"
                   min="0"
+                  disabled={thresholdApplyTo === 'prof' && !thresholdTeacherId}
                 />
               </div>
+
+              {thresholdApplyTo === 'prof' && thresholdTeacherId && isCustomThreshold && (
+                <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={handleClearTeacherThreshold}
+                    className="text-xs text-red-600 hover:text-red-800 font-bold underline transition-colors"
+                  >
+                    Réinitialiser au seuil par défaut du département
+                  </button>
+                </div>
+              )}
 
               <div className="pt-6 border-t border-slate-100 flex gap-4">
                 <button 
@@ -460,7 +568,8 @@ const FacultyAssignments: React.FC = () => {
                 </button>
                 <button 
                   onClick={handleSaveThreshold}
-                  className="flex-1 bg-slate-900 text-white hover:bg-slate-800 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg"
+                  disabled={thresholdApplyTo === 'prof' && !thresholdTeacherId}
+                  className="flex-1 bg-slate-900 text-white hover:bg-slate-800 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Enregistrer
                 </button>

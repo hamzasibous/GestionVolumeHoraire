@@ -32,7 +32,7 @@ def get_module_eqtd_hours(module_name, v_h_hebdo):
     raw_hours = int(match.group(1)) if match else 48
     return raw_hours
 
-def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progress_callback=None, cancel_check=None):
+def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progress_callback=None, cancel_check=None, custom_assignments=None):
     def update_progress(p, msg=None):
         if progress_callback:
             progress_callback(p, msg)
@@ -115,69 +115,92 @@ def run_genetic_algorithm(semester_codes, task_id=None, custom_data=None, progre
         for cp in cps:
             total_module_hours += get_module_eqtd_hours(cp.module.nom, cp.v_h_hebdo)
 
-        # Get candidate teachers
-        candidates = []
-        if hasattr(first_cp, 'eligible_teachers'):
-            candidates = first_cp.eligible_teachers
-        else:
-            candidates = list(first_cp.module.users_habilites.all())
+        # Check for manual custom assignment first
+        assigned_teacher_id = None
+        if custom_assignments:
+            assigned_teacher_id = custom_assignments.get(str(mod_id)) or custom_assignments.get(mod_id)
 
-        if not candidates:
-            candidates = teachers
+        best_teacher = None
+        if assigned_teacher_id:
+            assigned_prof = next((t for t in teachers if t.id == int(assigned_teacher_id)), None)
+            if not assigned_prof:
+                try:
+                    assigned_prof = Enseignant.objects.get(id=int(assigned_teacher_id))
+                    teachers.append(assigned_prof)
+                    prof_load[assigned_prof.id] = 0.0
+                    dept_seuil = 192
+                    if hasattr(assigned_prof, 'departement') and assigned_prof.departement:
+                        dept_seuil = assigned_prof.departement.seuil_horaire
+                    prof_seuil[assigned_prof.id] = dept_seuil
+                except Exception:
+                    pass
+            if assigned_prof:
+                best_teacher = assigned_prof
 
-        # Keep only active teachers in our list
-        valid_ids = set(t.id for t in teachers)
-        candidates = [t for t in candidates if t.id in valid_ids]
-        if not candidates:
-            candidates = teachers
+        if not best_teacher:
+            # Get candidate teachers
+            candidates = []
+            if hasattr(first_cp, 'eligible_teachers'):
+                candidates = first_cp.eligible_teachers
+            else:
+                candidates = list(first_cp.module.users_habilites.all())
 
-        # Filter candidates by module speciality
-        mod_spec = get_module_speciality(first_cp.module.nom)
-        spec_candidates = [t for t in candidates if getattr(t, 'specialite', 'INFORMATIQUE') == mod_spec]
-        if spec_candidates:
-            candidates = spec_candidates
+            if not candidates:
+                candidates = teachers
 
-        # Find best teacher under seuil horaire limit
-        under_seuil = [t for t in candidates if prof_load[t.id] + total_module_hours <= prof_seuil[t.id]]
-        if under_seuil:
-            best_teacher = min(under_seuil, key=lambda t: prof_load[t.id])
-        else:
-            # Enforce work limit: Do NOT assign to any permanent professor who would exceed seuil.
-            # Instead, dynamically allocate to a VACATAIRE for this speciality
-            vac_index = 1
-            best_teacher = None
-            while True:
-                vac_email = f"vacataire_{mod_spec.lower()}_{vac_index}@umi.ac.ma"
-                vac_name = f"VACATAIRE {mod_spec} {vac_index}"
-                
-                v_t, created = Enseignant.objects.get_or_create(
-                    email=vac_email,
-                    defaults={
-                        'nom': vac_name,
-                        'prenom': 'Enseignant',
-                        'role': 'ENSEIGNANT',
-                        'specialite': mod_spec,
-                        'is_active': True,
-                        'tel': ''
-                    }
-                )
-                
-                # Register in local solver lists
-                if v_t.id not in prof_load:
-                    teachers.append(v_t)
-                    prof_load[v_t.id] = 0.0
-                    prof_seuil[v_t.id] = 192.0
+            # Keep only active teachers in our list
+            valid_ids = set(t.id for t in teachers)
+            candidates = [t for t in candidates if t.id in valid_ids]
+            if not candidates:
+                candidates = teachers
+
+            # Filter candidates by module speciality
+            mod_spec = get_module_speciality(first_cp.module.nom)
+            spec_candidates = [t for t in candidates if getattr(t, 'specialite', 'INFORMATIQUE') == mod_spec]
+            if spec_candidates:
+                candidates = spec_candidates
+
+            # Find best teacher under seuil horaire limit
+            under_seuil = [t for t in candidates if prof_load[t.id] + total_module_hours <= prof_seuil[t.id]]
+            if under_seuil:
+                best_teacher = min(under_seuil, key=lambda t: prof_load[t.id])
+            else:
+                # Enforce work limit: Do NOT assign to any permanent professor who would exceed seuil.
+                # Instead, dynamically allocate to a VACATAIRE for this speciality
+                vac_index = 1
+                best_teacher = None
+                while True:
+                    vac_email = f"vacataire_{mod_spec.lower()}_{vac_index}@umi.ac.ma"
+                    vac_name = f"VACATAIRE {mod_spec} {vac_index}"
                     
-                # Check if this vacataire has enough remaining space
-                if prof_load[v_t.id] + total_module_hours <= prof_seuil[v_t.id]:
-                    best_teacher = v_t
-                    break
-                
-                if vac_index >= 50:
-                    best_teacher = v_t
-                    break
+                    v_t, created = Enseignant.objects.get_or_create(
+                        email=vac_email,
+                        defaults={
+                            'nom': vac_name,
+                            'prenom': 'Enseignant',
+                            'role': 'ENSEIGNANT',
+                            'specialite': mod_spec,
+                            'is_active': True,
+                            'tel': ''
+                        }
+                    )
                     
-                vac_index += 1
+                    # Register in local solver lists
+                    if v_t.id not in prof_load:
+                        teachers.append(v_t)
+                        prof_load[v_t.id] = 0.0
+                        prof_seuil[v_t.id] = 192.0
+                        
+                    # Check if this vacataire has enough remaining space
+                    if prof_load[v_t.id] + total_module_hours <= prof_seuil[v_t.id]:
+                        best_teacher = v_t
+                        break
+                    
+                    if vac_index >= 50:
+                        best_teacher = v_t
+                        break
+                        
+                    vac_index += 1
 
         module_assigned_teacher[mod_id] = best_teacher
         prof_load[best_teacher.id] += total_module_hours

@@ -124,6 +124,12 @@ const Timetable: React.FC = () => {
   const [modalAvailableRooms, setModalAvailableRooms] = useState<any[]>([]);
   const [isModalLoading, setIsModalLoading] = useState(false);
 
+  // AI Generation configuration states
+  const [isGenerationModalOpen, setIsGenerationModalOpen] = useState(false);
+  const [generationMode, setGenerationMode] = useState<'auto' | 'manual'>('auto');
+  const [manualAssignments, setManualAssignments] = useState<Record<number, string>>({});
+  const [moduleFilterSearch, setModuleFilterSearch] = useState('');
+
   const [formData, setFormData] = useState({
     module: '',
     room: '',
@@ -316,7 +322,7 @@ const Timetable: React.FC = () => {
       setIsModalLoading(true);
       try {
         const isNumericId = editingSessionId && /^\d+$/.test(editingSessionId.toString());
-        const url = `http://localhost:8000/api/core/sceance/get_available_resources/?date=${formData.startDate}&heure_debut=${startTime}&duree=${duration}&filiere_id=${filiereId}&semester=${selectedSemester}&module_id=${formData.module}${isNumericId ? `&exclude_id=${editingSessionId}` : ''}`;
+        const url = `http://localhost:8000/api/core/sceance/get_available_resources/?date=${formData.startDate}&heure_debut=${startTime}&duree=${duration}&filiere_id=${filiereId}&semester=${selectedSemester}&module_id=${formData.module}&type=${formData.type}${isNumericId ? `&exclude_id=${editingSessionId}` : ''}`;
         const token = localStorage.getItem('access_token');
         const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
         const res = await fetch(url, { headers });
@@ -403,7 +409,7 @@ const Timetable: React.FC = () => {
     }
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (customAssignments = {}) => {
     if (!selectedSemester) { alert("Veuillez d'abord sélectionner un semestre."); return; }
     setIsGenerating(true); setGenerationProgress(0); setGenerationMessage("Démarrage de l'IA...");
     const isAutumn = ['S1', 'S3', 'S5', 'S7', 'S9'].includes(selectedSemester);
@@ -417,7 +423,7 @@ const Timetable: React.FC = () => {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ semesters: targetSemesters })
+        body: JSON.stringify({ semesters: targetSemesters, custom_assignments: customAssignments })
       });
       if (response.ok) {
         const { task_id } = await response.json();
@@ -450,6 +456,39 @@ const Timetable: React.FC = () => {
         }, 1000);
       } else { alert("Erreur lors de la génération"); setIsGenerating(false); }
     } catch (error) { console.error("Generation error:", error); setIsGenerating(false); }
+  };
+
+  const getTargetModules = () => {
+    if (!selectedSemester || !filieres) return [];
+    const isAutumn = ['S1', 'S3', 'S5', 'S7', 'S9'].includes(selectedSemester);
+    const targetSemesters = isAutumn ? ['S1', 'S3', 'S5', 'S7', 'S9'] : ['S2', 'S4', 'S6', 'S8', 'S10'];
+    
+    const list: Array<{ id: number; nom: string; filiereNom: string; semestre: string }> = [];
+    filieres.forEach((filiere: any) => {
+      const filModules = filiere.modules || [];
+      filModules.forEach((m: any) => {
+        if (targetSemesters.includes(m.semestre)) {
+          if (!list.some(item => item.id === m.id)) {
+            list.push({
+              id: m.id,
+              nom: m.nom,
+              filiereNom: filiere.nom,
+              semestre: m.semestre
+            });
+          }
+        }
+      });
+    });
+
+    if (moduleFilterSearch) {
+      const q = moduleFilterSearch.toLowerCase();
+      return list.filter(item => 
+        item.nom.toLowerCase().includes(q) || 
+        item.filiereNom.toLowerCase().includes(q) ||
+        item.semestre.toLowerCase().includes(q)
+      );
+    }
+    return list;
   };
 
   const handleConfirmSave = async () => {
@@ -717,13 +756,133 @@ const Timetable: React.FC = () => {
             {isListView ? 'Vue Grille' : 'Vue Programme'}
           </button>
           {isAdmin && (
-            <button onClick={handleGenerate} disabled={isGenerating} className={`bg-slate-800 text-sky-400 border border-slate-700 px-6 py-2 rounded-lg font-bold hover:bg-slate-700 transition-all uppercase text-[10px] tracking-widest flex items-center gap-2 ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}>
+            <button onClick={() => {
+              if (!selectedSemester) { alert("Veuillez d'abord sélectionner un semestre."); return; }
+              setManualAssignments({});
+              setModuleFilterSearch('');
+              setIsGenerationModalOpen(true);
+            }} disabled={isGenerating} className={`bg-slate-800 text-sky-400 border border-slate-700 px-6 py-2 rounded-lg font-bold hover:bg-slate-700 transition-all uppercase text-[10px] tracking-widest flex items-center gap-2 ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <span className="material-symbols-outlined text-sm">{isGenerating ? 'sync' : 'psychology'}</span>
               {isGenerating ? 'Génération...' : 'IA Optimisation'}
             </button>
           )}
         </div>
       </header>
+
+      {/* AI Generation Settings Modal */}
+      {isGenerationModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full border border-slate-200 overflow-hidden text-slate-800 animate-in zoom-in duration-305">
+            <div className="bg-slate-900 p-6 flex items-center justify-between text-white">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-sky-400">psychology</span>
+                <h3 className="text-lg font-black uppercase tracking-tight">IA Optimisation de l'Emploi du Temps</h3>
+              </div>
+              <button onClick={() => setIsGenerationModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            
+            <div className="p-8 space-y-6">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Sélectionnez le mode de génération</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => setGenerationMode('auto')}
+                    className={`p-6 rounded-xl border-2 text-left transition-all flex flex-col gap-2 ${generationMode === 'auto' ? 'border-sky-500 bg-sky-50/20' : 'border-slate-200 hover:border-slate-350'}`}
+                  >
+                    <div className="flex items-center gap-2 font-bold text-slate-900">
+                      <span className="material-symbols-outlined text-sky-500">auto_awesome</span>
+                      Génération 100% Automatique
+                    </div>
+                    <p className="text-xs text-slate-500 font-medium">
+                      L'intelligence artificielle affectera automatiquement les enseignants les mieux qualifiés aux cours tout en équilibrant les charges statutaires.
+                    </p>
+                  </button>
+                  <button
+                    onClick={() => setGenerationMode('manual')}
+                    className={`p-6 rounded-xl border-2 text-left transition-all flex flex-col gap-2 ${generationMode === 'manual' ? 'border-sky-500 bg-sky-50/20' : 'border-slate-200 hover:border-slate-350'}`}
+                  >
+                    <div className="flex items-center gap-2 font-bold text-slate-900">
+                      <span className="material-symbols-outlined text-indigo-500">person_add</span>
+                      Génération Manuelle + IA
+                    </div>
+                    <p className="text-xs text-slate-500 font-medium">
+                      Vous attribuez manuellement les modules de votre choix aux enseignants, et l'IA optimisera ensuite le placement de toutes les séances.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {generationMode === 'manual' && (
+                <div className="space-y-4 animate-in fade-in duration-300">
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Affectation des Modules</p>
+                    <input
+                      type="text"
+                      placeholder="Rechercher un module..."
+                      value={moduleFilterSearch}
+                      onChange={(e) => setModuleFilterSearch(e.target.value)}
+                      className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none"
+                    />
+                  </div>
+                  
+                  <div className="max-h-[300px] overflow-y-auto divide-y divide-slate-100 pr-2">
+                    {getTargetModules().length > 0 ? (
+                      getTargetModules().map((m) => (
+                        <div key={m.id} className="py-3 flex items-center justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm text-slate-800 truncate">{m.nom}</p>
+                            <p className="text-[11px] text-slate-400 font-medium">{m.filiereNom} • Semestre {m.semestre}</p>
+                          </div>
+                          <select
+                            value={manualAssignments[m.id] || ''}
+                            onChange={(e) => {
+                              const updated = { ...manualAssignments };
+                              if (e.target.value) {
+                                updated[m.id] = e.target.value;
+                              } else {
+                                delete updated[m.id];
+                              }
+                              setManualAssignments(updated);
+                            }}
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none w-[250px]"
+                          >
+                            <option value="">-- Assigner par l'IA --</option>
+                            {teachers.map((t) => (
+                              <option key={t.id} value={t.id}>Pr. {t.nom} {t.prenom}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="py-6 text-center text-xs text-slate-400 italic">Aucun module trouvé pour les filières de ce semestre.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-6 border-t border-slate-100 flex gap-4">
+                <button
+                  onClick={() => setIsGenerationModalOpen(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={() => {
+                    setIsGenerationModalOpen(false);
+                    handleGenerate(generationMode === 'manual' ? manualAssignments : {});
+                  }}
+                  className="flex-1 bg-slate-900 text-white hover:bg-slate-800 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg"
+                >
+                  Lancer l'Optimisation
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Progress Modal */}
       {isGenerating && (
@@ -1187,16 +1346,23 @@ const Timetable: React.FC = () => {
                         const recommended = list.filter(p => !p.violates_rule);
                         const others = list.filter(p => p.violates_rule);
                         
+                        const formatLabel = (p: any) => {
+                          if (p.current_workload !== undefined && p.max_workload !== undefined) {
+                            return `${p.name} (${p.current_workload}h / ${p.max_workload}h)${p.exceeds_seuil ? ' ⚠️ (Surcharge)' : ''}`;
+                          }
+                          return p.name;
+                        };
+
                         return (
                           <>
                             {recommended.length > 0 && (
                               <optgroup label="Recommandés (Libre + Nouveau module)">
-                                {recommended.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                                {recommended.map(p => (<option key={p.id} value={p.id}>{formatLabel(p)}</option>))}
                               </optgroup>
                             )}
                             {others.length > 0 && (
                               <optgroup label="Déjà assigné à un autre module dans cette filière">
-                                {others.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                                {others.map(p => (<option key={p.id} value={p.id}>{formatLabel(p)}</option>))}
                               </optgroup>
                             )}
                           </>

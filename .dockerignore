@@ -1,0 +1,12 @@
+venv/
+**/venv/
+Frontend/
+**/node_modules/
+.git/
+.idea/
+.vscode/
+**/__pycache__/
+*.pyc
+*.sql
+*.zip
+*.tar.gz
