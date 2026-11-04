@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -47,13 +48,13 @@ const AddFiliere: React.FC = () => {
 
   useEffect(() => {
     // Fetch departments
-    fetch('http://localhost:8000/api/core/departement/')
+    fetch(`${API_BASE_URL}/api/core/departement/`)
       .then(res => res.json())
       .then(data => setDepartments(data.map((d: any) => ({ id: d.id.toString(), nom: d.nom }))))
       .catch(err => console.error('Error fetching departments:', err));
 
     // Fetch modules
-    fetch('http://localhost:8000/api/core/module/')
+    fetch(`${API_BASE_URL}/api/core/module/`)
       .then(res => res.json())
       .then(data => setAvailableModules(data.map((m: any) => ({ id: m.id.toString(), nom: m.nom }))))
       .catch(err => console.error('Error fetching modules:', err));
@@ -116,7 +117,7 @@ const AddFiliere: React.FC = () => {
     setLoading(true);
     try {
       // 1. Create Filiere
-      const filiereRes = await fetch('http://localhost:8000/api/core/filiere/create-filiere/', {
+      const filiereRes = await fetch(`${API_BASE_URL}/api/core/filiere/create-filiere/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -132,7 +133,7 @@ const AddFiliere: React.FC = () => {
 
       // 2. Affect Modules
       for (const mod of formData.selectedModules) {
-        await fetch('http://localhost:8000/api/core/module/affecter-filiere/', {
+        await fetch(`${API_BASE_URL}/api/core/module/affecter-filiere/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

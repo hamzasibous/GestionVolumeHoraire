@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import HolidayCalendar from './HolidayCalendar';
@@ -173,7 +174,7 @@ const Timetable: React.FC = () => {
     const start = formatDate(weekDates[0]);
     const end = formatDate(weekDates[5]);
 
-    let url = `http://localhost:8000/api/core/sceance/?start_date=${start}&end_date=${end}`;
+    let url = `${API_BASE_URL}/api/core/sceance/?start_date=${start}&end_date=${end}`;
     if (filiereId) url += `&filiere=${filiereId}`;
     if (selectedSemester) url += `&semester=${selectedSemester}`;
 
@@ -212,7 +213,7 @@ const Timetable: React.FC = () => {
   };
 
   const checkAvailability = (roomId: string, date: string, startTime: string, duree: number) => {
-    let url = `http://localhost:8000/api/core/sceance/check_availability/?local=${roomId}&date=${date}&heure_debut=${startTime}&duree=${duree}`;
+    let url = `${API_BASE_URL}/api/core/sceance/check_availability/?local=${roomId}&date=${date}&heure_debut=${startTime}&duree=${duree}`;
     if (editingSessionId) url += `&exclude_id=${editingSessionId}`;
     
     const token = localStorage.getItem('access_token');
@@ -243,7 +244,7 @@ const Timetable: React.FC = () => {
         const token = localStorage.getItem('access_token');
         const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-        const profileRes = await fetch('http://localhost:8000/api/users/profile/', { headers });
+        const profileRes = await fetch(`${API_BASE_URL}/api/users/profile/`, { headers });
         let profile = null;
         if (profileRes.ok) {
           profile = await profileRes.json();
@@ -251,11 +252,11 @@ const Timetable: React.FC = () => {
         }
 
         const [locRes, filRes, vacRes, teaRes, semRes] = await Promise.all([
-          fetch('http://localhost:8000/api/core/local/', { headers }),
-          fetch('http://localhost:8000/api/core/filiere/details/', { headers }),
-          fetch('http://localhost:8000/api/core/vacations/', { headers }),
-          fetch('http://localhost:8000/api/users/management/', { headers }),
-          fetch('http://localhost:8000/api/core/generate-schedule/?check_dates=all', { headers })
+          fetch(`${API_BASE_URL}/api/core/local/`, { headers }),
+          fetch(`${API_BASE_URL}/api/core/filiere/details/`, { headers }),
+          fetch(`${API_BASE_URL}/api/core/vacations/`, { headers }),
+          fetch(`${API_BASE_URL}/api/users/management/`, { headers }),
+          fetch(`${API_BASE_URL}/api/core/generate-schedule/?check_dates=all`, { headers })
         ]);
 
         const [locData, filData, vacData, teaData, semData] = await Promise.all([
@@ -322,7 +323,7 @@ const Timetable: React.FC = () => {
       setIsModalLoading(true);
       try {
         const isNumericId = editingSessionId && /^\d+$/.test(editingSessionId.toString());
-        const url = `http://localhost:8000/api/core/sceance/get_available_resources/?date=${formData.startDate}&heure_debut=${startTime}&duree=${duration}&filiere_id=${filiereId}&semester=${selectedSemester}&module_id=${formData.module}&type=${formData.type}${isNumericId ? `&exclude_id=${editingSessionId}` : ''}`;
+        const url = `${API_BASE_URL}/api/core/sceance/get_available_resources/?date=${formData.startDate}&heure_debut=${startTime}&duree=${duration}&filiere_id=${filiereId}&semester=${selectedSemester}&module_id=${formData.module}&type=${formData.type}${isNumericId ? `&exclude_id=${editingSessionId}` : ''}`;
         const token = localStorage.getItem('access_token');
         const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
         const res = await fetch(url, { headers });
@@ -392,7 +393,7 @@ const Timetable: React.FC = () => {
     if (!currentTaskId) return;
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch('http://localhost:8000/api/core/generate-schedule/', {
+      const response = await fetch(`${API_BASE_URL}/api/core/generate-schedule/`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -417,7 +418,7 @@ const Timetable: React.FC = () => {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch('http://localhost:8000/api/core/generate-schedule/', {
+      const response = await fetch(`${API_BASE_URL}/api/core/generate-schedule/`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -431,7 +432,7 @@ const Timetable: React.FC = () => {
         const pollInterval = setInterval(async () => {
           const t = localStorage.getItem('access_token');
           const h: HeadersInit = t ? { 'Authorization': `Bearer ${t}` } : {};
-          const statusRes = await fetch(`http://localhost:8000/api/core/task-status/${task_id}/`, { headers: h });
+          const statusRes = await fetch(`${API_BASE_URL}/api/core/task-status/${task_id}/`, { headers: h });
           if (statusRes.ok) {
             const task = await statusRes.json();
             setGenerationProgress(task.progress); setGenerationMessage(task.message);
@@ -496,7 +497,7 @@ const Timetable: React.FC = () => {
     setIsSaving(true);
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch('http://localhost:8000/api/core/confirm-schedule/', {
+      const response = await fetch(`${API_BASE_URL}/api/core/confirm-schedule/`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -562,7 +563,7 @@ const Timetable: React.FC = () => {
     const [eh, em] = formData.customTime.split(' - ')[1].split(':').map(Number);
     const payload = { type: formData.type, duree: (eh * 60 + em) - (sh * 60 + sm), date: formData.startDate, heure_debut: startTime, module: formData.module, enseignant: formData.teacher || null, local: formData.room, number_of_sessions: formData.number_of_sessions };
     const method = editingSessionId ? 'PUT' : 'POST';
-    const url = editingSessionId ? `http://localhost:8000/api/core/sceance/${editingSessionId}/?filiere=${filiereId}` : `http://localhost:8000/api/core/sceance/?filiere=${filiereId}`;
+    const url = editingSessionId ? `${API_BASE_URL}/api/core/sceance/${editingSessionId}/?filiere=${filiereId}` : `${API_BASE_URL}/api/core/sceance/?filiere=${filiereId}`;
     const token = localStorage.getItem('access_token');
     fetch(url, { 
       method, 
@@ -582,7 +583,7 @@ const Timetable: React.FC = () => {
       alert("Veuillez sélectionner une filière et un semestre.");
       return;
     }
-    const url = `http://localhost:8000/api/core/filiere/export-pdf-timetable/?filiere=${filiereId}&semester=${selectedSemester}`;
+    const url = `${API_BASE_URL}/api/core/filiere/export-pdf-timetable/?filiere=${filiereId}&semester=${selectedSemester}`;
     window.open(url, '_blank');
   };
 
@@ -596,7 +597,7 @@ const Timetable: React.FC = () => {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch('http://localhost:8000/api/core/timetable/extract/', {
+      const response = await fetch(`${API_BASE_URL}/api/core/timetable/extract/`, {
         method: 'POST',
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         body: formData,
@@ -666,7 +667,7 @@ const Timetable: React.FC = () => {
         };
 
         const token = localStorage.getItem('access_token');
-        const response = await fetch('http://localhost:8000/api/core/sceance/', {
+        const response = await fetch(`${API_BASE_URL}/api/core/sceance/`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',

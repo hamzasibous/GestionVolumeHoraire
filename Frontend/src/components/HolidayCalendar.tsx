@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 
 interface Vacation {
@@ -20,7 +21,7 @@ const HolidayCalendar: React.FC<HolidayCalendarProps> = ({ onDateSelect, onClose
   const [vacations, setVacations] = useState<Vacation[]>([]);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/core/vacations/')
+    fetch(`${API_BASE_URL}/api/core/vacations/`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {

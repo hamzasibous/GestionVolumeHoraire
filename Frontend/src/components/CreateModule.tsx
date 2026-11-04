@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -16,7 +17,7 @@ const CreateModule: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/core/filiere/')
+    fetch(`${API_BASE_URL}/api/core/filiere/`)
       .then(res => res.json())
       .then(data => setFilieres(data))
       .catch(err => console.error('Error fetching filieres:', err));
@@ -26,7 +27,7 @@ const CreateModule: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/core/module/create-module/', {
+      const response = await fetch(`${API_BASE_URL}/api/core/module/create-module/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nom: moduleName }),
@@ -37,7 +38,7 @@ const CreateModule: React.FC = () => {
         
         // If a filiere is selected, affect it
         if (selectedFiliere) {
-          await fetch('http://localhost:8000/api/core/module/affecter-filiere/', {
+          await fetch(`${API_BASE_URL}/api/core/module/affecter-filiere/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

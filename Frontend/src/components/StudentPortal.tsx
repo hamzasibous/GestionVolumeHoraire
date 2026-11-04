@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 
 interface RequestItem {
@@ -56,7 +57,7 @@ const StudentPortal: React.FC = () => {
         const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
 
         // 1. Fetch Profile
-        const profileRes = await fetch('http://localhost:8000/api/users/profile/', { headers });
+        const profileRes = await fetch(`${API_BASE_URL}/api/users/profile/`, { headers });
         if (profileRes.ok) {
           const profileData = await profileRes.json();
           setProfile(profileData);
@@ -66,7 +67,7 @@ const StudentPortal: React.FC = () => {
 
           // 2. Fetch Today's Sessions for student filiere
           const todayStr = new Date().toISOString().split('T')[0];
-          let url = `http://localhost:8000/api/core/sceance/?start_date=${todayStr}&end_date=${todayStr}`;
+          let url = `${API_BASE_URL}/api/core/sceance/?start_date=${todayStr}&end_date=${todayStr}`;
           if (profileData.filiere) {
             url += `&filiere=${profileData.filiere}`;
           }
@@ -80,7 +81,7 @@ const StudentPortal: React.FC = () => {
 
           // Fetch filiere modules to map student evaluations
           if (profileData.filiere) {
-            const filRes = await fetch('http://localhost:8000/api/core/filiere/details/', { headers });
+            const filRes = await fetch(`${API_BASE_URL}/api/core/filiere/details/`, { headers });
             if (filRes.ok) {
               const filData = await filRes.json();
               const studentFil = filData.find((f: any) => f.id === profileData.filiere);
@@ -92,7 +93,7 @@ const StudentPortal: React.FC = () => {
         }
 
         // 3. Fetch vacations / academic calendar
-        const vacRes = await fetch('http://localhost:8000/api/core/vacations/', { headers });
+        const vacRes = await fetch(`${API_BASE_URL}/api/core/vacations/`, { headers });
         if (vacRes.ok) {
           const vacData = await vacRes.json();
           const todayStr = new Date().toISOString().split('T')[0];
@@ -104,7 +105,7 @@ const StudentPortal: React.FC = () => {
         }
 
         // 4. Calculate semester progress dynamically based on SemesterPeriod dates
-        const semPeriodsRes = await fetch('http://localhost:8000/api/core/generate-schedule/?check_dates=all', { headers });
+        const semPeriodsRes = await fetch(`${API_BASE_URL}/api/core/generate-schedule/?check_dates=all`, { headers });
         if (semPeriodsRes.ok) {
           const semPeriods = await semPeriodsRes.json();
           if (Array.isArray(semPeriods) && semPeriods.length > 0) {

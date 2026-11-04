@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -37,7 +38,7 @@ const Profile: React.FC = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:8000/api/users/profile/', {
+      const response = await fetch(`${API_BASE_URL}/api/users/profile/`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -67,7 +68,7 @@ const Profile: React.FC = () => {
     i18n.changeLanguage(lng);
     if (user) {
       try {
-        await fetch('http://localhost:8000/api/users/profile/', {
+        await fetch(`${API_BASE_URL}/api/users/profile/`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -91,7 +92,7 @@ const Profile: React.FC = () => {
     formData.append('photo', file);
 
     try {
-      const response = await fetch('http://localhost:8000/api/users/profile/', {
+      const response = await fetch(`${API_BASE_URL}/api/users/profile/`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -119,7 +120,7 @@ const Profile: React.FC = () => {
     // In Django Rest Framework, to clear a file field, we can send an empty string or null depending on config
     // We will use a standard PATCH with photo: null if supported, or handle specially
     try {
-      const response = await fetch('http://localhost:8000/api/users/profile/', {
+      const response = await fetch(`${API_BASE_URL}/api/users/profile/`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -151,7 +152,7 @@ const Profile: React.FC = () => {
     };
 
     try {
-      const response = await fetch('http://localhost:8000/api/users/profile/', {
+      const response = await fetch(`${API_BASE_URL}/api/users/profile/`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -194,7 +195,7 @@ const Profile: React.FC = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/users/profile/', {
+      const response = await fetch(`${API_BASE_URL}/api/users/profile/`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -272,7 +273,7 @@ const Profile: React.FC = () => {
               <img 
                 alt="Avatar Principal" 
                 className="w-full h-full object-cover" 
-                src={user.photo.startsWith('http') ? user.photo : `http://localhost:8000${user.photo}`}
+                src={user.photo.startsWith('http') ? user.photo : `${API_BASE_URL}${user.photo}`}
               />
             ) : (
               <span className="text-4xl font-bold text-primary">{initials}</span>

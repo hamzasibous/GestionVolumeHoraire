@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 
 interface Student {
@@ -45,7 +46,7 @@ const StudentEvaluations: React.FC = () => {
         const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
 
         // 1. Fetch professor's assignments
-        const assignmentsRes = await fetch('http://localhost:8000/api/core/my-assignments/', { headers });
+        const assignmentsRes = await fetch(`${API_BASE_URL}/api/core/my-assignments/`, { headers });
         let rawAssignments: ModuleAssignment[] = [];
         if (assignmentsRes.ok) {
           const data = await assignmentsRes.json();
@@ -67,14 +68,14 @@ const StudentEvaluations: React.FC = () => {
         }
 
         // 2. Fetch all filieres details (to map module to filiere)
-        const filieresRes = await fetch('http://localhost:8000/api/core/filiere/details/', { headers });
+        const filieresRes = await fetch(`${API_BASE_URL}/api/core/filiere/details/`, { headers });
         if (filieresRes.ok) {
           const data = await filieresRes.json();
           setFilieres(data);
         }
 
         // 3. Fetch all users and filter for students
-        const usersRes = await fetch('http://localhost:8000/api/users/management/', { headers });
+        const usersRes = await fetch(`${API_BASE_URL}/api/users/management/`, { headers });
         if (usersRes.ok) {
           const data = await usersRes.json();
           const allStudents = data.filter((u: any) => u.role && u.role.includes('UTILISATEUR'));

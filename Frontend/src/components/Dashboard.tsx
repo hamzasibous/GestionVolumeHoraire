@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -47,17 +48,17 @@ const Dashboard: React.FC = () => {
     const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
 
     try {
-      const statsRes = await fetch('http://localhost:8000/api/core/dashboard-stats/', { headers });
+      const statsRes = await fetch(`${API_BASE_URL}/api/core/dashboard-stats/`, { headers });
       const statsData = await statsRes.json();
       setStats(statsData);
 
-      const profileRes = await fetch('http://localhost:8000/api/users/profile/', { headers });
+      const profileRes = await fetch(`${API_BASE_URL}/api/users/profile/`, { headers });
       const profileData = await profileRes.json();
       setCurrentUser(profileData);
 
       // If program coordinator, fetch program timetable slots
       if (profileData.role && profileData.role.includes('RESPONSABLE_FILIERE') && profileData.filiere) {
-        const slotsRes = await fetch(`http://localhost:8000/api/core/sceance/?filiere=${profileData.filiere}`, { headers });
+        const slotsRes = await fetch(`${API_BASE_URL}/api/core/sceance/?filiere=${profileData.filiere}`, { headers });
         const slotsData = await slotsRes.json();
         
         // Map first 5 slots for summary

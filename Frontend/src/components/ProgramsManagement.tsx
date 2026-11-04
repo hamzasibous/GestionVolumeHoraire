@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -50,14 +51,14 @@ const ProgramsManagement: React.FC = () => {
       const token = localStorage.getItem('access_token');
       const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-      const profileRes = await fetch('http://localhost:8000/api/users/profile/', { headers });
+      const profileRes = await fetch(`${API_BASE_URL}/api/users/profile/`, { headers });
       let profile = null;
       if (profileRes.ok) {
         profile = await profileRes.json();
         setCurrentUser(profile);
       }
 
-      const response = await fetch('http://localhost:8000/api/core/filiere/details/', { headers });
+      const response = await fetch(`${API_BASE_URL}/api/core/filiere/details/`, { headers });
       const data = await response.json();
       
       let mappedData: Filiere[] = data.map((f: any) => ({
@@ -141,7 +142,7 @@ const ProgramsManagement: React.FC = () => {
   useEffect(() => {
     loadData();
     // Fetch departments
-    fetch('http://localhost:8000/api/core/departement/')
+    fetch(`${API_BASE_URL}/api/core/departement/`)
       .then(res => res.json())
       .then(data => setDepartments(data))
       .catch(err => console.error('Error fetching departments:', err));
@@ -160,7 +161,7 @@ const ProgramsManagement: React.FC = () => {
   const handleDeleteFiliere = async (id: string) => {
     if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette filière ? Tous les modules et séances associés seront également supprimés.")) return;
     try {
-      const response = await fetch(`http://localhost:8000/api/core/filiere/${id}/`, {
+      const response = await fetch(`${API_BASE_URL}/api/core/filiere/${id}/`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
       });
@@ -181,7 +182,7 @@ const ProgramsManagement: React.FC = () => {
   const handleDeleteModule = async (id: string) => {
     if (!window.confirm("Êtes-vous sûr de vouloir supprimer ce module ?")) return;
     try {
-      const response = await fetch(`http://localhost:8000/api/core/module/${id}/`, {
+      const response = await fetch(`${API_BASE_URL}/api/core/module/${id}/`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
       });
@@ -204,7 +205,7 @@ const ProgramsManagement: React.FC = () => {
   };
 
   const handleExportAll = () => {
-    window.open('http://localhost:8000/api/core/filiere/export-all-timetables-zip/', '_blank');
+    window.open(`${API_BASE_URL}/api/core/filiere/export-all-timetables-zip/`, '_blank');
   };
 
   const handleSubmitFiliere = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -218,8 +219,8 @@ const ProgramsManagement: React.FC = () => {
     };
 
     const url = editingFiliere 
-      ? `http://localhost:8000/api/core/filiere/${editingFiliere.id}/` 
-      : 'http://localhost:8000/api/core/filiere/create-filiere/';
+      ? `${API_BASE_URL}/api/core/filiere/${editingFiliere.id}/` 
+      : `${API_BASE_URL}/api/core/filiere/create-filiere/`;
     
     try {
       const response = await fetch(url, {
@@ -251,8 +252,8 @@ const ProgramsManagement: React.FC = () => {
     };
 
     const url = editingModule 
-      ? `http://localhost:8000/api/core/module/${editingModule.id}/` 
-      : 'http://localhost:8000/api/core/module/create-module/';
+      ? `${API_BASE_URL}/api/core/module/${editingModule.id}/` 
+      : `${API_BASE_URL}/api/core/module/create-module/`;
     
     try {
       const response = await fetch(url, {
@@ -271,7 +272,7 @@ const ProgramsManagement: React.FC = () => {
         const targetFiliere = formData.get('filiere_id');
         const targetSemester = formData.get('semester');
         if (!editingModule && targetFiliere && targetSemester) {
-          await fetch('http://localhost:8000/api/core/module/affecter-filiere/', {
+          await fetch(`${API_BASE_URL}/api/core/module/affecter-filiere/`, {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',

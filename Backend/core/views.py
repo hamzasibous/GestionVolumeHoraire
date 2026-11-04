@@ -908,7 +908,6 @@ class MyAssignmentsView(APIView):
         assignments = []
         sceances_summary = Sceance.objects.filter(enseignant_id=user.id).values('module__id', 'module__nom', 'type').annotate(count=models.Count('id'))
         
-        total_hours = 0
         total_cm_hours = 0
         total_td_hours = 0
         total_tp_hours = 0
@@ -918,9 +917,9 @@ class MyAssignmentsView(APIView):
             mod_nom = item['module__nom']
             s_type = item['type']
             
-            # Dynamically determine raw and EqTD hours
+            # Dynamically determine raw hours per session type
             module_session_types = list(Sceance.objects.filter(module_id=mod_id).values_list('type', flat=True).distinct())
-            raw_hours, equiv_hours = get_session_hours(mod_nom, s_type, module_session_types)
+            raw_hours, _ = get_session_hours(mod_nom, s_type, module_session_types)
             
             if s_type == 'CM':
                 total_cm_hours += raw_hours
@@ -929,8 +928,6 @@ class MyAssignmentsView(APIView):
             elif s_type == 'TP':
                 total_tp_hours += raw_hours
             
-            total_hours += equiv_hours
-            
             first_sceance = Sceance.objects.filter(enseignant_id=user.id, module_id=mod_id, type=s_type).first()
             
             assignments.append({
@@ -938,11 +935,17 @@ class MyAssignmentsView(APIView):
                 'code': f"MOD{mod_id}",
                 'name': mod_nom,
                 'type': s_type,
-                'hours': equiv_hours,
+                'hours': raw_hours,
                 'raw_hours': raw_hours,
                 'students': 'Calculated', 
                 'location': str(first_sceance.local) if first_sceance else 'N/A'
             })
+
+        # Apply EqTD formula: total = CM*1.5 + TD*1.0 + TP*0.75
+        cm_eqtd = round(total_cm_hours * 1.5)
+        td_eqtd = round(total_td_hours * 1.0)
+        tp_eqtd = round(total_tp_hours * 0.75)
+        total_hours = cm_eqtd + td_eqtd + tp_eqtd
 
         dept = user.departement
         seuil = dept.seuil_horaire if dept else 192
@@ -952,9 +955,9 @@ class MyAssignmentsView(APIView):
             'statutory_requirement': seuil,
             'overload': max(0, total_hours - seuil),
             'breakdown': {
-                'CM': total_cm_hours * 1.5,
-                'TD': total_td_hours * 1.0,
-                'TP': total_tp_hours * 0.75,
+                'CM': cm_eqtd,
+                'TD': td_eqtd,
+                'TP': tp_eqtd,
             },
             'assignments': assignments
         })
@@ -973,7 +976,9 @@ class FacultyAssignmentListView(APIView):
             assignments = []
             sceances_summary = prof.sceances.values('module__id', 'module__nom', 'type').annotate(count=Count('id'))
             
-            total_hours = 0
+            total_cm = 0
+            total_td = 0
+            total_tp = 0
             
             for item in sceances_summary:
                 mod_id = item['module__id']
@@ -981,17 +986,25 @@ class FacultyAssignmentListView(APIView):
                 s_type = item['type']
                 
                 module_session_types = list(Sceance.objects.filter(module_id=mod_id).values_list('type', flat=True).distinct())
-                raw_hours, equiv_hours = get_session_hours(mod_nom, s_type, module_session_types)
+                raw_hours, _ = get_session_hours(mod_nom, s_type, module_session_types)
                 
-                total_hours += equiv_hours
+                if s_type == 'CM':
+                    total_cm += raw_hours
+                elif s_type == 'TD':
+                    total_td += raw_hours
+                elif s_type == 'TP':
+                    total_tp += raw_hours
                 
                 assignments.append({
                     'id': f"m{mod_id}-{s_type}",
                     'moduleCode': f"MOD{mod_id}",
                     'moduleName': mod_nom,
                     'type': s_type,
-                    'hours': equiv_hours
+                    'hours': raw_hours
                 })
+
+            # Apply EqTD formula: total = CM*1.5 + TD*1.0 + TP*0.75
+            total_hours = round(total_cm * 1.5 + total_td * 1.0 + total_tp * 0.75)
 
             dept = prof.departement
             dept_seuil = dept.seuil_horaire if dept else 192

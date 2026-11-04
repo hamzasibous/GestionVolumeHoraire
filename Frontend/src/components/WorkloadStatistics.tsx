@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 
 interface TeacherStat {
@@ -55,14 +56,14 @@ const WorkloadStatistics: React.FC = () => {
         const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
 
         // 1. Fetch Faculty list with their workloads
-        const facultyRes = await fetch('http://localhost:8000/api/core/faculty-assignments/', { headers });
+        const facultyRes = await fetch(`${API_BASE_URL}/api/core/faculty-assignments/`, { headers });
         if (facultyRes.ok) {
           const data = await facultyRes.json();
           setFaculty(data);
         }
 
         // 2. Fetch Filieres with full module details
-        const filieresRes = await fetch('http://localhost:8000/api/core/filiere/details/', { headers });
+        const filieresRes = await fetch(`${API_BASE_URL}/api/core/filiere/details/`, { headers });
         if (filieresRes.ok) {
           const data = await filieresRes.json();
           setFilieres(data);
@@ -298,7 +299,7 @@ const WorkloadStatistics: React.FC = () => {
         if (found) params.append('enseignant_id', found.id);
       }
 
-      const url = `http://localhost:8000/api/core/export-workload/?${params.toString()}`;
+      const url = `${API_BASE_URL}/api/core/export-workload/?${params.toString()}`;
       
       const response = await fetch(url, {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}

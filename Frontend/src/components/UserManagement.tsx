@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -58,7 +59,7 @@ const UserManagement: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/users/management/');
+      const response = await fetch(`${API_BASE_URL}/api/users/management/`);
       const data = await response.json();
       setUsers(data);
     } catch (error) {
@@ -68,7 +69,7 @@ const UserManagement: React.FC = () => {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/core/departement/');
+      const response = await fetch(`${API_BASE_URL}/api/core/departement/`);
       const data = await response.json();
       setDepartments(data);
       if (data.length > 0 && !editingUser) {
@@ -81,7 +82,7 @@ const UserManagement: React.FC = () => {
 
   const fetchFilieres = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/core/filiere/');
+      const response = await fetch(`${API_BASE_URL}/api/core/filiere/`);
       const data = await response.json();
       setFilieres(data);
     } catch (error) {
@@ -127,7 +128,7 @@ const UserManagement: React.FC = () => {
   const handleDelete = async (id: number) => {
     if (!window.confirm(t('users.confirm_delete'))) return;
     try {
-      await fetch(`http://localhost:8000/api/users/management/${id}/`, { method: 'DELETE' });
+      await fetch(`${API_BASE_URL}/api/users/management/${id}/`, { method: 'DELETE' });
       fetchUsers();
     } catch (error) {
       console.error('Error deleting user:', error);
@@ -138,8 +139,8 @@ const UserManagement: React.FC = () => {
     e.preventDefault();
     const method = editingUser ? 'PUT' : 'POST';
     const url = editingUser 
-      ? `http://localhost:8000/api/users/management/${editingUser.id}/` 
-      : 'http://localhost:8000/api/users/management/';
+      ? `${API_BASE_URL}/api/users/management/${editingUser.id}/` 
+      : `${API_BASE_URL}/api/users/management/`;
     
     const payload: any = { ...formData };
     if (!payload.password) delete payload.password;
@@ -201,7 +202,7 @@ const UserManagement: React.FC = () => {
     formDataToSend.append('file', selectedFile);
 
     try {
-      const res = await fetch('http://localhost:8000/api/core/import-teachers/', {
+      const res = await fetch(`${API_BASE_URL}/api/core/import-teachers/`, {
         method: 'POST',
         headers,
         body: formDataToSend

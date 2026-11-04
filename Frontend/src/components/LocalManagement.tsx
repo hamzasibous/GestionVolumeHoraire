@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -33,7 +34,7 @@ const LocalManagement: React.FC = () => {
   });
 
   const fetchLocals = () => {
-    fetch('http://localhost:8000/api/core/local/')
+    fetch(`${API_BASE_URL}/api/core/local/`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -44,7 +45,7 @@ const LocalManagement: React.FC = () => {
   };
 
   const fetchDepartments = () => {
-    fetch('http://localhost:8000/api/core/departement/')
+    fetch(`${API_BASE_URL}/api/core/departement/`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -71,8 +72,8 @@ const LocalManagement: React.FC = () => {
     };
 
     const url = editingLocalId 
-      ? `http://localhost:8000/api/core/local/${editingLocalId}/`
-      : 'http://localhost:8000/api/core/local/';
+      ? `${API_BASE_URL}/api/core/local/${editingLocalId}/`
+      : `${API_BASE_URL}/api/core/local/`;
     
     const method = editingLocalId ? 'PATCH' : 'POST';
 
@@ -103,7 +104,7 @@ const LocalManagement: React.FC = () => {
 
   const handleDelete = (id: string) => {
     if (!window.confirm(t('common.confirm'))) return;
-    fetch(`http://localhost:8000/api/core/local/${id}/`, {
+    fetch(`${API_BASE_URL}/api/core/local/${id}/`, {
       method: 'DELETE',
     })
       .then(() => fetchLocals())

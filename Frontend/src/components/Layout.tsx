@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import TopAppBar from './TopAppBar';
@@ -31,7 +32,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       const token = localStorage.getItem('access_token');
       if (!token) return;
       try {
-        const meRes = await fetch('http://localhost:8000/api/users/profile/', {
+        const meRes = await fetch(`${API_BASE_URL}/api/users/profile/`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (meRes.ok) {
@@ -52,7 +53,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       const fetchData = async () => {
         try {
           const token = localStorage.getItem('access_token');
-          const usersRes = await fetch('http://localhost:8000/api/users/management/', {
+          const usersRes = await fetch(`${API_BASE_URL}/api/users/management/`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (usersRes.ok) {

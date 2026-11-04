@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -54,9 +55,9 @@ const FacultyAssignments: React.FC = () => {
     const token = localStorage.getItem('access_token');
     const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-    const fetchFaculty = fetch('http://localhost:8000/api/core/faculty-assignments/', { headers }).then(res => res.json());
-    const fetchModules = fetch('http://localhost:8000/api/core/module/', { headers }).then(res => res.json());
-    const fetchFilieres = fetch('http://localhost:8000/api/core/filiere/', { headers }).then(res => res.json());
+    const fetchFaculty = fetch(`${API_BASE_URL}/api/core/faculty-assignments/`, { headers }).then(res => res.json());
+    const fetchModules = fetch(`${API_BASE_URL}/api/core/module/`, { headers }).then(res => res.json());
+    const fetchFilieres = fetch(`${API_BASE_URL}/api/core/filiere/`, { headers }).then(res => res.json());
 
     Promise.all([fetchFaculty, fetchModules, fetchFilieres])
       .then(([facultyData, modulesData, filieresData]) => {
@@ -85,7 +86,7 @@ const FacultyAssignments: React.FC = () => {
     
     const token = localStorage.getItem('access_token');
     const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-    fetch('http://localhost:8000/api/core/seuil-horaire/', { headers })
+    fetch(`${API_BASE_URL}/api/core/seuil-horaire/`, { headers })
       .then(res => res.json())
       .then(data => {
         setThresholdValue(data.seuil_horaire || 192);
@@ -100,7 +101,7 @@ const FacultyAssignments: React.FC = () => {
     
     const token = localStorage.getItem('access_token');
     const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-    fetch(`http://localhost:8000/api/core/seuil-horaire/?teacher_id=${teacherId}`, { headers })
+    fetch(`${API_BASE_URL}/api/core/seuil-horaire/?teacher_id=${teacherId}`, { headers })
       .then(res => res.json())
       .then(data => {
         setThresholdValue(data.seuil_horaire || data.dept_seuil || 192);
@@ -123,7 +124,7 @@ const FacultyAssignments: React.FC = () => {
       body.teacher_id = thresholdTeacherId;
     }
     
-    fetch('http://localhost:8000/api/core/seuil-horaire/', { 
+    fetch(`${API_BASE_URL}/api/core/seuil-horaire/`, { 
       method: 'PUT',
       headers,
       body: JSON.stringify(body)
@@ -147,7 +148,7 @@ const FacultyAssignments: React.FC = () => {
       'Content-Type': 'application/json'
     };
     
-    fetch('http://localhost:8000/api/core/seuil-horaire/', { 
+    fetch(`${API_BASE_URL}/api/core/seuil-horaire/`, { 
       method: 'PUT',
       headers,
       body: JSON.stringify({ teacher_id: thresholdTeacherId, clear_custom: true })
@@ -161,7 +162,7 @@ const FacultyAssignments: React.FC = () => {
   };
 
   const handleExportExcel = () => {
-    let url = 'http://localhost:8000/api/core/export-workload/?';
+    let url = `${API_BASE_URL}/api/core/export-workload/?`;
     if (exportFiliere) url += `filiere_id=${exportFiliere}&`;
     if (exportSemester) url += `semester=${exportSemester}&`;
     
@@ -504,7 +505,7 @@ const FacultyAssignments: React.FC = () => {
                       setIsCustomThreshold(false);
                       const token = localStorage.getItem('access_token');
                       const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-                      fetch('http://localhost:8000/api/core/seuil-horaire/', { headers })
+                      fetch(`${API_BASE_URL}/api/core/seuil-horaire/`, { headers })
                         .then(res => res.json())
                         .then(data => setThresholdValue(data.seuil_horaire || 192))
                         .catch(err => console.error(err));

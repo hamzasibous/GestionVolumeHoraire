@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -34,17 +35,17 @@ const TeacherConsultation: React.FC = () => {
     const token = localStorage.getItem('access_token');
     
     // Fetch Profile
-    const fetchProfile = fetch('http://localhost:8000/api/users/profile/', {
+    const fetchProfile = fetch(`${API_BASE_URL}/api/users/profile/`, {
       headers: { 'Authorization': `Bearer ${token}` }
     }).then(res => res.json());
 
     // Fetch Current Data
-    const fetchCurrent = fetch('http://localhost:8000/api/core/my-assignments/', {
+    const fetchCurrent = fetch(`${API_BASE_URL}/api/core/my-assignments/`, {
       headers: { 'Authorization': `Bearer ${token}` }
     }).then(res => res.json());
 
     // Fetch Forecast Data
-    const fetchForecast = fetch('http://localhost:8000/api/analyse/simulations/get_personal_forecast/', {
+    const fetchForecast = fetch(`${API_BASE_URL}/api/analyse/simulations/get_personal_forecast/`, {
       headers: { 'Authorization': `Bearer ${token}` }
     }).then(res => res.json());
 

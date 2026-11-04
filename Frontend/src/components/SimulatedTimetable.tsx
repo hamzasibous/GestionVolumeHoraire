@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import HolidayCalendar from './HolidayCalendar';
@@ -77,7 +78,7 @@ const SimulatedTimetable: React.FC = () => {
   const [uniqueFilieres, setUniqueFilieres] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch(`http://localhost:8000/api/analyse/simulations/${simulationId}/`)
+    fetch(`${API_BASE_URL}/api/analyse/simulations/${simulationId}/`)
       .then(res => res.json())
       .then(data => {
         setSimulation(data);

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -36,7 +37,7 @@ const VacationManagement: React.FC = () => {
   });
 
   const fetchVacations = () => {
-    fetch('http://localhost:8000/api/core/vacations/')
+    fetch(`${API_BASE_URL}/api/core/vacations/`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -58,7 +59,7 @@ const VacationManagement: React.FC = () => {
   };
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/users/management/')
+    fetch(`${API_BASE_URL}/api/users/management/`)
       .then(res => res.json())
       .then(data => setUsers(data.filter((u: any) => u.role && u.role.includes('ENSEIGNANT'))))
       .catch(err => console.error('Error fetching teachers:', err));
@@ -81,8 +82,8 @@ const VacationManagement: React.FC = () => {
     };
 
     const url = editingVacationId 
-      ? `http://localhost:8000/api/core/vacations/${editingVacationId}/`
-      : 'http://localhost:8000/api/core/vacations/';
+      ? `${API_BASE_URL}/api/core/vacations/${editingVacationId}/`
+      : `${API_BASE_URL}/api/core/vacations/`;
     
     const method = editingVacationId ? 'PATCH' : 'POST';
 
@@ -113,7 +114,7 @@ const VacationManagement: React.FC = () => {
 
   const handleDelete = (id: string) => {
     if (!window.confirm(t('common.confirm'))) return;
-    fetch(`http://localhost:8000/api/core/vacations/${id}/`, {
+    fetch(`${API_BASE_URL}/api/core/vacations/${id}/`, {
       method: 'DELETE',
     })
       .then(() => fetchVacations())
@@ -135,7 +136,7 @@ const VacationManagement: React.FC = () => {
     const formData = new FormData();
     formData.append('image', selectedImage);
 
-    fetch('http://localhost:8000/api/core/vacations/extract/', {
+    fetch(`${API_BASE_URL}/api/core/vacations/extract/`, {
       method: 'POST',
       body: formData,
     })
@@ -154,7 +155,7 @@ const VacationManagement: React.FC = () => {
         }
 
         Promise.all(extractedHolidays.map((holiday: any) => 
-          fetch('http://localhost:8000/api/core/vacations/', {
+          fetch(`${API_BASE_URL}/api/core/vacations/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 
 interface Student {
@@ -53,14 +54,14 @@ const FiliereManagement: React.FC = () => {
   const fetchData = async () => {
     try {
       // 1. Fetch Profile
-      const profileRes = await fetch('http://localhost:8000/api/users/profile/', { headers });
+      const profileRes = await fetch(`${API_BASE_URL}/api/users/profile/`, { headers });
       if (profileRes.ok) {
         const profileData = await profileRes.json();
         setProfile(profileData);
 
         // 2. Fetch Users and filter for students of coordinator's filiere
         if (profileData.filiere) {
-          const usersRes = await fetch('http://localhost:8000/api/users/management/', { headers });
+          const usersRes = await fetch(`${API_BASE_URL}/api/users/management/`, { headers });
           if (usersRes.ok) {
             const allUsers = await usersRes.json();
             const filiereStudents = allUsers.filter(
@@ -75,7 +76,7 @@ const FiliereManagement: React.FC = () => {
           }
 
           // Fetch Filiere details
-          const detailsRes = await fetch('http://localhost:8000/api/core/filiere/details/', { headers });
+          const detailsRes = await fetch(`${API_BASE_URL}/api/core/filiere/details/`, { headers });
           if (detailsRes.ok) {
             const detailsList = await detailsRes.json();
             const myFiliere = detailsList.find((f: any) => f.id === profileData.filiere);
@@ -138,13 +139,13 @@ const FiliereManagement: React.FC = () => {
 
       let res;
       if (editingStudent) {
-        res = await fetch(`http://localhost:8000/api/users/management/${editingStudent.id}/`, {
+        res = await fetch(`${API_BASE_URL}/api/users/management/${editingStudent.id}/`, {
           method: 'PUT',
           headers,
           body: JSON.stringify(payload)
         });
       } else {
-        res = await fetch('http://localhost:8000/api/users/management/', {
+        res = await fetch(`${API_BASE_URL}/api/users/management/`, {
           method: 'POST',
           headers,
           body: JSON.stringify({ ...payload, password: 'Umi2024!' })
@@ -170,7 +171,7 @@ const FiliereManagement: React.FC = () => {
     if (!window.confirm('Voulez-vous vraiment supprimer cet étudiant ?')) return;
 
     try {
-      const res = await fetch(`http://localhost:8000/api/users/management/${studentId}/`, {
+      const res = await fetch(`${API_BASE_URL}/api/users/management/${studentId}/`, {
         method: 'DELETE',
         headers
       });

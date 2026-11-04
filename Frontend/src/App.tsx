@@ -1,3 +1,4 @@
+import { API_BASE_URL } from './config/api';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import Layout from './components/Layout'
@@ -44,7 +45,7 @@ function App() {
       }
 
       try {
-        const response = await fetch('http://localhost:8000/api/users/profile/', {
+        const response = await fetch(`${API_BASE_URL}/api/users/profile/`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {

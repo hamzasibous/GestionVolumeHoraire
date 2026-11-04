@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -31,7 +32,7 @@ const TopAppBar: React.FC = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:8000/api/users/profile/', {
+      const response = await fetch(`${API_BASE_URL}/api/users/profile/`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -608,7 +609,7 @@ const TopAppBar: React.FC = () => {
                   <img
                     alt="Profile"
                     className="w-full h-full object-cover"
-                    src={user.photo.startsWith('http') ? user.photo : `http://localhost:8000${user.photo}`}
+                    src={user.photo.startsWith('http') ? user.photo : `${API_BASE_URL}${user.photo}`}
                     onError={() => setImgError(true)}
                   />
                 ) : (

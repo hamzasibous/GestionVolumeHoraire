@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -54,7 +55,7 @@ const ForecastingSimulation: React.FC = () => {
   useEffect(() => {
     const fetchLatest = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/analyse/simulations/');
+        const response = await fetch(`${API_BASE_URL}/api/analyse/simulations/`);
         if (response.ok) {
           const data = await response.json();
           if (data.length > 0) {
@@ -94,7 +95,7 @@ const ForecastingSimulation: React.FC = () => {
     if (!currentSimId) return;
     
     try {
-      const response = await fetch(`http://localhost:8000/api/analyse/simulations/${currentSimId}/cancel/`, {
+      const response = await fetch(`${API_BASE_URL}/api/analyse/simulations/${currentSimId}/cancel/`, {
         method: 'POST',
       });
       if (response.ok) {
@@ -113,7 +114,7 @@ const ForecastingSimulation: React.FC = () => {
     
     pollInterval.current = setInterval(async () => {
       try {
-        const response = await fetch(`http://localhost:8000/api/analyse/simulations/${simId}/`);
+        const response = await fetch(`${API_BASE_URL}/api/analyse/simulations/${simId}/`);
         if (response.ok) {
           const data = await response.json();
           setGenerationProgress(data.progress);
@@ -147,7 +148,7 @@ const ForecastingSimulation: React.FC = () => {
     setGenerationMessage("Initialisation...");
     
     try {
-      const response = await fetch('http://localhost:8000/api/analyse/simulations/', {
+      const response = await fetch(`${API_BASE_URL}/api/analyse/simulations/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import HolidayCalendar from './HolidayCalendar';
 import { useTranslation } from 'react-i18next';
@@ -83,7 +84,7 @@ const TeacherTimetable: React.FC = () => {
   useEffect(() => {
     const token = localStorage.getItem('access_token');
     if (token) {
-      fetch('http://localhost:8000/api/users/profile/', {
+      fetch(`${API_BASE_URL}/api/users/profile/`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
         .then(res => res.json())
@@ -101,7 +102,7 @@ const TeacherTimetable: React.FC = () => {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/api/core/sceance/?start_date=${start}&end_date=${endStr}&mine=true`, {
+      const response = await fetch(`${API_BASE_URL}/api/core/sceance/?start_date=${start}&end_date=${endStr}&mine=true`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
@@ -147,7 +148,7 @@ const TeacherTimetable: React.FC = () => {
     try {
       const token = localStorage.getItem('access_token');
       const start = formatDate(currentWeekStart);
-      const url = `http://localhost:8000/api/core/teacher/export-pdf-timetable/?week_start=${start}`;
+      const url = `${API_BASE_URL}/api/core/teacher/export-pdf-timetable/?week_start=${start}`;
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`

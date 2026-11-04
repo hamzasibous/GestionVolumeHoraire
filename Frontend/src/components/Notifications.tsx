@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -55,7 +56,7 @@ const Notifications: React.FC = () => {
       const token = localStorage.getItem('access_token');
       if (!token) return;
 
-      const profileResponse = await fetch('http://localhost:8000/api/users/profile/', {
+      const profileResponse = await fetch(`${API_BASE_URL}/api/users/profile/`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -63,7 +64,7 @@ const Notifications: React.FC = () => {
         const profileData = await profileResponse.json();
         setCurrentUser(profileData);
 
-        const usersResponse = await fetch('http://localhost:8000/api/users/management/', {
+        const usersResponse = await fetch(`${API_BASE_URL}/api/users/management/`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const usersData = await usersResponse.json();
