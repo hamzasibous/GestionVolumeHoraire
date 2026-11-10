@@ -34,6 +34,7 @@ from core.views import (
     SeuilHoraireView,
     ImportTeachersExcelView,
     ExportWorkloadExcelView,
+    RecalculateWorkloadView,
 )
 
 router = DefaultRouter()
@@ -63,6 +64,7 @@ urlpatterns = [
     path("seuil-horaire/", SeuilHoraireView.as_view(), name="seuil-horaire"),
     path("import-teachers/", ImportTeachersExcelView.as_view(), name="import-teachers"),
     path("export-workload/", ExportWorkloadExcelView.as_view(), name="export-workload"),
+    path("recalculate-workload/", RecalculateWorkloadView.as_view(), name="recalculate-workload"),
 
     path("filiere/<int:pk>/", FiliereDetailView.as_view(), name="filiere-detail"),
     path("module/<int:pk>/", ModuleDetailView.as_view(), name="module-detail"),

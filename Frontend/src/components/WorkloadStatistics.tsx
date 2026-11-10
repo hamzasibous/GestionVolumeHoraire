@@ -49,35 +49,104 @@ const WorkloadStatistics: React.FC = () => {
   // Active view tab
   const [activeTab, setActiveTab] = useState<'teachers' | 'modules' | 'filieres' | 'semesters'>('teachers');
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const token = localStorage.getItem('access_token');
-        const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-
-        // 1. Fetch Faculty list with their workloads
-        const facultyRes = await fetch(`${API_BASE_URL}/api/core/faculty-assignments/`, { headers });
-        if (facultyRes.ok) {
-          const data = await facultyRes.json();
-          setFaculty(data);
-        }
-
-        // 2. Fetch Filieres with full module details
-        const filieresRes = await fetch(`${API_BASE_URL}/api/core/filiere/details/`, { headers });
-        if (filieresRes.ok) {
-          const data = await filieresRes.json();
-          setFilieres(data);
-        }
-
-      } catch (error) {
-        console.error('Error fetching workload statistics:', error);
-      } finally {
-        setLoading(false);
-      }
+  // Recalculation state
+  const [recalculating, setRecalculating] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [recalculateMessage, setRecalculateMessage] = useState<{
+    type: 'success' | 'info' | 'error';
+    text: string;
+    details?: {
+      total_teachers: number;
+      sessions_updated: number;
+      overloaded_count: number;
+      average_workload: number;
+      new_teachers?: number;
+      new_filieres?: number;
+      filieres_without_sessions?: string[];
     };
+  } | null>(null);
 
+  const fetchData = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+      // 1. Fetch Faculty list with their workloads
+      const facultyRes = await fetch(`${API_BASE_URL}/api/core/faculty-assignments/`, { headers });
+      if (facultyRes.ok) {
+        const data = await facultyRes.json();
+        setFaculty(data);
+      }
+
+      // 2. Fetch Filieres with full module details
+      const filieresRes = await fetch(`${API_BASE_URL}/api/core/filiere/details/`, { headers });
+      if (filieresRes.ok) {
+        const data = await filieresRes.json();
+        setFilieres(data);
+      }
+
+    } catch (error) {
+      console.error('Error fetching workload statistics:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, []);
+
+  const handleRecalculate = async () => {
+    setShowConfirmModal(false);
+    setRecalculating(true);
+    setRecalculateMessage(null);
+    try {
+      const token = localStorage.getItem('access_token');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      };
+      const res = await fetch(`${API_BASE_URL}/api/core/recalculate-workload/`, {
+        method: 'POST',
+        headers
+      });
+      const result = await res.json();
+      if (res.ok && result.success) {
+        // changed=false means the DB had no new professor and no unassigned
+        // session: the endpoint deliberately wrote nothing.
+        setRecalculateMessage({
+          type: result.changed ? 'success' : 'info',
+          text: result.message,
+          details: {
+            total_teachers: result.total_teachers,
+            sessions_updated: result.sessions_updated,
+            overloaded_count: result.overloaded_count,
+            average_workload: result.average_workload,
+            new_teachers: result.new_teachers,
+            new_filieres: result.new_filieres,
+            filieres_without_sessions: result.filieres_without_sessions
+          }
+        });
+        if (result.changed) {
+          // Immediately refresh state with updated calculations
+          await fetchData();
+        }
+      } else {
+        setRecalculateMessage({
+          type: 'error',
+          text: result.error || 'Erreur lors du recalcul des volumes horaires.'
+        });
+      }
+    } catch (error) {
+      console.error('Error recalculating workload:', error);
+      setRecalculateMessage({
+        type: 'error',
+        text: 'Erreur réseau lors de la communication avec le serveur.'
+      });
+    } finally {
+      setRecalculating(false);
+    }
+  };
 
 
 
@@ -345,6 +414,16 @@ const WorkloadStatistics: React.FC = () => {
         </div>
         <div className="flex items-center gap-base">
           <button
+            onClick={() => setShowConfirmModal(true)}
+            disabled={recalculating}
+            className="bg-surface-container-lowest hover:bg-surface-container-low text-primary font-bold text-xs uppercase tracking-wider px-6 py-3 rounded-lg shadow-md flex items-center gap-2 transition-all border border-outline-variant cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+          >
+            <span className={`material-symbols-outlined text-[18px] ${recalculating ? 'animate-spin' : ''}`}>
+              {recalculating ? 'progress_activity' : 'calculate'}
+            </span>
+            {recalculating ? 'Recalcul en cours...' : 'Recalculer les Volumes'}
+          </button>
+          <button
             onClick={handleExportExcel}
             className="bg-primary hover:bg-primary/95 text-on-primary font-bold text-xs uppercase tracking-wider px-6 py-3 rounded-lg shadow-md flex items-center gap-2 transition-all border-0 cursor-pointer"
           >
@@ -353,6 +432,46 @@ const WorkloadStatistics: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Recalculation result banner */}
+      {recalculateMessage && (
+        <div
+          className={`rounded-xl border p-md flex items-start gap-sm shadow-sm ${
+            recalculateMessage.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : recalculateMessage.type === 'info'
+              ? 'bg-sky-50 border-sky-200 text-sky-900'
+              : 'bg-red-50 border-red-200 text-red-900'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[22px] shrink-0">
+            {recalculateMessage.type === 'success'
+              ? 'check_circle'
+              : recalculateMessage.type === 'info'
+              ? 'info'
+              : 'error'}
+          </span>
+          <div className="flex-1">
+            <p className="text-sm font-semibold">{recalculateMessage.text}</p>
+            {recalculateMessage.details && recalculateMessage.type !== 'error' && (
+              <div className="flex flex-wrap gap-md mt-xs text-xs opacity-90">
+                <span>Enseignants : <strong>{recalculateMessage.details.total_teachers}</strong></span>
+                <span>Séances modifiées : <strong>{recalculateMessage.details.sessions_updated}</strong></span>
+                <span>Nouveaux enseignants : <strong>{recalculateMessage.details.new_teachers ?? 0}</strong></span>
+                <span>Surchargés : <strong>{recalculateMessage.details.overloaded_count}</strong></span>
+                <span>Charge moyenne : <strong>{recalculateMessage.details.average_workload}h</strong></span>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => setRecalculateMessage(null)}
+            className="text-current opacity-60 hover:opacity-100 transition-opacity cursor-pointer bg-transparent border-0"
+            aria-label="Fermer"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
+      )}
 
       {/* Bento Grid: Statistics Cards */}
       <div className="grid grid-cols-12 gap-gutter">
@@ -684,6 +803,46 @@ const WorkloadStatistics: React.FC = () => {
         )}
 
       </div>
+
+      {/* Recalculation confirmation modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-2xl w-full max-w-2xl p-lg space-y-md">
+            <div className="flex items-start gap-sm">
+              <span className="material-symbols-outlined text-primary text-[28px]">calculate</span>
+              <div>
+                <h3 className="font-h3 text-h3 text-on-background">Recalculer les volumes horaires</h3>
+                <p className="text-sm text-on-surface-variant mt-xs leading-relaxed">
+                  La répartition sera recalculée pour tenir compte des nouveaux enseignants
+                  et des modules encore sans attributaire.
+                </p>
+              </div>
+            </div>
+
+            <ul className="text-xs text-on-surface-variant space-y-1 list-disc pl-5">
+              <li>Un nouveau professeur déclenche un rééquilibrage complet sous les seuils statutaires.</li>
+              <li>Sans nouveau professeur, seules les séances sans enseignant sont attribuées.</li>
+              <li>Si la base n'a rien de nouveau, aucun volume horaire n'est modifié.</li>
+            </ul>
+
+            <div className="flex justify-end gap-sm pt-sm border-t border-outline-variant">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-on-surface-variant hover:bg-surface-container-low transition-colors cursor-pointer border-0 bg-transparent"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleRecalculate}
+                className="bg-primary hover:bg-primary/95 text-on-primary px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer border-0 flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[16px]">done_all</span>
+                Confirmer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

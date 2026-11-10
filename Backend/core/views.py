@@ -2202,3 +2202,191 @@ class ExportWorkloadExcelView(APIView):
         )
         response["Content-Disposition"] = f"attachment; filename=Rapport_Volume_Horaire_{export_type}.xlsx"
         return response
+
+
+class RecalculateWorkloadView(APIView):
+    """
+    Recomputes the distribution of module sessions across active teachers.
+
+    It only writes when the database actually gained something to distribute:
+      * a newly added active teacher that owns no session yet, or
+      * modules whose sessions still have no teacher assigned.
+    When neither exists the endpoint is a strict no-op (changed=False) and the
+    existing distribution is left untouched, so clicking it twice is harmless.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from users.models import Utilisateur
+        from .models import Module, Sceance, Filiere
+        from .solver import get_module_speciality
+
+        teachers = list(
+            Utilisateur.objects.filter(is_active=True, role__icontains='ENSEIGNANT')
+            .exclude(email__icontains='admin')
+            .exclude(nom__icontains='assign')
+            .order_by('id')
+        )
+        if not teachers:
+            return Response(
+                {"error": "Aucun enseignant actif trouvé dans la base de données."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        teacher_ids = {t.id for t in teachers}
+
+        prof_seuil = {}
+        for t in teachers:
+            dept_seuil = t.departement.seuil_horaire if (t.departement and t.departement.seuil_horaire) else 192
+            prof_seuil[t.id] = float(t.seuil_horaire if t.seuil_horaire is not None else dept_seuil)
+
+        modules_with_sessions = list(
+            Module.objects.filter(sceances__isnull=False).distinct().order_by('id')
+        )
+        if not modules_with_sessions:
+            return Response(
+                {"error": "Aucune séance dans la base de données. Générez d'abord un emploi du temps."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        module_by_id = {m.id: m for m in modules_with_sessions}
+        module_ids = list(module_by_id.keys())
+
+        # --- Equivalent hours per (module, type), same formula as the stat tables ---
+        types_by_module = {}
+        for mid, s_type in (
+            Sceance.objects.filter(module_id__in=module_ids)
+            .values_list('module_id', 'type').distinct()
+        ):
+            types_by_module.setdefault(mid, []).append(s_type)
+
+        type_eqtd = {}
+        module_eqtd = {}
+        for mid, types in types_by_module.items():
+            nom = module_by_id[mid].nom
+            total = 0.0
+            for s_type in types:
+                raw, _ = get_session_hours(nom, s_type, types)
+                factor = 1.5 if s_type == 'CM' else 0.75 if s_type == 'TP' else 1.0
+                eq = raw * factor
+                type_eqtd[(mid, s_type)] = eq
+                total += eq
+            module_eqtd[mid] = round(total)
+
+        # --- Detect what is new since the last distribution ---
+        teachers_with_sessions = set(
+            Sceance.objects.filter(enseignant_id__isnull=False)
+            .values_list('enseignant_id', flat=True).distinct()
+        )
+        new_teachers = [t for t in teachers if t.id not in teachers_with_sessions]
+
+        orphan_module_ids = set(
+            Sceance.objects.filter(module_id__in=module_ids, enseignant__isnull=True)
+            .values_list('module_id', flat=True).distinct()
+        )
+
+        scheduled_ids = set(module_ids)
+        filieres_without_sessions = [
+            f.nom
+            for f in Filiere.objects.prefetch_related('modules').order_by('nom')
+            if not any(m.id in scheduled_ids for m in f.modules.all())
+        ]
+
+        # Nothing new => do not touch a single row.
+        if not new_teachers and not orphan_module_ids:
+            message = ("Aucun nouveau professeur ni nouvelle filière à répartir : "
+                       "aucun volume horaire n'a été modifié.")
+            if filieres_without_sessions:
+                message += (" Filière(s) sans séances, à planifier d'abord : "
+                            + ", ".join(filieres_without_sessions) + ".")
+            return Response({
+                "success": True,
+                "changed": False,
+                "message": message,
+                "total_teachers": len(teachers),
+                "modules_count": len(module_ids),
+                "sessions_updated": 0,
+                "new_teachers": 0,
+                "new_filieres": len(filieres_without_sessions),
+                "overloaded_count": 0,
+                "average_workload": 0,
+                "filieres_without_sessions": filieres_without_sessions,
+            })
+
+        # --- Current charge, computed teacher by teacher, type by type ---
+        prof_load = {t.id: 0.0 for t in teachers}
+        for mid, s_type, tid in (
+            Sceance.objects.filter(module_id__in=module_ids, enseignant_id__in=teacher_ids)
+            .values_list('module_id', 'type', 'enseignant_id').distinct()
+        ):
+            prof_load[tid] += type_eqtd.get((mid, s_type), 0.0)
+
+        # A new teacher means the whole distribution has to be rebalanced so they
+        # receive a fair share. Without one, only the modules nobody owns move.
+        full_rebalance = bool(new_teachers)
+        if full_rebalance:
+            prof_load = {t.id: 0.0 for t in teachers}
+            targets = set(module_ids)
+        else:
+            targets = set(orphan_module_ids)
+
+        habilitations = {}
+        through = Utilisateur.modules.through
+        for uid, mid in (
+            through.objects.filter(module_id__in=targets)
+            .values_list('utilisateur_id', 'module_id')
+        ):
+            habilitations.setdefault(mid, set()).add(uid)
+
+        # Deterministic order so two runs on an unchanged DB produce the same result.
+        ordered_targets = sorted(targets, key=lambda mid: (-module_eqtd.get(mid, 0), mid))
+
+        sessions_updated = 0
+        for mid in ordered_targets:
+            mod = module_by_id[mid]
+            eqtd = module_eqtd.get(mid, 0)
+
+            hab = [t for t in teachers if t.id in habilitations.get(mid, ())]
+            by_spec = [t for t in teachers
+                       if (t.specialite or 'INFORMATIQUE') == get_module_speciality(mod.nom)]
+            candidates = hab or by_spec or teachers
+
+            under_seuil = [t for t in candidates if prof_load[t.id] + eqtd <= prof_seuil[t.id]]
+            pool = under_seuil or candidates
+            chosen = min(pool, key=lambda t: (prof_load[t.id], t.id))
+            prof_load[chosen.id] += eqtd
+
+            qs = Sceance.objects.filter(module_id=mid)
+            if not full_rebalance:
+                # Never steal a session that already has a teacher.
+                qs = qs.filter(enseignant__isnull=True)
+            updated = qs.exclude(enseignant_id=chosen.id).update(enseignant_id=chosen.id)
+            sessions_updated += updated
+
+        loads = list(prof_load.values())
+        overloaded = sum(1 for tid, load in prof_load.items() if load > prof_seuil[tid])
+        average_workload = round(sum(loads) / len(loads)) if loads else 0
+
+        if full_rebalance:
+            message = (f"{len(new_teachers)} nouvel(aux) enseignant(s) pris en compte : "
+                       f"{sessions_updated} séance(s) réaffectée(s) sur {len(teachers)} enseignants.")
+        else:
+            message = (f"{len(orphan_module_ids)} module(s) sans enseignant : "
+                       f"{sessions_updated} séance(s) attribuée(s) sur {len(teachers)} enseignants.")
+        if filieres_without_sessions:
+            message += (" Filière(s) sans séances, à planifier d'abord : "
+                        + ", ".join(filieres_without_sessions) + ".")
+
+        return Response({
+            "success": True,
+            "changed": sessions_updated > 0,
+            "message": message,
+            "total_teachers": len(teachers),
+            "modules_count": len(module_ids),
+            "sessions_updated": sessions_updated,
+            "new_teachers": len(new_teachers),
+            "new_filieres": len(filieres_without_sessions),
+            "overloaded_count": overloaded,
+            "average_workload": average_workload,
+            "filieres_without_sessions": filieres_without_sessions,
+        })
